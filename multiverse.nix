@@ -1,20 +1,20 @@
 # A nixpkgs multiverse: every indexed revision reachable from a single evaluation.
 #
-# Revisions are *fetched*, not vendored. `builtins.fetchGit` against a nixpkgs
-# clone yields byte-identical derivations to a checked-out tree — store paths
-# derive from content and basename, never from location — so everything Hydra
-# built stays a cache hit while the repo itself holds only an index.
+# Revisions are *fetched*, not vendored. A revision fetched into the store
+# yields byte-identical derivations to a checked-out tree — store paths derive
+# from content and basename, never from location or fetcher — so everything
+# Hydra built stays a cache hit while the repo itself holds only an index.
 #
 # Two properties shape this file:
 #
 #   1. The version axis must never become top-level attributes. Nix parses a
 #      file in full before it can look anything up in it, so a flat attrset of
 #      every (package, version) pair would be paid for by every evaluation,
-#      including ones that touch nothing. The index is JSON, read lazily.
+#      including ones that touch nothing.
 #
 #   2. Cost is per *revision touched*, not per package. Revisions are memoised
-#      below so that asking for five packages out of 24.11 instantiates 24.11
-#      exactly once. Revisions nobody asks for are never fetched at all.
+#      below so that asking for five packages out of one revision instantiates
+#      it exactly once. Revisions nobody asks for are never fetched at all.
 {
   system ? builtins.currentSystem,
   config ? { },
@@ -31,56 +31,143 @@
 }:
 
 let
-  # {name -> {rev, date}} — the set of revisions this multiverse knows about.
+  # One ordered array of every known revision, oldest first. Releases are
+  # ordinary entries carrying an extra `release` label ("25.05"); everything
+  # else is a nixos-unstable channel bump. There is no separate release list —
+  # a release is just a commit someone gave a nice name.
   revisions = builtins.fromJSON (builtins.readFile ./revisions.json);
 
-  # {attr -> {version -> [revname, ...]}}, revisions ascending.
-  # Nothing below forces this unless a version lookup actually happens.
+  # { revisionCount, attrs = { attr = { version = <offset into revisions>; }; } }
+  #
+  # Only the NEWEST revision shipping each version is recorded. Keeping the full
+  # list is what makes an index grow with revision count rather than with
+  # content: a package that never changes version would otherwise accumulate one
+  # entry per revision — ~47 KB for a single version of a single package at this
+  # scale, and ~103 MB across the index. Newest-only projects to ~5.4 MB for the
+  # same coverage.
+  #
+  # Newest is also the build-correct choice: the most patched build, and the one
+  # Hydra produced most recently, so the most likely to still substitute.
+  # "Which revisions *also* had this version" is a history question — it belongs
+  # in tooling built from index/.per-rev, not in a file parsed on every eval.
   index = builtins.fromJSON (builtins.readFile ./index/versions.json);
 
-  revNames = builtins.attrNames revisions;
+  nRevs = builtins.length revisions;
+  offsets = builtins.genList (i: i) nRevs;
+  revAt = i: builtins.elemAt revisions i;
 
-  # Resolve a revision name to a store path. Fetches land in the store and are
-  # reused across evaluations, so the second use of a revision costs nothing.
-  pathFor =
-    name:
+  # The index stores bare offsets, so it is only valid against the revision list
+  # it was built from. Appending revisions is safe; reordering is not, and this
+  # catches that rather than silently resolving to the wrong commit.
+  checkedIndex =
+    if (index.revisionCount or null) != nRevs then
+      throw ''
+        multiverse: index/versions.json was built against ${toString (index.revisionCount or 0)}
+        revisions but revisions.json now has ${toString nRevs}. Re-run tools/build-index.sh.
+      ''
+    else
+      index;
+
+  attrIndex = checkedIndex.attrs;
+
+  # A human handle for a revision: its release name if it has one, otherwise
+  # date plus short rev, which is what you actually want to see for an
+  # unstable bump.
+  labelOf =
+    i:
     let
-      meta = revisions.${name};
+      r = revAt i;
+    in
+    r.release or "${r.date}-${builtins.substring 0 12 r.rev}";
+
+  # Release name -> offset. Only the labelled handful, so this stays small.
+  releaseOffsets = builtins.listToAttrs (
+    builtins.concatMap (
+      i:
+      let
+        r = revAt i;
+      in
+      if r ? release then
+        [
+          {
+            name = r.release;
+            value = i;
+          }
+        ]
+      else
+        [ ]
+    ) offsets
+  );
+
+  # Newest revision dated on or before `date`. Revisions are date-ordered, so a
+  # left fold keeping the last match is enough.
+  offsetOnOrBefore =
+    date: builtins.foldl' (acc: i: if (revAt i).date <= date then i else acc) null offsets;
+
+  # First revision whose commit hash starts with `sha`.
+  offsetOfRev =
+    sha:
+    builtins.foldl' (
+      acc: i:
+      if acc != null then
+        acc
+      else if builtins.substring 0 (builtins.stringLength sha) (revAt i).rev == sha then
+        i
+      else
+        acc
+    ) null offsets;
+
+  # `at` accepts a release name, a YYYY-MM-DD date, or a commit hash prefix.
+  resolve =
+    sel:
+    if releaseOffsets ? ${sel} then
+      releaseOffsets.${sel}
+    else if builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" sel != null then
+      let
+        i = offsetOnOrBefore sel;
+      in
+      if i == null then throw "multiverse: no revision on or before ${sel}" else i
+    else
+      let
+        i = offsetOfRev sel;
+      in
+      if i == null then
+        throw "multiverse: '${sel}' is not a release name, a YYYY-MM-DD date, or a known commit"
+      else
+        i;
+
+  pathFor =
+    i:
+    let
+      r = revAt i;
     in
     if fetcher == "local" then
       builtins.fetchGit {
         url = nixpkgsSource;
-        rev = meta.rev;
+        rev = r.rev;
         allRefs = true;
       }
-    else if meta ? narHash then
+    else if r ? narHash then
       builtins.fetchTree {
         type = "github";
         owner = "NixOS";
         repo = "nixpkgs";
-        rev = meta.rev;
-        inherit (meta) narHash;
+        rev = r.rev;
+        inherit (r) narHash;
       }
     else
-      throw "multiverse: revision '${name}' has no narHash; run tools/add-narhashes.sh or use fetcher = \"local\"";
+      throw "multiverse: revision ${labelOf i} has no narHash; re-run tools/build-index.sh or use fetcher = \"local\"";
 
-  importRev =
-    name:
-    if !(revisions ? ${name}) then
-      throw "multiverse: unknown revision '${name}'. Known: ${builtins.concatStringsSep ", " revNames}"
-    else
-      import (pathFor name) { inherit system config overlays; };
-
-  # Memoise per revision. listToAttrs is lazy in its values, so building this
-  # map costs one thunk per revision and fetches nothing.
+  # Memoise per revision, keyed by offset. listToAttrs is lazy in its values, so
+  # building this costs one thunk per revision and fetches nothing.
   instances = builtins.listToAttrs (
-    map (name: {
-      name = name;
-      value = importRev name;
-    }) revNames
+    map (i: {
+      name = toString i;
+      value = import (pathFor i) { inherit system config overlays; };
+    }) offsets
   );
 
-  versionsFor = attr: if index ? ${attr} then index.${attr} else { };
+  versionsFor = attr: attrIndex.${attr} or { };
 
   # `builtins.attrNames` sorts lexicographically, which puts 3.12.10 before
   # 3.12.7. Sort with the version-aware comparator instead. Deliberately uses
@@ -89,29 +176,41 @@ let
   sortVersions = builtins.sort (a: b: builtins.compareVersions a b < 0);
 in
 rec {
-  # Revision names, and the full {rev, date} metadata.
-  revs = revNames;
   inherit revisions index;
 
-  # A whole nixpkgs, as it was at that release.
-  at = name: instances.${name};
+  # Human handles for every revision, oldest first.
+  revs = map labelOf offsets;
+
+  # Just the named releases.
+  releases = builtins.attrNames releaseOffsets;
+
+  # A whole nixpkgs, as it was at that revision.
+  #   at "25.05"        release name
+  #   at "2024-06-12"   newest revision on or before that date
+  #   at "aae12a743f75" commit hash prefix
+  at = sel: instances.${toString (resolve sel)};
 
   # Every known version of an attribute, oldest first.
   versionsOf = attr: sortVersions (builtins.attrNames (versionsFor attr));
 
-  # Which revisions provide a given version.
-  revsFor = attr: version: (versionsFor attr).${version} or [ ];
+  # The revision a given version resolves to, as a human handle.
+  revOf =
+    attr: ver:
+    let
+      i = (versionsFor attr).${ver} or null;
+    in
+    if i == null then null else labelOf i;
 
-  # The headline operation: a specific version of a package, taken from the
-  # newest revision that shipped it. Distinct graphs coexist happily — Nix
-  # keeps them disjoint, so several versions can sit in one buildEnv.
+  # The headline operation: a specific version of a package. Distinct graphs
+  # coexist happily — Nix keeps them disjoint, so several versions of the same
+  # package can sit in one buildEnv.
   version =
     attr: ver:
     let
-      candidates = revsFor attr ver;
+      i = (versionsFor attr).${ver} or null;
       known = versionsOf attr;
     in
-    if candidates == [ ] then
+    if i == null then
       throw ''
         multiverse: no revision provides ${attr} ${ver}.
         Known versions: ${
@@ -119,21 +218,17 @@ rec {
         }
       ''
     else
-      (at (builtins.elemAt candidates (builtins.length candidates - 1))).${attr};
+      instances.${toString i}.${attr};
 
-  # Materialised {attr -> {version -> derivation}}.
+  # Materialised {attr -> {version -> derivation}}, so plain flake installable
+  # syntax works — `nix shell .#versions.python3."3.8.9"` — which the function
+  # API above cannot express, because a flake attribute path takes no arguments.
   #
-  # This exists so the multiverse works with plain flake installable syntax —
-  # `nix shell .#versions.python3."3.8.9"` — which the function-based API above
-  # cannot express, because a flake attribute path cannot take arguments.
-  #
-  # It does not reintroduce the cost this design avoids: `mapAttrs` is lazy in
-  # its values, so forcing one version instantiates exactly one revision and
-  # leaves the other ~117k (attr, version) pairs as untouched thunks. The only
-  # fixed cost is parsing the index, which `versionsOf` already pays.
+  # `mapAttrs` is lazy in its values, so forcing one version instantiates
+  # exactly one revision and leaves every other pair an untouched thunk.
   versions = builtins.mapAttrs (
     attr: vers: builtins.mapAttrs (ver: _: version attr ver) vers
-  ) index;
+  ) attrIndex;
 
   # Latest known version of an attribute.
   latest =
@@ -141,5 +236,8 @@ rec {
     let
       vs = versionsOf attr;
     in
-    if vs == [ ] then throw "multiverse: '${attr}' is not in the index" else version attr (builtins.elemAt vs (builtins.length vs - 1));
+    if vs == [ ] then
+      throw "multiverse: '${attr}' is not in the index"
+    else
+      version attr (builtins.elemAt vs (builtins.length vs - 1));
 }

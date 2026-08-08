@@ -6,16 +6,16 @@
 # revisions and coexist in one derivation because Nix keeps their dependency
 # graphs disjoint.
 let
-  mega = import ../. { };
+  mv = import ../. { };
 
   # Newest revision supplies the builder itself; the contents come from wherever
   # each version happens to live.
-  host = mega.at "25.05";
+  host = mv.at "25.05";
 
   pythons = [
-    (mega.version "python3" "3.10.11") # 23.05
-    (mega.version "python3" "3.11.9") # 24.05
-    (mega.version "python3" "3.12.10") # 25.05
+    (mv.version "python3" "3.10.11") # 23.05
+    (mv.version "python3" "3.11.9") # 24.05
+    (mv.version "python3" "3.12.10") # 25.05
   ];
 in
 {

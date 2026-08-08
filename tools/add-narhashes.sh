@@ -1,48 +1,59 @@
 #!/usr/bin/env bash
-# Adds a narHash to every entry in revisions.json.
+# Fills in narHash for revisions that lack one.
 #
-# The hash is computed from a local git checkout rather than by downloading
-# each GitHub tarball. That is sound because nixpkgs sets no `export-ignore`
-# attributes, so `git archive` output and the GitHub tarball contain exactly
-# the same files, and therefore hash identically. Verified against 25.05:
-# the locally computed narHash was accepted by builtins.fetchTree under pure
-# evaluation, and the resulting python3 derivation matched the fetchGit one
-# byte for byte.
+# build-index.sh computes narHash while it has a revision checked out, so this
+# is only needed for revisions whose extraction predates that, or which were
+# added to revisions.json without being indexed. By default it only visits
+# revisions the index actually references, since those are the ones the GitHub
+# fetcher needs; pass --all to cover every revision.
+#
+# The hash comes from a plain `git archive` checkout rather than a downloaded
+# tarball. That is sound because nixpkgs sets no `export-ignore` attributes, so
+# the archive and the GitHub tarball contain identical files. Verified against
+# 25.05: the locally computed narHash was accepted by builtins.fetchTree under
+# pure evaluation, and produced a byte-identical derivation.
 set -euo pipefail
 
 MT="$(cd "$(dirname "$0")/.." && pwd)"
 NIXPKGS="${NIXPKGS:-/home/fmzakari/code/github.com/NixOS/nixpkgs}"
 REVFILE="$MT/revisions.json"
-TMP=$(mktemp)
-trap 'rm -f "$TMP"' EXIT
+ALL=0
+[ "${1:-}" = "--all" ] && ALL=1
 
-python3 -c "import json;print('\n'.join(json.load(open('$REVFILE')).keys()))" | while read -r rev; do
-  sha=$(python3 -c "import json;print(json.load(open('$REVFILE'))['$rev']['rev'])")
-  printf "  %-6s " "$rev"
+mapfile -t NEED < <(python3 -c "
+import json, os
+revs = json.load(open('$REVFILE'))
+if $ALL:
+    targets = range(len(revs))
+else:
+    idx = json.load(open('$MT/index/versions.json'))
+    targets = sorted(set(v for vs in idx['attrs'].values() for v in vs.values()))
+for i in targets:
+    if 'narHash' not in revs[i]:
+        print(i, revs[i]['rev'])
+")
 
-  # fetchGit materialises the revision in the store (cached after first use).
-  path=$(nix-instantiate --eval --raw -E \
-    "builtins.fetchGit { url = $NIXPKGS; rev = \"$sha\"; allRefs = true; }" 2>/dev/null || true)
-  if [ -z "$path" ]; then echo "FETCH FAILED"; continue; fi
-
-  hash=$(nix hash path --sri --type sha256 "$path" 2>/dev/null \
-      || nix hash-path --sri --type sha256 "$path" 2>/dev/null || true)
-  if [ -z "$hash" ]; then echo "HASH FAILED"; continue; fi
-
-  echo "$rev $hash" >> "$TMP"
-  echo "$hash"
+echo "revisions needing a narHash: ${#NEED[@]}"
+n=0
+for line in "${NEED[@]}"; do
+  set -- $line; off=$1; sha=$2; n=$((n+1))
+  tmp=$(mktemp -d)
+  if git -C "$NIXPKGS" archive "$sha" 2>/dev/null | tar -x -C "$tmp"; then
+    hash=$(nix hash path --sri --type sha256 "$tmp" 2>/dev/null || true)
+    if [ -n "$hash" ]; then
+      python3 -c "
+import json
+p = '$REVFILE'
+revs = json.load(open(p))
+revs[$off]['narHash'] = '$hash'
+json.dump(revs, open(p, 'w'), indent=1)
+"
+      printf "  [%d/%d] %s %s\n" "$n" "${#NEED[@]}" "${sha:0:12}" "${hash:0:28}..."
+    else
+      printf "  [%d/%d] %s HASH FAILED\n" "$n" "${#NEED[@]}" "${sha:0:12}"
+    fi
+  else
+    printf "  [%d/%d] %s CHECKOUT FAILED (rev not in clone? try git fetch)\n" "$n" "${#NEED[@]}" "${sha:0:12}"
+  fi
+  rm -rf "$tmp"
 done
-
-python3 - "$REVFILE" "$TMP" <<'PY'
-import json, sys
-revfile, hashfile = sys.argv[1], sys.argv[2]
-revs = json.load(open(revfile))
-n = 0
-for line in open(hashfile):
-    parts = line.split()
-    if len(parts) == 2 and parts[0] in revs and parts[1].startswith('sha256-'):
-        revs[parts[0]]['narHash'] = parts[1]
-        n += 1
-json.dump(revs, open(revfile, 'w'), indent=1)
-print(f"{n}/{len(revs)} revisions now carry a narHash")
-PY
