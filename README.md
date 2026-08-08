@@ -3,6 +3,8 @@
 Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 no juggling `nixpkgs` pinned at N commits, no vendored trees.
 
+![lotr meme "One flake to rule them all"](./multiverse_lotr.jpg)
+
 ## Every CPython ever packaged, running at once
 
 ```console
