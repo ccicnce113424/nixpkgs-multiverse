@@ -10,7 +10,7 @@
 }:
 
 let
-  mega = import ../megatree.nix { inherit system fetcher; };
+  mega = import ../multiverse.nix { inherit system fetcher; };
 
   # The newest revision supplies the builder. Everything else is historical.
   host = mega.at "26.05";

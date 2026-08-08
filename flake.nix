@@ -8,7 +8,7 @@
   # nixpkgs inputs whose output referenced only the first still materialised all
   # three (~378 MB of store each). At 13 revisions that is ~4.9 GB fetched
   # before any evaluation can begin, and it grows linearly with every revision
-  # added — which would defeat the entire point of a megatree.
+  # added — which would defeat the entire point of a multiverse.
   #
   # Revisions are instead fetched lazily from index/versions.json via
   # builtins.fetchTree, so only the revisions actually touched are ever
@@ -37,16 +37,16 @@
         );
     in
     {
-      # The megatree API, per system.
-      #   nix eval .#megatree.x86_64-linux.versionsOf --apply 'f: f "python3"'
-      megatree = forAllSystems (system: import ./megatree.nix { inherit system; });
+      # The multiverse API, per system.
+      #   nix eval .#multiverse.x86_64-linux.versionsOf --apply 'f: f "python3"'
+      multiverse = forAllSystems (system: import ./multiverse.nix { inherit system; });
 
-      # `mkMegatree` for callers who need to pass config/overlays through.
-      lib.mkMegatree = args: import ./megatree.nix args;
+      # `mkMultiverse` for callers who need to pass config/overlays through.
+      lib.mkMultiverse = args: import ./multiverse.nix args;
 
       # legacyPackages is the conventional escape hatch for a non-flat package
-      # set, which is exactly what a megatree is.
-      legacyPackages = forAllSystems (system: import ./megatree.nix { inherit system; });
+      # set, which is exactly what a multiverse is.
+      legacyPackages = forAllSystems (system: import ./multiverse.nix { inherit system; });
 
       packages = forAllSystems (system: {
         every-python = import ./demos/every-python.nix { inherit system; };

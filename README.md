@@ -1,4 +1,4 @@
-# nixpkgs-megatree
+# nixpkgs-multiverse
 
 Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 no juggling `nixpkgs` pinned at N commits, no vendored trees.
@@ -6,7 +6,7 @@ no juggling `nixpkgs` pinned at N commits, no vendored trees.
 ## Every CPython ever packaged, running at once
 
 ```console
-$ nix build github:fzakaria/nixpkgs-megatree#every-python && cat result
+$ nix build github:fzakaria/nixpkgs-multiverse#every-python && cat result
 ```
 
 ```
@@ -55,7 +55,7 @@ distinct (attr, version) pairs. The repo is **12 MB** — revisions are fetched
 lazily and only when touched.
 
 ```console
-$ nix shell 'github:fzakaria/nixpkgs-megatree#versions.python3."3.8.9"' -c python3 --version
+$ nix shell 'github:fzakaria/nixpkgs-multiverse#versions.python3."3.8.9"' -c python3 --version
 Python 3.8.9
 ```
 
@@ -67,26 +67,26 @@ A 2021 Python running on a 2026 machine, substituted rather than built.
 
 ```console
 $ nix repl
-nix-repl> :lf github:fzakaria/nixpkgs-megatree
+nix-repl> :lf github:fzakaria/nixpkgs-multiverse
 Added 12 variables.
 
-nix-repl> megatree.x86_64-linux.versionsOf "ripgrep"
+nix-repl> multiverse.x86_64-linux.versionsOf "ripgrep"
 [ "0.4.0" "0.6.0" "0.8.1" "0.9.0" "0.10.0" "11.0.2" "12.1.1" "13.0.0"
   "14.1.0" "14.1.1" "15.1.0" ]
 
-nix-repl> megatree.x86_64-linux.revsFor "python3" "3.8.9"
+nix-repl> multiverse.x86_64-linux.revsFor "python3" "3.8.9"
 [ "21.05" ]
 
-nix-repl> megatree.x86_64-linux.revisions."21.05"
+nix-repl> multiverse.x86_64-linux.revisions."21.05"
 { date = "2021-05-31";
   narHash = "sha256-ZjBd81a6J3TwtlBr3rHsZspYUwT9OdhDk+a/SgSEf7I=";
   rev = "fefb0df7d2ab2e1cabde7312238026dcdc972441"; }
 
 # A whole nixpkgs as it was at a release:
-nix-repl> (megatree.x86_64-linux.at "24.11").hello.version
+nix-repl> (multiverse.x86_64-linux.at "24.11").hello.version
 "2.12.1"
 
-nix-repl> megatree.x86_64-linux.latest "jq"
+nix-repl> multiverse.x86_64-linux.latest "jq"
 «derivation /nix/store/hvdnz13lnsmi1h7hd5clvr10b910a35k-jq-1.8.1.drv»
 ```
 
@@ -110,7 +110,7 @@ $ nix build '.#versions.jq."1.6"' --print-out-paths
 ### Query from the command line
 
 ```console
-$ nix eval --json --apply 'f: f "gcc"' .#megatree.x86_64-linux.versionsOf
+$ nix eval --json --apply 'f: f "gcc"' .#multiverse.x86_64-linux.versionsOf
 ["5.4.0","6.4.0","7.3.0","7.4.0","8.3.0","9.2.0","9.3.0","10.3.0","11.3.0",
  "12.2.0","12.3.0","13.2.0","13.3.0","14.2.1.20250322","14.3.0","15.2.0"]
 ```
@@ -153,9 +153,9 @@ coexisting, because Nix keeps the dependency graphs disjoint.
 
 ```nix
 {
-  inputs.megatree.url = "github:fzakaria/nixpkgs-megatree";
-  outputs = { self, nixpkgs, megatree }: let
-    mega = megatree.megatree.x86_64-linux;
+  inputs.multiverse.url = "github:fzakaria/nixpkgs-multiverse";
+  outputs = { self, nixpkgs, multiverse }: let
+    mega = multiverse.multiverse.x86_64-linux;
   in {
     devShells.x86_64-linux.default = nixpkgs.legacyPackages.x86_64-linux.mkShell {
       packages = [ (mega.version "python3" "3.8.9") (mega.version "nodejs" "14.17.0") ];
@@ -166,7 +166,7 @@ coexisting, because Nix keeps the dependency graphs disjoint.
 
 ### Without flakes
 
-`default.nix` forwards to `megatree.nix`. This is the one idiom flakes cannot
+`default.nix` forwards to `multiverse.nix`. This is the one idiom flakes cannot
 express, since a flake attribute path cannot take arguments:
 
 ```console
@@ -252,8 +252,8 @@ Indexing all ~2000 channel bumps would be ~4.5 CPU-hours.
 ## Layout
 
 ```
-megatree.nix            the implementation
-default.nix             forwards to megatree.nix (non-flake entry point)
+multiverse.nix            the implementation
+default.nix             forwards to multiverse.nix (non-flake entry point)
 flake.nix               same API, deliberately no inputs
 revisions.json          {name: {rev, date, narHash}} — what exists
 index/versions.json     {attr: {version: [rev, ...]}} — read lazily

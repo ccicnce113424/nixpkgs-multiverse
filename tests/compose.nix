@@ -1,4 +1,4 @@
-# Demonstrates the point of the megatree: several versions of the same package,
+# Demonstrates the point of the multiverse: several versions of the same package,
 # drawn from different vendored revisions, composed inside a single evaluation.
 #
 # This is what a multi-input flake makes painful and what indexing-by-commit

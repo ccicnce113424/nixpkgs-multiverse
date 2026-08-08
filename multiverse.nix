@@ -1,4 +1,4 @@
-# A nixpkgs megatree: every indexed revision reachable from a single evaluation.
+# A nixpkgs multiverse: every indexed revision reachable from a single evaluation.
 #
 # Revisions are *fetched*, not vendored. `builtins.fetchGit` against a nixpkgs
 # clone yields byte-identical derivations to a checked-out tree — store paths
@@ -31,7 +31,7 @@
 }:
 
 let
-  # {name -> {rev, date}} — the set of revisions this megatree knows about.
+  # {name -> {rev, date}} — the set of revisions this multiverse knows about.
   revisions = builtins.fromJSON (builtins.readFile ./revisions.json);
 
   # {attr -> {version -> [revname, ...]}}, revisions ascending.
@@ -62,12 +62,12 @@ let
         inherit (meta) narHash;
       }
     else
-      throw "megatree: revision '${name}' has no narHash; run tools/add-narhashes.sh or use fetcher = \"local\"";
+      throw "multiverse: revision '${name}' has no narHash; run tools/add-narhashes.sh or use fetcher = \"local\"";
 
   importRev =
     name:
     if !(revisions ? ${name}) then
-      throw "megatree: unknown revision '${name}'. Known: ${builtins.concatStringsSep ", " revNames}"
+      throw "multiverse: unknown revision '${name}'. Known: ${builtins.concatStringsSep ", " revNames}"
     else
       import (pathFor name) { inherit system config overlays; };
 
@@ -113,7 +113,7 @@ rec {
     in
     if candidates == [ ] then
       throw ''
-        megatree: no revision provides ${attr} ${ver}.
+        multiverse: no revision provides ${attr} ${ver}.
         Known versions: ${
           if known == [ ] then "(attribute not in index)" else builtins.concatStringsSep " " known
         }
@@ -123,7 +123,7 @@ rec {
 
   # Materialised {attr -> {version -> derivation}}.
   #
-  # This exists so the megatree works with plain flake installable syntax —
+  # This exists so the multiverse works with plain flake installable syntax —
   # `nix shell .#versions.python3."3.8.9"` — which the function-based API above
   # cannot express, because a flake attribute path cannot take arguments.
   #
@@ -141,5 +141,5 @@ rec {
     let
       vs = versionsOf attr;
     in
-    if vs == [ ] then throw "megatree: '${attr}' is not in the index" else version attr (builtins.elemAt vs (builtins.length vs - 1));
+    if vs == [ ] then throw "multiverse: '${attr}' is not in the index" else version attr (builtins.elemAt vs (builtins.length vs - 1));
 }
