@@ -190,6 +190,16 @@ rec {
   #   at "aae12a743f75" commit hash prefix
   at = sel: instances.${toString (resolve sel)};
 
+  # The newest revision this index knows, as a real nixpkgs — `lib`,
+  # `callPackage`, and a package set that is internally consistent, which is
+  # what `latest` deliberately is not.
+  #
+  # Named for the tip of the *index*, not the tip of the channel. It is frozen
+  # at whatever the last indexing run captured and drifts further behind
+  # nixos-unstable every day until the index is rebuilt. If you want the live
+  # channel, add a nixpkgs input; multiverse is for reaching backwards.
+  tip = instances.${toString (nRevs - 1)};
+
   # Every known version of an attribute, oldest first.
   versionsOf = attr: sortVersions (builtins.attrNames (versionsFor attr));
 
