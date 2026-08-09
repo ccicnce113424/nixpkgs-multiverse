@@ -230,14 +230,24 @@ rec {
     attr: vers: builtins.mapAttrs (ver: _: version attr ver) vers
   ) attrIndex;
 
-  # Latest known version of an attribute.
-  latest =
-    attr:
+  # Newest known version of each attribute, as a plain attrset so it works as a
+  # flake installable:
+  #
+  #   nix run 'github:fzakaria/nixpkgs-multiverse#latest.python3'
+  #   mv.latest.python3
+  #
+  # A sibling attrset rather than a `latest` key inside `versions.<pkg>`: that
+  # would mix an alias into keys that are otherwise version strings, and would
+  # collide with any package whose upstream literally ships a version called
+  # "latest" (`relibc` does). Here the two namespaces never touch.
+  #
+  # `mapAttrs` is lazy in its values, so this costs one thunk per attribute and
+  # resolves nothing until asked.
+  latest = builtins.mapAttrs (
+    attr: vers:
     let
-      vs = versionsOf attr;
+      sorted = sortVersions (builtins.attrNames vers);
     in
-    if vs == [ ] then
-      throw "multiverse: '${attr}' is not in the index"
-    else
-      version attr (builtins.elemAt vs (builtins.length vs - 1));
+    version attr (builtins.elemAt sorted (builtins.length sorted - 1))
+  ) attrIndex;
 }
