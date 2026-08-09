@@ -73,25 +73,78 @@ nix-repl> multiverse.x86_64-linux.releases
 Enumerating versions fetches nothing — it reads the index only. A revision is
 materialised the first time you force a derivation.
 
-### Use a specific version
+### The three ways in
 
-`versions` is a lazy `{attr → {version → derivation}}` map, so plain flake
-installable syntax works:
+| | what it gives you | consistent set? |
+|---|---|---|
+| `versions.<pkg>.<version>` | one exact version | n/a |
+| `latest.<pkg>` | newest version of that package, ever | **no** |
+| `tip` / `at <sel>` | a whole Nixpkgs | yes |
+
+All three are plain attributes, so they work as flake installables:
 
 ```console
 $ nix shell '.#versions.python3."3.8.9"' -c python3 --version
-$ nix build '.#versions.jq."1.6"' --print-out-paths
+$ nix run   '.#latest.python3' -- --version
+$ nix run   '.#tip.ripgrep' -- --version
 ```
 
-### Get a whole nixpkgs
+### A specific version
 
-`at` takes a release name, a date, or a commit prefix:
+`versions` is a lazy `{attr → {version → derivation}}` map. Its keys are only
+ever real version strings.
+
+```nix
+mv.versions.python3."3.8.9"
+mv.version "python3" "3.8.9"   # same thing, as a function
+```
+
+### The newest version of a package
+
+```nix
+mv.latest.python3
+```
+
+`latest` is an attrset of 30,947 derivations, but it is **not** a Nixpkgs and
+its members are **not** mutually consistent. Each is the newest version of that
+package from whichever revision last shipped it — `python3` from 2026, a package
+Nixpkgs dropped in 2018 from 2018. Only 23,392 of the 30,947 attributes have
+their newest version in a 2026 revision.
+
+That is what makes it useful: it reaches packages Nixpkgs has since removed.
+`mv.latest.relibc` resolves; `mv.tip.relibc` does not exist.
+
+### A whole nixpkgs
+
+`at` takes a release name, a date, or a commit prefix; `tip` is the newest
+revision the index knows.
 
 ```nix
 mv.at "24.11"          # release
 mv.at "2022-03-15"     # newest revision on or before that date
 mv.at "aae12a743f75"   # commit prefix
+mv.tip                 # newest indexed revision
 ```
+
+These are real Nixpkgs instances — `lib`, `callPackage`, an internally
+consistent package set.
+
+`tip` is the tip of the **index**, not of the channel. It is frozen at the last
+indexing run and drifts behind `nixos-unstable` until the index is rebuilt. For
+the live channel, add a `nixpkgs` input; multiverse is for reaching backwards.
+
+### Querying without building anything
+
+```nix
+mv.versionsOf "python3"     # every known version, version-aware sort
+mv.revOf "python3" "3.8.9"  # "2021-07-18-967d40bec14b"
+mv.releases                 # [ "15.09" … "26.05" ]
+mv.revs                     # every revision label, oldest first
+mv.revisions                # the raw {rev, date, narHash} array
+```
+
+Use `versionsOf` rather than `builtins.attrNames mv.versions.<pkg>`: `attrNames`
+sorts lexicographically, which puts `3.9.5` after `3.9.13`.
 
 ### Compose several versions at once
 
