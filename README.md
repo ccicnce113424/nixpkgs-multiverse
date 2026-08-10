@@ -6,6 +6,13 @@ Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 
 ![lotr meme "One flake to rule them all"](./multiverse_lotr.jpg)
 
+## Status
+
+<!-- BEGIN index-status -->
+- **289,521 package versions** across 30,947 attributes, from 1,396 nixpkgs revisions spanning 2015-09-30 → 2026-07-19
+- **newest revision** [`241313f4e8e5`](https://github.com/NixOS/nixpkgs/commit/241313f4e8e508cb9b13278c2b0fa25b9ca27163) · 2026-07-19
+<!-- END index-status -->
+
 ## Usage
 
 Access every version of every package ever packaged in nixpkgs, from 2015 to 2026 as an installable.
@@ -90,7 +97,7 @@ mv.revOf "python3" "3.8.9"
 mv.releases
 # every revision label, oldest first
 mv.revs
-# the raw {rev, date, narHash} array
+# the raw {rev, date, channel, narHash, name} array, plus `release` on releases
 mv.revisions
 ```
 
@@ -115,18 +122,111 @@ As an input to your own flake
 }
 ```
 
+## Replacing several nixpkgs inputs
+
+A flake that pins two channels to get two package sets:
+
+```nix
+inputs = {
+  nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+  nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
+};
+```
+
+becomes one nixpkgs plus multiverse:
+
+```nix
+{
+  inputs = {
+    # Keep exactly one nixpkgs. It is what `follows` resolves to and where the
+    # module system gets its `lib`; see the next section.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    multiverse.url = "github:fzakaria/nixpkgs-multiverse";
+
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    { nixpkgs, multiverse, home-manager, ... }:
+    let
+      system = "x86_64-linux";
+      mv = multiverse.multiverse.${system};
+    in
+    {
+      # ...
+    };
+}
+```
+
+Every use of the second input has a replacement that costs nothing until it is
+forced:
+
+| before | after |
+|---|---|
+| `nixpkgs-unstable.legacyPackages.${system}.ripgrep` | `mv.tip.ripgrep` |
+| a second input pinned to another release | `mv.at "24.11"` |
+| a third input pinned to a commit for one package | `mv.version "ripgrep" "13.0.0"` |
+| a pin nobody remembers the reason for | `mv.at "2022-03-15"` |
+
+### What about `inputs.nixpkgs.follows`?
+
+You must still keep **one** real `nixpkgs` input and follow that.
+
+`follows` rewires one flake input to another *flake input*, and the target has to be shaped like nixpkgs. home-manager's own `flake.nix` evaluates `nixpkgs.lib` and `nixpkgs.legacyPackages.${system}` while producing its outputs.
+
+`nixpkgs-multiverse.legacyPackages.${system}` is the multiverse API, not a package set.
+
+```nix
+# does not work
+home-manager.inputs.nixpkgs.follows = "multiverse";
+```
+
+To build the home-manager configuration itself out of a multiverse revision you can wire it through `pkgs`:
+
+```nix
+home-manager.lib.homeManagerConfiguration {
+  pkgs = mv.at "26.05"; # or mv.tip, or mv.at "2026-03-01"
+  modules = [ ./home.nix ];
+}
+```
+
+NixOS is the same shape, with one wrinkle that you must go through `eval-config.nix`, which is what `nixosSystem` wraps:
+
+```nix
+let
+  pkgs = mv.at "26.05";
+in
+import "${pkgs.path}/nixos/lib/eval-config.nix" {
+  inherit system;
+  modules = [ ./configuration.nix ];
+}
+```
+
 ## Building the index
 
 ```sh
 # refresh revisions.json from the channel archive
-tools/fetch-unstable-revisions.sh
-# extract versions + narHashes
-tools/build-index.sh
+nix run .#fetch-unstable-revisions
+# extract versions + narHashes for every revision
+nix run .#build-index
+# only revisions the index has never covered
+nix run .#build-index -- --incremental
 # smoke test on the first 30
-tools/build-index.sh -n 30
+nix run .#build-index -- -n 30
 # rebuild the index from cache, no evaluation
-tools/build-index.sh --merge-only
+nix run .#build-index -- --merge-only
+# rewrite the status block at the top of this README
+nix run .#update-readme-status
 ```
+
+None of this needs a nixpkgs clone: revisions are resolved through the GitHub
+API and materialised with `nix flake prefetch`, which is what lets [the update
+workflow](.github/workflows/update-index.yml) run hourly and commit whatever
+moved. Set `NIXPKGS=/path/to/nixpkgs` to use a clone instead, which trades the
+download for a `git archive` and keeps the tree out of the store.
 
 ## License
 
