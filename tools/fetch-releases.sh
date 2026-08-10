@@ -43,9 +43,11 @@ API = 'https://api.github.com/repos/NixOS/nixpkgs/commits/'
 # 21.05-aarch64, unstable, unstable-small and two virtualbox image sets.
 RELEASE = re.compile(r'^\d\d\.\d\d$')
 
-# Releases older than this are on the far side of enough nixpkgs churn that
-# they are not worth carrying; 15.09 through 16.09 predate `overlays` and are
-# already reachable through revisions.json by date or commit.
+# The oldest release worth tracking. 13.10 through 16.09 do evaluate on a
+# current Nix now that `overlays` is withheld from revisions that predate it,
+# but their channel directories publish no `git-revision` object and their
+# names carry only a 7-character hash, which is ambiguous across ~600k commits
+# — so there is no reliable way to say which commit they are.
 OLDEST = '17.03'
 
 

@@ -11,13 +11,13 @@ Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 ![github master branch workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/update-index.yml/badge.svg?branch=main)
 
 <!-- BEGIN index-status -->
-- **297,645 package versions** across **31,507 attributes**, from **1,405 revisions**
-- 2015-09-30 → 2026-08-07, newest [`f13ff45afd1b`](https://github.com/NixOS/nixpkgs/commit/f13ff45afd1bb73e640eaa08a7066dbed07e3238) · [`nixos-26.11pre1049422`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1049422.f13ff45afd1b/)
+- **304,177 package versions** across **31,777 attributes**, from **1,536 revisions**
+- 2013-10-31 → 2026-08-07, newest [`f13ff45afd1b`](https://github.com/NixOS/nixpkgs/commit/f13ff45afd1bb73e640eaa08a7066dbed07e3238) · [`nixos-26.11pre1049422`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1049422.f13ff45afd1b/)
 <!-- END index-status -->
 
 ## Usage
 
-Access every version of every package ever packaged in nixpkgs, from 2015 to 2026 as an installable.
+Access every version of every package ever packaged in nixpkgs, from 2013 to 2026 as an installable.
 
 ```console
 $ nix run 'github:fzakaria/nixpkgs-multiverse#versions.python3."3.6.2"' -- --version
@@ -37,10 +37,10 @@ Query the flake for all the versions of a package that **ever existed in Nixpkgs
 $ nix eval --json --apply 'f: f "python3"' \
    github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux.versionsOf
 [
-  "3.5.3",
-  "3.6.2",
-  # 56 other versions omitted for brevity
-  # ... 
+  "3.3.2",
+  "3.4.3",
+  # 58 other versions omitted for brevity
+  # ...
   "3.13.13",
   "3.14.6"
 ]
@@ -75,10 +75,10 @@ Explore more with `nix repl`
 $ nix repl
 nix-repl> :lf github:fzakaria/nixpkgs-multiverse
 nix-repl> multiverse.x86_64-linux.versionsOf "python3"
-[ "3.5.3" "3.6.2" … "3.13.13" ]          # 57 versions
+[ "3.3.2" "3.4.3" … "3.14.6" ]           # 62 versions
 
 nix-repl> multiverse.x86_64-linux.revOf "python3" "3.8.9"
-"2021-07-06-00c86ad14639"
+"2021-07-18-967d40bec14b"
 
 nix-repl> multiverse.x86_64-linux.releases
 [ "17.03" "17.09" … "26.05" ]
@@ -252,6 +252,8 @@ nix run .#build-index -- --incremental
 nix run .#build-index -- -n 30
 # rebuild the index from cache, no evaluation
 nix run .#build-index -- --merge-only
+# extract this many revisions at once
+nix run .#build-index -- -j 40
 # rewrite the status block at the top of this README
 nix run .#update-readme-status
 ```

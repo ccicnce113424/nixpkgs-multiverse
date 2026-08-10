@@ -16,6 +16,7 @@
 #   tools/build-index.sh --merge-only    # rebuild the index from cache, no eval
 #   tools/build-index.sh --incremental   # only revisions the index has never
 #                                        # covered, merged into the existing one
+#   tools/build-index.sh -j 64           # extract that many revisions at once
 set -euo pipefail
 
 # Data lives in the checkout, code lives next to this script. Under `nix run`
@@ -23,6 +24,9 @@ set -euo pipefail
 # revisions.json and index/ must stay writable in the caller's checkout, which
 # the flake wrapper passes down as MULTIVERSE_ROOT.
 MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# Exported because -j re-invokes this script per revision; the children must
+# land on the same checkout rather than re-deriving it from their own $0.
+export MULTIVERSE_ROOT="$MT"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # Optional. Point NIXPKGS at a clone to check revisions out of it rather than
 # downloading them; with no clone every revision is materialised through
@@ -34,11 +38,16 @@ WORK="$MT/index/.per-rev"
 LIMIT=0
 MERGE_ONLY=0
 INCREMENTAL=0
+JOBS=1
+SUBCOMMAND=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -n) LIMIT="${2:-0}"; shift 2 ;;
     --merge-only) MERGE_ONLY=1; shift ;;
     --incremental) INCREMENTAL=1; shift ;;
+    -j) JOBS="${2:-1}"; shift 2 ;;
+    # Internal: how -j hands one revision to a child invocation.
+    --extract-one) SUBCOMMAND=extract-one; EXTRACT_OFF="$2"; EXTRACT_SHA="$3"; EXTRACT_LABEL="$4"; shift 4 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -49,6 +58,73 @@ FAILURES=0
 # revision. Without this, editing extract-versions.nix leaves every cached file
 # silently stale and a "successful" rebuild quietly reuses the old logic.
 EXTRACTOR_HASH=$(sha256sum "$HERE/extract-versions.nix" | cut -c1-8)
+
+# One revision: materialise it, extract {attr: version}, and record its narHash
+# beside the extraction. Deliberately touches no shared file, so that -j can run
+# as many of these at once as the machine has cores.
+extract_one() {
+  local off=$1 sha=$2 label=$3
+  local dest="$WORK/$sha.$EXTRACTOR_HASH.json"
+  local tmp="" src narhash prefetched n start=$SECONDS
+
+  if [ -s "$dest" ]; then
+    echo "  $label: cached"
+    return 0
+  fi
+
+  # Two ways to get the tree. The clone is preferred: `git archive` into a
+  # scratch directory costs no store space and no download. Without a usable
+  # clone — CI, or a revision the clone has never fetched — `nix flake prefetch`
+  # downloads the GitHub tarball into the store instead and hands back the very
+  # narHash that builtins.fetchTree will later expect.
+  if [ -n "$NIXPKGS" ] && git -C "$NIXPKGS" cat-file -e "$sha^{commit}" 2>/dev/null; then
+    tmp=$(mktemp -d)
+    if ! git -C "$NIXPKGS" archive "$sha" 2>/dev/null | tar -x -C "$tmp"; then
+      rm -rf "$tmp"
+      echo "  $label: CHECKOUT FAILED (rev not in clone? try git fetch)"
+      return 1
+    fi
+    src="$tmp"
+    # narHash from the same checkout: identical to what fetchTree computes for
+    # the GitHub tarball, since nixpkgs sets no export-ignore attributes.
+    narhash=$(nix hash path --sri --type sha256 "$tmp" 2>/dev/null || true)
+  else
+    if ! prefetched=$(nix flake prefetch --json "github:NixOS/nixpkgs/$sha" 2>/dev/null); then
+      echo "  $label: FETCH FAILED (no clone, and GitHub would not serve $sha)"
+      return 1
+    fi
+    src=$(printf '%s' "$prefetched" | python3 -c 'import json,sys; print(json.load(sys.stdin)["storePath"])')
+    narhash=$(printf '%s' "$prefetched" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hash"])')
+  fi
+
+  if nix-instantiate --eval --strict --json \
+       --arg revPath "$src" --arg attrs 'null' \
+       "$HERE/extract-versions.nix" > "$dest.tmp" 2>"$dest.err"; then
+    mv "$dest.tmp" "$dest"
+    n=$(python3 -c "import json;print(len(json.load(open('$dest'))))")
+    if [ -n "$narhash" ]; then
+      printf '%s' "$narhash" > "$WORK/$sha.narhash"
+    fi
+    # One line per revision, emitted whole: with -j these interleave, and a
+    # half-written line from another worker lands in the middle otherwise.
+    echo "  $label: $n attrs in $((SECONDS - start))s"
+  else
+    rm -f "$dest.tmp"
+    echo "  $label: EVAL FAILED ($((SECONDS - start))s): $(grep -m1 -o 'error:.*' "$dest.err" | head -c 55)"
+    [ -n "$tmp" ] && rm -rf "$tmp"
+    return 1
+  fi
+
+  [ -n "$tmp" ] && rm -rf "$tmp"
+  return 0
+}
+
+# Re-entry point for -j: the parallel driver below runs this script once per
+# revision, and each of those invocations lands here.
+if [ "$SUBCOMMAND" = "extract-one" ]; then
+  extract_one "$EXTRACT_OFF" "$EXTRACT_SHA" "$EXTRACT_LABEL"
+  exit $?
+fi
 
 if [ "$MERGE_ONLY" -eq 0 ]; then
   # `revisionCount` records how many revisions the committed index was built
@@ -66,66 +142,41 @@ for i, r in sel: print(i, r['rev'], r['date'])
 ")
   echo "indexing ${#TARGETS[@]} revisions   extractor=$EXTRACTOR_HASH"
 
-  for line in "${TARGETS[@]}"; do
-    set -- $line; off=$1; sha=$2; label=$3
-    dest="$WORK/$sha.$EXTRACTOR_HASH.json"
-    if [ -s "$dest" ]; then
-      echo "  $label: cached"
-      continue
+  if [ "$JOBS" -gt 1 ]; then
+    # xargs exits 123 when any child did, which is all the failure signal the
+    # merge below needs — the children report their own revisions by name.
+    if ! printf '%s\n' "${TARGETS[@]}" | xargs -P "$JOBS" -L 1 bash "$0" --extract-one; then
+      FAILURES=1
     fi
-
-    printf "  %-22s " "$label"
-    start=$SECONDS
-
-    # Two ways to get the tree. The clone is preferred: `git archive` into a
-    # scratch directory costs no store space and no download. Without a usable
-    # clone — CI, or a revision the clone has never fetched — `nix flake
-    # prefetch` downloads the GitHub tarball into the store instead and hands
-    # back the very narHash that builtins.fetchTree will later expect.
-    tmp=""
-    if [ -n "$NIXPKGS" ] && git -C "$NIXPKGS" cat-file -e "$sha^{commit}" 2>/dev/null; then
-      tmp=$(mktemp -d)
-      if ! git -C "$NIXPKGS" archive "$sha" 2>/dev/null | tar -x -C "$tmp"; then
-        rm -rf "$tmp"; echo "CHECKOUT FAILED (rev not in clone? try git fetch)"
-        FAILURES=$((FAILURES + 1)); continue
-      fi
-      src="$tmp"
-      # narHash from the same checkout: identical to what fetchTree computes for
-      # the GitHub tarball, since nixpkgs sets no export-ignore attributes.
-      narhash=$(nix hash path --sri --type sha256 "$tmp" 2>/dev/null || true)
-    else
-      if ! prefetched=$(nix flake prefetch --json "github:NixOS/nixpkgs/$sha" 2>/dev/null); then
-        echo "FETCH FAILED (no clone, and GitHub would not serve $sha)"
-        FAILURES=$((FAILURES + 1)); continue
-      fi
-      src=$(printf '%s' "$prefetched" | python3 -c 'import json,sys; print(json.load(sys.stdin)["storePath"])')
-      narhash=$(printf '%s' "$prefetched" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hash"])')
-    fi
-
-    if nix-instantiate --eval --strict --json \
-         --arg revPath "$src" --arg attrs 'null' \
-         "$HERE/extract-versions.nix" > "$dest.tmp" 2>"$dest.err"; then
-      mv "$dest.tmp" "$dest"
-      n=$(python3 -c "import json;print(len(json.load(open('$dest'))))")
-      if [ -n "$narhash" ]; then
-        python3 -c "
-import json
-revs = json.load(open('$REVFILE'))
-revs[$off]['narHash'] = '$narhash'
-json.dump(revs, open('$REVFILE','w'), indent=1)
-"
-      fi
-      echo "$n attrs in $((SECONDS-start))s"
-    else
-      rm -f "$dest.tmp"
-      FAILURES=$((FAILURES + 1))
-      echo "EVAL FAILED ($((SECONDS-start))s): $(grep -m1 -o 'error:.*' "$dest.err" | head -c 55)"
-    fi
-    if [ -n "$tmp" ]; then
-      rm -rf "$tmp"
-    fi
-  done
+  else
+    for line in "${TARGETS[@]}"; do
+      set -- $line
+      extract_one "$1" "$2" "$3" || FAILURES=$((FAILURES + 1))
+    done
+  fi
   echo
+
+  # Fold the per-revision narHash files back in. Deferred to here because the
+  # -j children cannot each rewrite revisions.json: they would race and the
+  # last writer would drop every hash the others had just recorded.
+  python3 - "$REVFILE" "$WORK" <<'PY'
+import json, os, sys
+
+revfile, work = sys.argv[1:3]
+revs = json.load(open(revfile))
+recorded = 0
+for r in revs:
+    p = os.path.join(work, r['rev'] + '.narhash')
+    if not os.path.exists(p):
+        continue
+    h = open(p).read().strip()
+    if h and r.get('narHash') != h:
+        r['narHash'] = h
+        recorded += 1
+if recorded:
+    json.dump(revs, open(revfile, 'w'), indent=1)
+print(f"narHash: {recorded} newly recorded")
+PY
 fi
 
 # Merge whatever the cache holds into { revisionCount, attrs }.

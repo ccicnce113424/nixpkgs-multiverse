@@ -71,15 +71,31 @@ revs = json.load(open(revfile))
 # git or a network round trip. This is what keeps an incremental run cheap.
 by_prefix = {}
 for r in revs:
-    by_prefix[r['rev'][:11]] = r
-    by_prefix[r['rev'][:12]] = r
+    for n in range(7, 13):
+        by_prefix[r['rev'][:n]] = r
 
 
-def resolve_git(short):
+def full_rev(name):
+    """The channel's own git-revision object — the authoritative full commit.
+
+    The archive used 7-character hashes until part-way through the 18.03 cycle,
+    and 7 hex characters are ambiguous across ~600k commits: git refuses to
+    resolve them and the GitHub API answers 422. This object settles it, and it
+    is published for every unstable channel from the 17.03 era onward.
+    """
+    try:
+        with urllib.request.urlopen(BASE + f'nixos/unstable/{name}/git-revision', timeout=90) as r:
+            rev = r.read().decode().strip()
+    except Exception:
+        return None
+    return rev if re.fullmatch(r'[0-9a-f]{40}', rev) else None
+
+
+def resolve_git(ref):
     """Full commit and commit date from the local clone, or None."""
     try:
         full = subprocess.run(
-            ['git', '-C', nixpkgs, 'rev-parse', '--verify', f'{short}^{{commit}}'],
+            ['git', '-C', nixpkgs, 'rev-parse', '--verify', f'{ref}^{{commit}}'],
             capture_output=True, text=True, check=True).stdout.strip()
         date = subprocess.run(
             ['git', '-C', nixpkgs, 'log', '-1', '--format=%cs', full],
@@ -89,9 +105,9 @@ def resolve_git(short):
     return full, date
 
 
-def resolve_api(short):
+def resolve_api(ref):
     """Same, from the GitHub commits API. GITHUB_TOKEN lifts the rate limit."""
-    req = urllib.request.Request(API + short, headers={
+    req = urllib.request.Request(API + ref, headers={
         'Accept': 'application/vnd.github+json',
         'User-Agent': 'nixpkgs-multiverse',
     })
@@ -110,7 +126,7 @@ added = unresolved = named = api_calls = 0
 original_order = [r['rev'] for r in revs]
 
 for name in names:
-    m = re.search(r'\.([0-9a-f]{11,12})$', name)
+    m = re.search(r'\.([0-9a-f]{7,12})$', name)
     if not m:
         continue
     short = m.group(1)
@@ -124,11 +140,15 @@ for name in names:
             named += 1
         continue
 
+    # Ask the channel what commit it is before trying to expand its short hash,
+    # which may not be expandable at all.
+    ref = full_rev(name) or short
+
     if have_clone:
-        got = resolve_git(short)
+        got = resolve_git(ref)
     elif api_calls < MAX_API_LOOKUPS:
         api_calls += 1
-        got = resolve_api(short)
+        got = resolve_api(ref)
     else:
         got = None
     if got is None:
@@ -140,8 +160,8 @@ for name in names:
         continue
     entry = {"rev": full, "date": date, "channel": "nixos-unstable", "name": name}
     revs.append(entry)
-    by_prefix[full[:11]] = entry
-    by_prefix[full[:12]] = entry
+    for n in range(7, 13):
+        by_prefix[full[:n]] = entry
     added += 1
 
 revs.sort(key=lambda r: (r['date'], r['rev']))

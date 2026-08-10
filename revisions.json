@@ -1,5 +1,12 @@
 [
  {
+  "rev": "139ff6d52f7f2840ce129124daeb563336ca75ac",
+  "date": "2013-10-31",
+  "channel": "nixos-unstable",
+  "name": "nixos-13.10pre35424.139ff6d",
+  "narHash": "sha256-syp9gorPB3r5lYUW++r1VqrbwZuM4bNrP8lbtT/lH+k="
+ },
+ {
   "rev": "69721a81d0dd010ca9a79f293e27f74634bcd2b1",
   "date": "2015-09-30",
   "channel": "release-commit",
@@ -12,10 +19,290 @@
   "narHash": "sha256-2xT+Jmk3mGMY4E+M38iNeCHq12MPNu9ZiYUxZl8sS1Q="
  },
  {
+  "rev": "adfcc2d9531e78bf6a9e3b56e2f4fc873cb3d87b",
+  "date": "2016-09-24",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre92039.adfcc2d",
+  "narHash": "sha256-PCJxrU92f5wzQeE1O566Ao7oggVV8FswBZ3ytJ6BNYA="
+ },
+ {
   "rev": "7d50dfaed5540495385b5c0feae90891d2d0e72b",
   "date": "2016-10-01",
   "channel": "release-commit",
   "narHash": "sha256-8K9wvu82flzlzpU1uJv/T8IaLGQlsCASwjxGcrVjpbM="
+ },
+ {
+  "rev": "09e4b78b48fa9b5da00f44d2c01f0f9f16c3d406",
+  "date": "2016-10-13",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre93673.09e4b78",
+  "narHash": "sha256-f7+6AZxlEndYyl8rzQmNhWs8j8iwrUy9cxqeVazV01I="
+ },
+ {
+  "rev": "210b3b3184b27be8597f320fc9f337d3997dce94",
+  "date": "2016-10-22",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre94121.210b3b3",
+  "narHash": "sha256-ZaOROT6YxL60jpGuSSCBxYVWon+FllbL09l/NA4g9A0="
+ },
+ {
+  "rev": "fa4167c0a13cbe0d97b9c88d91b86845a8c4e740",
+  "date": "2016-10-29",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre94694.fa4167c",
+  "narHash": "sha256-61ap1Bo1EtH2T1h0pcli6ieT1S6epbltJic2lasE9bE="
+ },
+ {
+  "rev": "a24728fe295f28648f1812b3565541f7ef6269f1",
+  "date": "2016-11-08",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre95306.a24728f",
+  "narHash": "sha256-+kGmU4MyKsrWV3oHrDWDYeT4ICqZuMM2kINfDeaVEHk="
+ },
+ {
+  "rev": "b09435ea51caaae1865e667aaa32f7cba4cc4ff2",
+  "date": "2016-11-26",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre96298.b09435e",
+  "narHash": "sha256-P/UpwgxWv5w2PVTVuKAXA+rvdiZnsOabBmoD42+mtL8="
+ },
+ {
+  "rev": "7926e754f86d25c5c68a4f797b1989862a91de3e",
+  "date": "2016-12-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre96677.7926e75",
+  "narHash": "sha256-FcEI9bUUJ2axN1iO9I//ZR++dtz2IXng2OYdjPpenKQ="
+ },
+ {
+  "rev": "69bee1b361afdd4e5348c210c9253995c8cb171a",
+  "date": "2016-12-04",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre96717.69bee1b",
+  "narHash": "sha256-uPqLLmtv1ptzIjH2XrC7Sr5awno36KkbazH9ken7MVo="
+ },
+ {
+  "rev": "571cf4f2095744011a5a7629a1ee71ea4d40a7ea",
+  "date": "2016-12-05",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre96799.571cf4f2",
+  "narHash": "sha256-OdCPBHWB/BTkrUjB84Lwalxxyd8Xkxx038cvratvGyY="
+ },
+ {
+  "rev": "1c50bdd928cec055d2ca842e2cf567aba2584efc",
+  "date": "2016-12-07",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre96925.1c50bdd",
+  "narHash": "sha256-7wTqap3bQTRwgK5iZruk9HVeABP0VizhlzsvjjoBJbw="
+ },
+ {
+  "rev": "da70d3da0f11b22eac77756b39b349215e06b2e3",
+  "date": "2016-12-26",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre97748.da70d3d",
+  "narHash": "sha256-SIXxYw2Hl6VfK3+GSUyX66FI6Raaht7+WvZGckdADGo="
+ },
+ {
+  "rev": "5ba7f33e3a4f8ebee9944e5e7f092edf4cb57f3e",
+  "date": "2016-12-27",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre97767.5ba7f33",
+  "narHash": "sha256-HrcpbPbV+SST6IULB3ttuYyjaUeKxyBHrgmZ6hXne0I="
+ },
+ {
+  "rev": "c311871a6d0a3f83a0cec3e6b8804a741b83dcb5",
+  "date": "2016-12-27",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre97792.c311871",
+  "narHash": "sha256-rq5F6QAfQ3s2tTPx6sbgKqyEvnHtNZHRaGxmCoLTlSo="
+ },
+ {
+  "rev": "d15c62a2a0135bb8968f17326ebda271748cb7f6",
+  "date": "2016-12-29",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre97896.d15c62a",
+  "narHash": "sha256-siZOpdDqSI7yr6G9R8qWmNOMU1uCZ+z321mmcsLTxlY="
+ },
+ {
+  "rev": "59dbcefaa74b940f9b7490c034dc4ff885fa2627",
+  "date": "2016-12-30",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre98008.59dbcef",
+  "narHash": "sha256-nBGjeBmZwz66K3LthRCoUBFK6W2acsHvdHUvtg9k97g="
+ },
+ {
+  "rev": "7ee897a3b3aa75dc53bd408ceea5f9e4e98822b2",
+  "date": "2017-01-06",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre98383.7ee897a",
+  "narHash": "sha256-k3taJJ64ddDcVrgrcUbLqvdBdYC4BLLCvq1UuHOb5q8="
+ },
+ {
+  "rev": "f673243aff0bc9ae4d2e96ccd60124ff9fe5b103",
+  "date": "2017-01-10",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre98682.f673243",
+  "narHash": "sha256-5gn5ztgRN67MiWKMUUjZiVs9dVym+6AcFGpll6BOigo="
+ },
+ {
+  "rev": "f1ba2c8d3bbe4f2421a6872d56d34b3bb2a4bf00",
+  "date": "2017-01-26",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre99626.f1ba2c8",
+  "narHash": "sha256-g+Qn/fVdh/dsQK52X2JLPsWRVKY92CXJwFCJIZLXCx4="
+ },
+ {
+  "rev": "f66d7823ece6fa4bf99e56fa4b4cb0ab16522839",
+  "date": "2017-01-27",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre99759.f66d782",
+  "narHash": "sha256-hIfS6u/yTxHIJ5E/Eu4dnO76N4JV2z5ZeEuugoK2MC0="
+ },
+ {
+  "rev": "97bf0637d5bec8d1fe7a9b0b5a220528afbac97c",
+  "date": "2017-02-07",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100496.97bf063",
+  "narHash": "sha256-Ti/cT9WNFKmqplTUzGbIhKxDmnZ/gPTwkJHDjKYcDi0="
+ },
+ {
+  "rev": "9dc2cb2e84069041eb4876d1eb44f5afbac46491",
+  "date": "2017-02-07",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100515.9dc2cb2",
+  "narHash": "sha256-uEikg3gi1dHO1ISMg4XLmNteyCnjQ2s2iTe8bTpdkwg="
+ },
+ {
+  "rev": "f7b7d8e7b59f5e13338be76256e8b524eb993959",
+  "date": "2017-02-07",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100479.f7b7d8e",
+  "narHash": "sha256-8O1f9Aty3h9GFXUt61kSPUUAgD7ml1NDBZPBbYGktTo="
+ },
+ {
+  "rev": "01fef3f7db4cc208faea31f26c9451b326058781",
+  "date": "2017-02-08",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100522.01fef3f",
+  "narHash": "sha256-z0DNWO7psNBU9PvkoEMklFoMzTwuwZmyCLVcw4Z0fWE="
+ },
+ {
+  "rev": "20eac78ccbc1f8896da75c3596ce23fe649dd46d",
+  "date": "2017-02-11",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100741.20eac78",
+  "narHash": "sha256-OWG0mY1tcy44JbsliGwUZWXkqj1Nct48Ctd1SxDnTjA="
+ },
+ {
+  "rev": "6651c72df1c4c47d36e67fe59dcf3c50e75c5383",
+  "date": "2017-02-11",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100821.6651c72",
+  "narHash": "sha256-e5KJcnti8qjcX6CxvAkt7MvlE7nNi6Sv5vvtZ9IiC+4="
+ },
+ {
+  "rev": "4450327c062a41f7df2f6756057df4ebb6548011",
+  "date": "2017-02-12",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre100896.4450327",
+  "narHash": "sha256-kHsKcp7HKP2udlxefAMAUGD8YRXL8pzQFrJPFGTowm4="
+ },
+ {
+  "rev": "19a9099eb25795a8caa408f842a5254920157456",
+  "date": "2017-02-16",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre101231.19a9099",
+  "narHash": "sha256-HkZqYOiqwBuuWltM55aAGBV3+4WW8aKNp3VSVDuklxw="
+ },
+ {
+  "rev": "a9584c9510771f96594b4461e9ea546a75bf59d4",
+  "date": "2017-02-17",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre101267.a9584c9",
+  "narHash": "sha256-0ztg37To0JrHup5aaNkp3QBF9ylMM3vgvnIFmA4hwUY="
+ },
+ {
+  "rev": "183eeb3c0fdac8de3146aedaa6028b474f96db6f",
+  "date": "2017-02-20",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre101636.183eeb3",
+  "narHash": "sha256-vZF6bsm57mn4zDE/MWSD4w0rkYMy0azyC9RdAebX0fA="
+ },
+ {
+  "rev": "53a2baabbeb29ce0180b0353deb623139f1808bd",
+  "date": "2017-02-23",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.03pre101839.53a2baa",
+  "narHash": "sha256-4/cNeIrRaY+c0dBy7rdiTA9Uxjz1TI1SU8fPpH1WkyA="
+ },
+ {
+  "rev": "45344fdf193ad8aebcc7e3d4c1c997c8067b7b16",
+  "date": "2017-03-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre102441.45344fd",
+  "narHash": "sha256-aWybje/PMi1rkZhfPn5ewJv4E4nX1JLAY+IcvL7x4q0="
+ },
+ {
+  "rev": "6011e3ea93e78e45dc2cb6cdf63afeb516670681",
+  "date": "2017-03-04",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre102626.6011e3e",
+  "narHash": "sha256-jc/CETdSFK9dwuovUCStlBn9fiArKQfhU2PMUJHKJw8="
+ },
+ {
+  "rev": "2839b101f927be5daab7948421de00a6f6c084ae",
+  "date": "2017-03-05",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre102667.2839b10",
+  "narHash": "sha256-sOHq60oqLMCPuTHETEwVYv5CLCbtIM13sE8YUhgbBik="
+ },
+ {
+  "rev": "73a6832ad86755ae4dfb7717b4d1e37b2691fb4f",
+  "date": "2017-03-23",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104259.73a6832",
+  "narHash": "sha256-qf0NNxBmVPY2rCET/vmYachxoNPxEOhqM7v4/Uqd0jU="
+ },
+ {
+  "rev": "c71f8f6ead73c082143e9db2b921a6fb7bbfecc1",
+  "date": "2017-03-23",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104257.c71f8f6",
+  "narHash": "sha256-WlcCBaIYNT4vIQVAf/OqsJIsAUEucX0Mxumkvshw7f0="
+ },
+ {
+  "rev": "186cc512a68e228d8768f4c817f072b112b922d3",
+  "date": "2017-03-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104374.186cc51",
+  "narHash": "sha256-CNmdcKBFs34KvbL3//fDqX9TQzVmjF/esKN7siHUeU4="
+ },
+ {
+  "rev": "65593e64c480493555ae21050a422e4c7ff9c7ea",
+  "date": "2017-03-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104410.65593e6",
+  "narHash": "sha256-62Kw9syCx69ekdU5dY/8noeGXDXv/Omm5lsRDTUN2Bo="
+ },
+ {
+  "rev": "6e0b7273a230b55433fe9ae2799fc53f2b33f8dc",
+  "date": "2017-03-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104379.6e0b727",
+  "narHash": "sha256-zch1I7gIgwTbiSj4bcRqt9Ib4/6X9f3dJi+0NtKyVHE="
+ },
+ {
+  "rev": "8a919af23b7ff2bb6783f173c18250adb5aba9b1",
+  "date": "2017-03-28",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104559.8a919af",
+  "narHash": "sha256-rFqHZu2LE5baGMO5ruWDKkq9WZ4mDROzIe5UPIyN8OQ="
+ },
+ {
+  "rev": "08c87eed00c7478a03d965570feb50c8f317ce5f",
+  "date": "2017-03-29",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104652.08c87ee",
+  "narHash": "sha256-ftZB5yJE7C7hOICX8qPHW/kEbpRUaqYmo620ag4buXw="
  },
  {
   "rev": "40e02267b9893677b3e69933a4f178a46e03c98e",
@@ -24,10 +311,640 @@
   "narHash": "sha256-AqddK1XlGDcK/xd8ENmDad0wuw/JYSxtV+vj8LPPibs="
  },
  {
+  "rev": "a41668f4412b75b65d65a46d352552546488c3c7",
+  "date": "2017-04-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104805.a41668f441",
+  "narHash": "sha256-jDClrUGKafhubhDjJLI49r3yS9S2qWiDOWkeePIlsKw="
+ },
+ {
+  "rev": "d9b36c36c5e56c6e2e70f620313008c6ed2407a1",
+  "date": "2017-04-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104810.d9b36c36c5",
+  "narHash": "sha256-khjA1HnjDs5CXsUfiqoDwxIZyrGX3o3UsKmXNjT550A="
+ },
+ {
+  "rev": "49aa2483e0a6ced59b46655c523e1399e27220d1",
+  "date": "2017-04-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104915.49aa2483e0",
+  "narHash": "sha256-IFV1RO1o3OTMoamyWtpmOQ7H7iAThezbrXJpOxuV7s4="
+ },
+ {
+  "rev": "affce1e2464f226afb6902c5185fee80d847d857",
+  "date": "2017-04-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104868.affce1e246",
+  "narHash": "sha256-xGCe3UJpQZEQhxL/OMmM/kPnD0rcNNKCG97c28KA6l4="
+ },
+ {
+  "rev": "cc779bc421330d61dbeb22f1949f5d9d2b80853a",
+  "date": "2017-04-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104870.cc779bc421",
+  "narHash": "sha256-YDf47AXV+Zzm2JIaic8RPhtYMWW4QT+Kzf9bL6X9P8U="
+ },
+ {
+  "rev": "438ac662aa598a065d2f270e78076c55f5d09aa9",
+  "date": "2017-04-03",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104924.438ac662aa",
+  "narHash": "sha256-IR3IQwgbKc8v80aHr5ksB2ey5W3yUmdaMkhUUBNOrNI="
+ },
+ {
+  "rev": "b0d07aa894007a52466b06eced06c1eee469ee1c",
+  "date": "2017-04-03",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre104936.b0d07aa894",
+  "narHash": "sha256-MZ5543uH9IGgegbuA2HC/G9zdqmk712aRB99uePw3DI="
+ },
+ {
+  "rev": "0a6a06346a3c928a3115dfd700993c5c06b0a1e9",
+  "date": "2017-04-06",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105060.0a6a06346a",
+  "narHash": "sha256-/AvTS2aYVNTk5buUOLLG3jX+HsJ0CbHfhMwmiS+8ab4="
+ },
+ {
+  "rev": "65be0b3a4b0555ebc634b28314175878c8c6ceeb",
+  "date": "2017-04-07",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105118.65be0b3a4b",
+  "narHash": "sha256-uzvz6TOl0QgRsg9KipTbTmygqOFDymY+UMX6jdBqXQM="
+ },
+ {
+  "rev": "3f00bce59b1504d4ef5728824855ee5363f2ee9a",
+  "date": "2017-04-08",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105156.3f00bce59b",
+  "narHash": "sha256-83Sc82Lj9Y83+z0eC0UGt0PiAsXqPYwFeVnlHgYdMys="
+ },
+ {
+  "rev": "01a8de97eb2aab98e6e9a7330bf99f4fe4844d2a",
+  "date": "2017-04-09",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105258.01a8de97eb",
+  "narHash": "sha256-D4ffLbFmWwKvNZ9XBeTB6PhnV1co7ghwEwYcVsaLegA="
+ },
+ {
+  "rev": "7701cbca6b55eb9dee6e61766376dba42a8b32f2",
+  "date": "2017-04-10",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105314.7701cbca6b",
+  "narHash": "sha256-CAstegJY8DAmDNWgAPZZlaDcQedO6X04Rn7NaUWPebg="
+ },
+ {
+  "rev": "048114eb4f79f3e125dadee106b454e3d72ccdfc",
+  "date": "2017-04-12",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105430.048114eb4f",
+  "narHash": "sha256-xPgLimw8Gkteg5qvNFecb++U8yG8UvuS1Q3tVjfXBws="
+ },
+ {
+  "rev": "cdbcaa56b6dd06d2d7f215ccbcab966a9a902773",
+  "date": "2017-04-14",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105594.cdbcaa56b6",
+  "narHash": "sha256-5iSRaNTYDrBUvi/KUiHQ+clTAONrCmCM4MTlot950cc="
+ },
+ {
+  "rev": "da20d0e488ba645e6c9271705209333cfdd703db",
+  "date": "2017-04-14",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105553.da20d0e488",
+  "narHash": "sha256-Nf6jTLEwSHR+OQS+p01gG/rhUKlsvF3PB0PgWUsvHZI="
+ },
+ {
+  "rev": "26f5fa8f974aba0c08376e995deb8c50aff48727",
+  "date": "2017-04-15",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105617.26f5fa8f97",
+  "narHash": "sha256-6HpROeJDzl2Ho1h3GYX++6mnqhm+834+2L9Q7b9GKvM="
+ },
+ {
+  "rev": "f0fac3b578086066b47360de17618448d066b30e",
+  "date": "2017-04-15",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre105622.f0fac3b578",
+  "narHash": "sha256-y3v+wFhd6b3rOnaq2CuXjq3Lp2AivsqZ/zxMbmNt/NY="
+ },
+ {
+  "rev": "c90998d5cf8b8d7983f5f547546ee9ef2ad11688",
+  "date": "2017-04-24",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre106117.c90998d5cf",
+  "narHash": "sha256-84edKMLs+H7SMcnekB7aYaXiOGN2eKV3dfyxaNVllVg="
+ },
+ {
+  "rev": "7f3b857d0d08c5e7d8d0ecdb2a53f06cc48a9cdf",
+  "date": "2017-04-27",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre106299.7f3b857d0d",
+  "narHash": "sha256-EBG9EosbHKr6lVtMNkqaNhfUgEoDLxw7CfMmNPxK4uk="
+ },
+ {
+  "rev": "e89343dc08ca27cbfc94ef964a2004d5db825411",
+  "date": "2017-04-27",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre106230.e89343dc08",
+  "narHash": "sha256-QGvEl/YCzqmQGn22ZZx6dTFt2XH45M89cPsu1KSmp1k="
+ },
+ {
+  "rev": "207a0af06a22f5c209b58477a2bcd27069b0d1cc",
+  "date": "2017-05-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre106801.207a0af06a",
+  "narHash": "sha256-Ma7K5LBWFnDtRTCyKgc0mtp48bErHBhXVgzlc5ACMAA="
+ },
+ {
+  "rev": "c5badb123a2dd6e2b38dcd2ddbe73e13dc6b554f",
+  "date": "2017-05-03",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre106916.c5badb123a",
+  "narHash": "sha256-7r0OeraFSm2A0MRPX+rp0EP1Bz3qfH46kiyt3IuXwas="
+ },
+ {
+  "rev": "0afb6d789c8bf74825e8cdf6a5d3b9ab8bde4f2d",
+  "date": "2017-05-10",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre107265.0afb6d789c",
+  "narHash": "sha256-P6orZ90akHOldcUmYDNSbWGUTBhXrTfP2cAzbvOH+5A="
+ },
+ {
+  "rev": "65477dcd341dcdcdc58b01e362e18a903bf94874",
+  "date": "2017-05-24",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre107928.65477dcd34",
+  "narHash": "sha256-HT2bTIc7j0+h5miVqYDbqTsNuhl0ndt79xd7Mgy0Z9g="
+ },
+ {
+  "rev": "13f2f8673b184599e7a65df422c968730554820f",
+  "date": "2017-05-29",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre108200.13f2f8673b",
+  "narHash": "sha256-1EOY7Fg5lUuO0dIsfosePyjwE6phk7M0bpb8bZYiJXg="
+ },
+ {
+  "rev": "a908ad6fd342836cbf8d2670f6bf62dda31f956e",
+  "date": "2017-05-29",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre108224.a908ad6fd3",
+  "narHash": "sha256-VORPt9tAXKxJUZEVLegzm37/G3SkNyL52ZYPW9ka5LA="
+ },
+ {
+  "rev": "53835c93cb4bc1c6228ee04d6788398a8ab36ab4",
+  "date": "2017-05-30",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre108282.53835c93cb",
+  "narHash": "sha256-FEViwiGerwWnT4tDMd4iXcI/Mwgxi9bsgvR3TNu+xnk="
+ },
+ {
+  "rev": "0011f9065a1ad1da4db67bec8d535d91b0a78fba",
+  "date": "2017-06-04",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre108553.0011f9065a",
+  "narHash": "sha256-ovuEvlwXYbHGdAvFAZERIEFxCQJRw/YHuhV3v2IVxlQ="
+ },
+ {
+  "rev": "0d4431cfe90b2242723ccb1ccc90714f2f68a609",
+  "date": "2017-06-17",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre109180.0d4431cfe9",
+  "narHash": "sha256-fFDsx5E8noLXFDWo6mFT9XlIUSV62a2M+S3ykHozNEY="
+ },
+ {
+  "rev": "1add3519dffca4fa40e539904c3c9522582167f7",
+  "date": "2017-07-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre110094.1add3519df",
+  "narHash": "sha256-loEn0yDCsnEgyZ8Gfo+as1WLi/eDUTocTsMYXe6+vOI="
+ },
+ {
+  "rev": "b084b93faa725ccbf86634965e443d1e667a066f",
+  "date": "2017-07-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre110164.b084b93faa",
+  "narHash": "sha256-48JEwd1eWrGI9jhbzG0SjEwPr5yzifJSmM1/MmAuvT4="
+ },
+ {
+  "rev": "c5e314dabe45142d4790cdc9169438ba6e133ec5",
+  "date": "2017-07-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre110181.c5e314dabe",
+  "narHash": "sha256-fDugNkQY2oBMKh6OxmKIT5pYBmm4ZpJF3rIrfx3kXE8="
+ },
+ {
+  "rev": "01c3847b9c656d3829dd947395aacd0f84178eb2",
+  "date": "2017-07-03",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre110213.01c3847b9c",
+  "narHash": "sha256-q3QyWlAqpamLdicK+owVhP2PvHUnMTkWFZV7QS0te14="
+ },
+ {
+  "rev": "00512470ec241949148b61e1c120fa76d685cf9a",
+  "date": "2017-07-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre111388.00512470ec",
+  "narHash": "sha256-FTmwoebyJbRtrbLaXMqw11yo7Lm6bnEgW1TbCtLgqWg="
+ },
+ {
+  "rev": "a7c8f5e419ba07711c132bf81baaab0e74862cce",
+  "date": "2017-07-26",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre111447.a7c8f5e419",
+  "narHash": "sha256-phjktj1eDuGNSeEsQMAXxg0841S3UrhIihJFK5QYEvk="
+ },
+ {
+  "rev": "59fa868b01c6f22b9072508cebbecdc4930034e5",
+  "date": "2017-08-12",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112682.59fa868b01",
+  "narHash": "sha256-X/aWIXaHFRNOifxkUnn2s9SS0O8iUVIbFM8QZz0CMvs="
+ },
+ {
+  "rev": "abdb58e407d0351894ea1ee32c3484a89f1e53cd",
+  "date": "2017-08-12",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112691.abdb58e407",
+  "narHash": "sha256-KMjmjICY52wKL6MG4SFDB8Ug2WCmGfjZ+X3Ne8mVfI0="
+ },
+ {
+  "rev": "ef026e02fcaa92323be875d8c7146b0b86e31880",
+  "date": "2017-08-12",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112808.ef026e02fc",
+  "narHash": "sha256-PWeLxw0epOoCNzXrue6uEJpIO9e8+VaLNcFqAIGPkVU="
+ },
+ {
+  "rev": "48541d463bb8180de10d705da7ac0d0f5c1d632d",
+  "date": "2017-08-13",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112813.48541d463b",
+  "narHash": "sha256-Io/jgVZP2a8EjLDESouE8usV3Xpe871REN4bYz5z+6s="
+ },
+ {
+  "rev": "9ed9ede9228a102e815be9281d60bf59abc7df8a",
+  "date": "2017-08-13",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112882.9ed9ede922",
+  "narHash": "sha256-veIM3OwOyryZ/AnvohOKQ3jUXCKASxvGiSkW9382RIk="
+ },
+ {
+  "rev": "059d722e5ce492917d6c48e9137f8df208231503",
+  "date": "2017-08-14",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112893.059d722e5c",
+  "narHash": "sha256-WkZ+MyxL7QDsv4OF8S70ZJYYj1EV5x/ZJra9r0M2enA="
+ },
+ {
+  "rev": "129f8d7e999b1a1f0fceaecadca30211e34d85a6",
+  "date": "2017-08-14",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre112899.129f8d7e99",
+  "narHash": "sha256-w5yd/jF3hM1VCA48/mYGNPbHqZmMwFesOtf710/t5us="
+ },
+ {
+  "rev": "0e5ff829543ffa1e17527763175166b6ba1d9f38",
+  "date": "2017-08-19",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre113094.0e5ff82954",
+  "narHash": "sha256-HTp4MYew2iCGv7UquSZzoYkZ+EO5lLhLOxs/8hzei2E="
+ },
+ {
+  "rev": "44b8eaad83919d4c85b9ed190f3d27c89e72f96b",
+  "date": "2017-08-19",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre113077.44b8eaad83",
+  "narHash": "sha256-MpW7Dm1STYOzRP24xRII2EHjCZRf0wyqxG+m8mS3Dxc="
+ },
+ {
+  "rev": "a0306821fdc62d92ec51995f227273cbdbce2572",
+  "date": "2017-08-20",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre113107.a0306821fd",
+  "narHash": "sha256-Y44LztGlIN70zRyAOU3qzW5uUw7bsFzv9tSRV4Hrthg="
+ },
+ {
+  "rev": "d25a9f57e380e780765f9ee54ad86b68515b4b48",
+  "date": "2017-08-20",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre113100.d25a9f57e3",
+  "narHash": "sha256-2lvZKwOqUPMFzP8ykeKuV7/O9rFLyFDR/595UR9vVes="
+ },
+ {
+  "rev": "96457d26dded05bcba8e9fbb9bf0255596654aab",
+  "date": "2017-08-21",
+  "channel": "nixos-unstable",
+  "name": "nixos-17.09pre113138.96457d26dd",
+  "narHash": "sha256-t/07UwFa0/l4Ki59KZJnoXkFmvnd87g1D9bvZIFhaGM="
+ },
+ {
+  "rev": "799435b7cab97a39893a104999b3bc589e1172b1",
+  "date": "2017-09-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre114421.799435b7ca",
+  "narHash": "sha256-Y8tT3tw+SYqjN464c4aoenwUq/VBaeALcLn5p+aFwfQ="
+ },
+ {
+  "rev": "1b1fc6550559f9d73ddf7cea611c387a847bf03b",
+  "date": "2017-09-11",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre115166.1b1fc65505",
+  "narHash": "sha256-upXlrpTonjpnlHSZZDGH54cn6NATXc2OFdvyDV/nNz4="
+ },
+ {
+  "rev": "d6f9c0b35390bbd7b61d589c6c1f18c728d6461d",
+  "date": "2017-09-11",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre115134.d6f9c0b353",
+  "narHash": "sha256-2PQfoiTFZie1CLtjbm6sxyyS7ObqRNuzm/Tmux5Hc7o="
+ },
+ {
+  "rev": "9e7db9a9f90160d1d87f7b47fbfd792be29ee394",
+  "date": "2017-09-13",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre115461.9e7db9a9f9",
+  "narHash": "sha256-aFd0r90e7KmRSJNCUjVd6vZPZIjBCsbCW8cjkrgShps="
+ },
+ {
+  "rev": "c8e7aab0c8bae8a49ec5bd87ace65b237c8e3d18",
+  "date": "2017-09-15",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre115705.c8e7aab0c8",
+  "narHash": "sha256-9aa6v1R2UkGmT1q/s2D0ZPDzNF5MhkpzU82w53H1Ajc="
+ },
+ {
+  "rev": "116c34a748599334555896c32ace86056607d6c4",
+  "date": "2017-09-21",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116062.116c34a748",
+  "narHash": "sha256-z/VzCey7LW9SjiQTmoZIncJlp1n/Qm24UDL1+SawBLY="
+ },
+ {
+  "rev": "a75265924f5f3ee73fdd30c9713b2f8177b7fb98",
+  "date": "2017-09-21",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116054.a75265924f",
+  "narHash": "sha256-V/ZMQ717gQAdyWEdBmad9F0Yl1rqqGDmUnPFSyh2Qvw="
+ },
+ {
+  "rev": "699231ed78ca41db175579bb1d7790a20beb75c4",
+  "date": "2017-09-23",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116274.699231ed78",
+  "narHash": "sha256-BCz8bGwxefdCCTu08wdXxuiMfWKWnhPgSoaLLI1jrgE="
+ },
+ {
+  "rev": "272c0bf88c9c21404d54310c349c887867f847d9",
+  "date": "2017-09-24",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116347.272c0bf88c",
+  "narHash": "sha256-nwgoNQ8noiyTfbnFydUN2H4Vtkg/m6Oo/BNNpOsQ6F4="
+ },
+ {
+  "rev": "263185aa6860f5a420171d02bfa05d7ba716fc32",
+  "date": "2017-09-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116432.263185aa68",
+  "narHash": "sha256-JwaY4z9znoB9lKpUpUAsAyQtKDzPs3T3uvSobEI6Lv4="
+ },
+ {
+  "rev": "d757d8142e88187388fbea4e884feadb0e33d36f",
+  "date": "2017-09-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116475.d757d8142e",
+  "narHash": "sha256-TcOspoRhB2hU4JMpH4M5Jg3wZKBq2cNNYPhJylqMKlM="
+ },
+ {
+  "rev": "9824ca6975fcbf5a2da9e6ba98dacafaa12bb1b3",
+  "date": "2017-09-27",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre116572.9824ca6975",
+  "narHash": "sha256-d5VrLfP47zqFNdhyotKDcylmyzJTtTVtvJUkqF7kyt4="
+ },
+ {
   "rev": "b213a386f91c89adee14d135d695bc623d70e61a",
   "date": "2017-09-29",
   "channel": "release-commit",
   "narHash": "sha256-UI+jQUhxRreVrn2kl7SsUBjFdQiBRv2CXRLScBMk/U4="
+ },
+ {
+  "rev": "aebdc892d6aa6834a083fb8b56c43578712b0dab",
+  "date": "2017-10-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre117013.aebdc892d6",
+  "narHash": "sha256-nwFdiYQn04f76VZrEiEaQpJ63lmc5+L2mcW54A6Tl60="
+ },
+ {
+  "rev": "1ad383fa7f03f5373a64f5c216398c6df655c84b",
+  "date": "2017-10-06",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre117314.1ad383fa7f",
+  "narHash": "sha256-nUYqc+o3OYXvsuZY4NT8J+Lu28DyORtH9/0M1R846Xc="
+ },
+ {
+  "rev": "3fe7cddc304abb86e61a750a4f807270c7ca7825",
+  "date": "2017-10-06",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre117327.3fe7cddc30",
+  "narHash": "sha256-kwCf7gyRspMW+WXLAdOXJlKqOkQbsWvHNydr6hnk6Y8="
+ },
+ {
+  "rev": "88b853eb80ec0d0df3c01e773c57618df16e0ef3",
+  "date": "2017-10-16",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre117981.88b853eb80",
+  "narHash": "sha256-Uj5Nr4TwKshxPnk61ReTrH+48Nwy7gXUQrrAmxcYcZU="
+ },
+ {
+  "rev": "00e56fbbee06088bf3bf82169032f5f5778588b7",
+  "date": "2017-10-17",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118082.00e56fbbee",
+  "narHash": "sha256-ZIWWbGf0O1Dc2BgGUEzO++KarnwmjIfPITyT4MYt9JY="
+ },
+ {
+  "rev": "ceb2b71f691e70aa36e4419d9556881502b6845c",
+  "date": "2017-10-18",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118077.ceb2b71f69",
+  "narHash": "sha256-BrUlQMtllrDQxQceOQJoR+lgiN6RF8PQzDD3SyDV7Yw="
+ },
+ {
+  "rev": "5da5af56e11ea26841d0c3226dc27c0dc720b3c9",
+  "date": "2017-10-19",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118208.5da5af56e1",
+  "narHash": "sha256-Okbat27e9OunD3HUamdfKQoonUXmxK10tDYo+vzSBtc="
+ },
+ {
+  "rev": "1d317bd84a13f73f0f05346dca6c048896aa91d0",
+  "date": "2017-10-20",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118263.1d317bd84a",
+  "narHash": "sha256-jvdFVddEto+wJIDaA2q7AvPHAUDyQ5Xo2khAFmbwelM="
+ },
+ {
+  "rev": "7f43dd3b3b944c8a236b42e87eac67aae7e62407",
+  "date": "2017-10-20",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118211.7f43dd3b3b",
+  "narHash": "sha256-qPWWHXWAo5YB8f9JSOuq07ocVOH6CHyx6gaHyBiOClM="
+ },
+ {
+  "rev": "df528e44720419cabe47aca83fb047114c2d2438",
+  "date": "2017-10-20",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118265.df528e4472",
+  "narHash": "sha256-A3Ffxhadt1DbHsmyOUXaz3LlBHQRGEQAccQCDpl6dBY="
+ },
+ {
+  "rev": "0ce09afcfa092e5ddb462023d0cbc9424a70c4b6",
+  "date": "2017-10-21",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118287.0ce09afcfa",
+  "narHash": "sha256-AfYDlkIFkvy9FjYju74HsEOByaPcUUO9f1z0Kx0xBSI="
+ },
+ {
+  "rev": "24c61cafa50ef02b9b0252d698fc3c2d05b893e6",
+  "date": "2017-10-22",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118366.24c61cafa5",
+  "narHash": "sha256-QMmXLDVKEu/OjzGbLrOwA1VLJEXvaUVDCTjoQCpOdl0="
+ },
+ {
+  "rev": "6d86fcb86de75a307684cf2e6b8a518bd458427c",
+  "date": "2017-10-22",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118328.6d86fcb86d",
+  "narHash": "sha256-tJezOnw73tn+CDAZnAOByqtBV2nvnmJxwLRwcpjQK3Q="
+ },
+ {
+  "rev": "e458c44c2b7b2815104d4bf9894a08a41ae0cf6d",
+  "date": "2017-10-22",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118321.e458c44c2b",
+  "narHash": "sha256-w0Jn8tUojfpdttTIteVoThNk4unhOqxIvPoKj055lH4="
+ },
+ {
+  "rev": "4068703502cb2948d09bc419d19e25b1e18502e2",
+  "date": "2017-10-23",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118381.4068703502",
+  "narHash": "sha256-g01arRQDurKQLF9rskc7RbWDDRnfDEvbzbWmgzl+ZNg="
+ },
+ {
+  "rev": "66b63d2f5a442d642ac2b226d71b4f97bafce5c8",
+  "date": "2017-10-26",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre118631.66b63d2f5a",
+  "narHash": "sha256-5YIU+IXr8vF5+GEQZNgf3WDDdNq8qz90EzRH/cQzWm8="
+ },
+ {
+  "rev": "2ddcdcce2652016ac58826fa600d19db111178e5",
+  "date": "2017-11-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119110.2ddcdcce26",
+  "narHash": "sha256-CWMbeOrGIeUrOMo2bjYRrhihkoNHgHqzPR626ZklRCY="
+ },
+ {
+  "rev": "737b4660311bd691200ebe1d422a8ff4958ad676",
+  "date": "2017-11-01",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119086.737b466031",
+  "narHash": "sha256-bSHIm5nmPbC8+P+Q12SarBafwKx2j/OefDpeNpTKuHs="
+ },
+ {
+  "rev": "5cfd049a0304c807a2ed2f7d3cf55c23cd103305",
+  "date": "2017-11-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119245.5cfd049a03",
+  "narHash": "sha256-iNJsJL1wDuW7jR6B8NttE3U9kBcbC/idVGm3w2ejhxs="
+ },
+ {
+  "rev": "c2bd98cc30ae435ce58847d77eb64ed88ab9aa69",
+  "date": "2017-11-02",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119171.c2bd98cc30",
+  "narHash": "sha256-TTWfvBM+pwAOjTD8VHG0LdSxOxangSR3BFu76vmLUg8="
+ },
+ {
+  "rev": "cfafd6f5a819472911eaf2650b50a62f0c143e3e",
+  "date": "2017-11-03",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119292.cfafd6f5a8",
+  "narHash": "sha256-ds6Fa68LRTa6S1NP6tQJp9kjXFAVnIeRj5wvSKCPr4M="
+ },
+ {
+  "rev": "27831cbd866c75f9cd7463537ca2dfe21938a78a",
+  "date": "2017-11-08",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119910.27831cbd86",
+  "narHash": "sha256-sLrI2G67YXMN3PjKhf8hnMLohrkajLvT8svllb9KjiQ="
+ },
+ {
+  "rev": "292f60504ca8758188cf646686231e44b7d76b96",
+  "date": "2017-11-08",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119873.292f60504c",
+  "narHash": "sha256-H9uEj5B84yxhsHhD8pT38I9LMltqJQO3icZgdsw6sDk="
+ },
+ {
+  "rev": "2a894cd2d14e0858d4942cf3d15c188372c3a121",
+  "date": "2017-11-09",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre119948.2a894cd2d1",
+  "narHash": "sha256-GfDtZSkQSYqhgt929lFedPG3ITQGfT13lhpYIIUbFv0="
+ },
+ {
+  "rev": "d03678c227bf40192a353939c61cb533c7abe5a0",
+  "date": "2017-11-09",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre120014.d03678c227",
+  "narHash": "sha256-1ACXNS6QNqjWnbuW71wFxGtqKPEiwM29EbkDm4fMyYY="
+ },
+ {
+  "rev": "7ebacd1a43d7112c75555414d968be9fc4c564a4",
+  "date": "2017-11-10",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre120031.7ebacd1a43",
+  "narHash": "sha256-xt9mm/H81cJKUMSp+pzeYpSClLrlItSMfPaxOneMIGM="
+ },
+ {
+  "rev": "9ea242c617bf6fca9b425b5199a26294a406cbc0",
+  "date": "2017-11-12",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre120249.9ea242c617",
+  "narHash": "sha256-/xoX0YzNMfsNMAWcx3B4iCY+GC9Vh6wJahNybbQou1s="
+ },
+ {
+  "rev": "aeff3080d02ce6ac2b2ad0b0029c1388eab2d8c7",
+  "date": "2017-11-14",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre120398.aeff3080d0",
+  "narHash": "sha256-c+u/IqPdNhxu+vCgnT/TddD/CxDWpI/6ZNieMD/lbn0="
+ },
+ {
+  "rev": "b8f7027360855faee9d72956092be2e030a12a5f",
+  "date": "2017-11-15",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre120540.b8f7027360",
+  "narHash": "sha256-4eOMbTySxVXIBMx2RWXsHjcfOUt52/XuRRAV01W2VRw="
+ },
+ {
+  "rev": "9ce33dd8fb41ee9fcf0778a094772ebfbb532499",
+  "date": "2017-11-17",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre120728.9ce33dd8fb",
+  "narHash": "sha256-Zf4hL29B08xHVi6/jgC/Byo/6x9K3LosdipF83Byzjk="
+ },
+ {
+  "rev": "2f1a818d00f957f3102c0b412864c63b6e3e7447",
+  "date": "2017-11-25",
+  "channel": "nixos-unstable",
+  "name": "nixos-18.03pre121253.2f1a818d00",
+  "narHash": "sha256-zUXA8CSwWOCxqc5+N26uCU+ivfvipaR04mRLr+baPr0="
  },
  {
   "rev": "4cbbecc85dbc5a040f2e4111093d30337718996a",
