@@ -36,10 +36,21 @@
           }) systems
         );
 
-      # The dev shell and the tool wrappers are built out of the multiverse's
-      # own tip revision. That keeps `inputs = { }` intact: nothing is fetched
-      # unless somebody actually asks for a shell or runs a tool.
-      pkgsFor = system: (import ./multiverse.nix { inherit system; }).tip;
+      # The dev shell and the tool wrappers are built out of a multiverse
+      # revision. That keeps `inputs = { }` intact: nothing is fetched unless
+      # somebody actually asks for a shell or runs a tool.
+      #
+      # The newest *release* rather than `tip`, for two reasons. Bash and python
+      # from last Tuesday's channel bump are no better than bash and python from
+      # the release, and pinning to something that moves twice a year means the
+      # hourly update job reuses one closure instead of building a fresh one
+      # every time nixos-unstable advances.
+      pkgsFor =
+        system:
+        let
+          mv = import ./multiverse.nix { inherit system; };
+        in
+        mv.at (builtins.elemAt mv.releases (builtins.length mv.releases - 1));
 
       # What tools/*.sh reach for. `bash` is in the list because the scripts use
       # `mapfile`, which is bash 4+ — the bash 3.2 macOS still ships fails on it.
@@ -97,6 +108,11 @@
       packages = forAllSystems (system: {
         every-python = import ./demos/every-python.nix { inherit system; };
       });
+
+      # `nix fmt`. The tree wrapper rather than bare `nixfmt`, which now
+      # deprecates being handed a directory and formats stdin when `nix fmt` is
+      # called with no paths at all.
+      formatter = forAllSystems (system: (pkgsFor system).nixfmt-tree);
 
       # Everything tools/*.sh needs, so `tools/build-index.sh` runs the same way
       # on any host — including the bash 4+ the scripts assume.

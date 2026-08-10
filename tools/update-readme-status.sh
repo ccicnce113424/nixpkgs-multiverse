@@ -33,26 +33,27 @@ tip = revs[-1]
 attrs = index['attrs']
 pairs = sum(len(versions) for versions in attrs.values())
 
-# What the index can do for you, then how current it is. Deliberately not
-# "N of N revisions indexed": those two numbers agree except in the minutes
+# One line for what the index holds, one for how current it is. Deliberately
+# not "N of N revisions indexed": those two numbers agree except in the minutes
 # between an append and the run that indexes it, so the healthy case is noise
 # and the lagging case gets a line of its own below.
-newest = [
-    f"- **newest revision** [`{tip['rev'][:SHORT_REV]}`]"
-    f"({COMMIT_URL}{tip['rev']}) · {tip['date']}"
+coverage = (
+    f"- **{pairs:,} package versions** across **{len(attrs):,} attributes**, "
+    f"from **{len(revs):,} revisions**"
+)
+current = [
+    f"- {revs[0]['date']} → {revs[-1]['date']}, newest "
+    f"[`{tip['rev'][:SHORT_REV]}`]({COMMIT_URL}{tip['rev']})"
 ]
 
 # Only revisions discovered through the channel archive carry the S3 object
-# that published them; named releases and hand-added entries do not.
+# that published them; named releases and hand-added entries do not. The hash
+# is already on the line, so the link shows just the channel it published as.
 if 'name' in tip:
-    newest.append(f" · [`{tip['name']}`]({CHANNEL_URL}{tip['name']}/)")
+    channel = tip['name'].rsplit('.', 1)[0]
+    current.append(f" · [`{channel}`]({CHANNEL_URL}{tip['name']}/)")
 
-lines = [
-    BEGIN,
-    f"- **{pairs:,} package versions** across {len(attrs):,} attributes, from "
-    f"{len(revs):,} nixpkgs revisions spanning {revs[0]['date']} → {revs[-1]['date']}",
-    ''.join(newest),
-]
+lines = [BEGIN, coverage, ''.join(current)]
 
 # Only worth a reader's attention when it is not zero: revisions are on file
 # but no version of theirs is reachable yet.

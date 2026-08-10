@@ -167,6 +167,15 @@ let
     else
       throw "multiverse: revision ${labelOf i} has no narHash; re-run tools/build-index.sh or use fetcher = \"local\"";
 
+  # Whether a revision can be turned into a tree at all. The github fetcher
+  # needs a narHash, and a revision appended by fetch-unstable-revisions.sh has
+  # none until build-index.sh reaches it. Asking for such a revision by name is
+  # still an error — pathFor says so plainly — but nothing should *land* on one
+  # by walking off the end of the array.
+  materialisable = i: fetcher == "local" || (revAt i) ? narHash;
+
+  newestMaterialisable = builtins.foldl' (acc: i: if materialisable i then i else acc) null offsets;
+
   # Memoise per revision, keyed by offset. listToAttrs is lazy in its values, so
   # building this costs one thunk per revision and fetches nothing.
   instances = builtins.listToAttrs (
@@ -207,7 +216,16 @@ rec {
   # at whatever the last indexing run captured and drifts further behind
   # nixos-unstable every day until the index is rebuilt. If you want the live
   # channel, add a nixpkgs input; multiverse is for reaching backwards.
-  tip = instances.${toString (nRevs - 1)};
+  #
+  # The newest *materialisable* revision rather than the last one on file:
+  # between an append and the indexing run that catches up to it, the last few
+  # entries have no narHash and cannot be fetched. `tip` is a promise to hand
+  # back a working nixpkgs, so it walks back to the newest one that is.
+  tip =
+    if newestMaterialisable == null then
+      throw "multiverse: no revision has a narHash; run tools/build-index.sh"
+    else
+      instances.${toString newestMaterialisable};
 
   # Every known version of an attribute, oldest first.
   versionsOf = attr: sortVersions (builtins.attrNames (versionsFor attr));
