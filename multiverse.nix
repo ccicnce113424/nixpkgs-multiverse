@@ -103,6 +103,40 @@ let
   offsetOnOrBefore =
     date: builtins.foldl' (acc: i: if (revAt i).date <= date then i else acc) null offsets;
 
+  # "08" is not valid JSON — leading zeros are forbidden — so the month and day
+  # fields cannot go straight through fromJSON.
+  toInt =
+    s:
+    builtins.fromJSON (
+      if builtins.substring 0 1 s == "0" && builtins.stringLength s > 1 then
+        builtins.substring 1 (builtins.stringLength s - 1) s
+      else
+        s
+    );
+
+  # A YYYY-MM-DD date as a day number, so two dates can be subtracted. This is
+  # Howard Hinnant's days_from_civil: shift the year to start in March, which
+  # puts the leap day last and makes the month-length pattern regular, then
+  # count eras of 400 years. Nix divides integers by truncation, and every date
+  # here is well after 1970, so the negative-year branch never runs.
+  dayOf =
+    date:
+    let
+      parts = builtins.match "([0-9]{4})-([0-9]{2})-([0-9]{2})" date;
+      y0 = toInt (builtins.elemAt parts 0);
+      m = toInt (builtins.elemAt parts 1);
+      d = toInt (builtins.elemAt parts 2);
+      y = if m <= 2 then y0 - 1 else y0;
+      era = y / 400;
+      yoe = y - era * 400;
+      doy = (153 * (m + (if m > 2 then -3 else 9)) + 2) / 5 + d - 1;
+      doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    in
+    if parts == null then
+      throw "multiverse: '${date}' is not a YYYY-MM-DD date"
+    else
+      era * 146097 + doe - 719468;
+
   # First revision whose commit hash starts with `sha`.
   offsetOfRev =
     sha:
@@ -167,6 +201,39 @@ let
   materialisable = i: fetcher == "local" || (revAt i) ? narHash;
 
   newestMaterialisable = builtins.foldl' (acc: i: if materialisable i then i else acc) null offsets;
+
+  # A selector's date, read straight out of revisions.json or releases.json.
+  # Nothing is materialised to answer this, which is the whole reason a window
+  # takes a selector rather than a package set: provenance rides *on* a package
+  # set, so reading a date off one means fetching that entire revision first.
+  dateOfSelector =
+    sel:
+    if sel == "tip" then
+      if newestMaterialisable == null then
+        throw "multiverse: no revision has a narHash; run tools/build-index.sh"
+      else
+        (revAt newestMaterialisable).date
+    else if releaseTable ? ${sel} then
+      releaseTable.${sel}.date
+    else
+      (revAt (resolve sel)).date;
+
+  # Newest materialisable revision at least `days` older than `date`, as an
+  # instance. Always searches the unstable revision list: an anchor only
+  # supplies the date, so `behind "26.05" 7` means "unstable as it stood a week
+  # before the 26.05 channel tip", not a walk back along release-26.05.
+  instanceBehind =
+    date: days:
+    let
+      cutoff = dayOf date - days;
+      i = builtins.foldl' (
+        acc: i: if materialisable i && dayOf (revAt i).date <= cutoff then i else acc
+      ) null offsets;
+    in
+    if i == null then
+      throw "multiverse: nothing is ${toString days} days before ${date}; the index reaches back to ${(revAt 0).date}"
+    else
+      instances.${toString i};
 
   # nixpkgs only grew an `overlays` argument in 17.03 — 16.09 takes exactly
   # { config, system } — and handing a function an argument it does not declare
@@ -284,6 +351,15 @@ rec {
       throw "multiverse: no revision has a narHash; run tools/build-index.sh"
     else
       instances.${toString newestMaterialisable};
+
+  # A soak period: the whole of nixos-unstable as it stood some number of days
+  # before an anchor. The anchor is any selector `at` takes:
+  #
+  #   daysBehind "tip" 7            a week behind the newest indexed revision
+  #   daysBehind "26.05" 7          a week before the 26.05 channel tip
+  #   daysBehind "2026-05-30" 7     a week before that date
+  #   daysBehind "aae12a743f75" 30  a month before that commit landed
+  daysBehind = sel: days: instanceBehind (dateOfSelector sel) days;
 
   # Every known version of an attribute, oldest first.
   versionsOf = attr: sortVersions (builtins.attrNames (versionsFor attr));

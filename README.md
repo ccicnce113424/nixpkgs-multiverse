@@ -87,6 +87,34 @@ nix-repl> multiverse.x86_64-linux.releases
 
 **Note**: Enumerating versions fetches nothing as it reads an index file only. A revision is materialised the first time you force a derivation.
 
+### A soak period
+
+`daysBehind` gives you the whole of nixos-unstable as it stood some number of
+days before an anchor, a cooldown window similar to [Determinate Systems Cooldown](https://determinate.systems/blog/nixpkgs-cooldown/#reducing-the-risk-with-cooldowns).
+
+The anchor is any selector `at` takes:
+
+```nix
+# a week behind the newest indexed revision
+mv.daysBehind "tip" 7
+# a week before the 26.05 channel tip
+mv.daysBehind "26.05" 7
+# a week before that date
+mv.daysBehind "2026-05-30" 7
+# a month before that commit landed
+mv.daysBehind "aae12a743f75" 30
+```
+
+```console
+nix-repl> (mv.daysBehind "tip" 7).hello.version
+"2.12.3"
+nix-repl> (mv.daysBehind "tip" 365).hello.version
+"2.12.2"
+```
+
+A selector resolves to a date out of `revisions.json` or `releases.json`. Only the revision you asked for is ever fetched (i.e. `"26.05"` does not materialise 26.05).
+
+Note: Days behind a release revision walk back on unstable, not the release branch.
 
 ### Provenance
 
@@ -145,6 +173,8 @@ Query the underlying revision data.
 mv.versionsOf "python3"
 # every known revision that shipped a version
 mv.revOf "python3" "3.8.9"
+# unstable as it stood N days before any anchor
+mv.daysBehind "tip" 7
 # where a package set came from
 (mv.at "26.05").multiverse
 # every release channel tracked, oldest first
