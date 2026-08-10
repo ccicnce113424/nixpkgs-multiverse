@@ -81,7 +81,7 @@ nix-repl> multiverse.x86_64-linux.revOf "python3" "3.8.9"
 "2021-07-18-967d40bec14b"
 
 nix-repl> multiverse.x86_64-linux.releases
-[ "17.03" "17.09" … "26.05" ]
+[ "13.10" "14.04" … "26.05" ]
 ```
 
 
@@ -113,7 +113,14 @@ nix-repl> multiverse.x86_64-linux.releaseTips."26.05"
   rev = "8b8c811c7c2541c30382c5de7ed26be055569c60"; }
 ```
 
-Each one is the highest-numbered published bump of that channel in the [nix-releases archive](https://nix-releases.s3.amazonaws.com/), so it exists in the [cache.nixos.org](https://cache.nixos.org) as well.
+Each one is the highest-numbered published bump of that channel in the [nix-releases archive](https://nix-releases.s3.amazonaws.com/), so it exists in the [cache.nixos.org](https://cache.nixos.org) as well. Betas are skipped, so a release appears only once it has shipped.
+
+All 25 releases the archive holds are tracked, back to `13.10`:
+
+```console
+nix-repl> (mv.at "13.10").hello.name
+"hello-2.8"
+```
 
 
 Query the underlying revision data.

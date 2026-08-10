@@ -19,7 +19,8 @@
 #                                    -aarch64, unstable and the virtualbox
 #                                    image buckets
 #   nixos-<rel>.<build>.<sha>/       a published bump; <build> is the Hydra
-#                                    evaluation id and rises monotonically
+#                                    evaluation id and rises monotonically.
+#                                    <sha> was 7 characters until 2018
 #   nixos-<rel>beta<build>.<sha>/    a bump of the release branch from before
 #                                    release day, skipped so that a release
 #                                    appears here only once it has shipped
@@ -31,11 +32,14 @@ set -euo pipefail
 # releases.json lives in the caller's checkout, which under `nix run` is not
 # where this script lives; the flake wrapper passes it down as MULTIVERSE_ROOT.
 MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# Optional, and only needed to seed a release whose channel used a 7-character
+# hash — see `expand` below.
+NIXPKGS="${NIXPKGS:-}"
 
-python3 - "$MT/releases.json" <<'PY'
-import json, os, re, sys, urllib.parse, urllib.request
+python3 - "$MT/releases.json" "$NIXPKGS" <<'PY'
+import json, os, re, subprocess, sys, urllib.parse, urllib.request
 
-relfile = sys.argv[1]
+relfile, nixpkgs = sys.argv[1], sys.argv[2]
 BASE = 'https://nix-releases.s3.amazonaws.com/'
 API = 'https://api.github.com/repos/NixOS/nixpkgs/commits/'
 
@@ -43,12 +47,11 @@ API = 'https://api.github.com/repos/NixOS/nixpkgs/commits/'
 # 21.05-aarch64, unstable, unstable-small and two virtualbox image sets.
 RELEASE = re.compile(r'^\d\d\.\d\d$')
 
-# The oldest release worth tracking. 13.10 through 16.09 do evaluate on a
-# current Nix now that `overlays` is withheld from revisions that predate it,
-# but their channel directories publish no `git-revision` object and their
-# names carry only a 7-character hash, which is ambiguous across ~600k commits
-# — so there is no reliable way to say which commit they are.
-OLDEST = '17.03'
+# The oldest release the archive holds. Everything from here up evaluates on a
+# current Nix, now that `overlays` is withheld from the revisions that predate
+# it. Earlier names come from the era when NixOS and nixpkgs were separate
+# repositories and carry two hashes, neither unambiguously a nixpkgs commit.
+OLDEST = '13.10'
 
 
 def prefixes(prefix):
@@ -72,7 +75,26 @@ def prefixes(prefix):
 
 
 def expand(short):
-    """Short hash -> (full commit, commit date) via the GitHub API."""
+    """Short hash -> (full commit, commit date).
+
+    The clone first, because it is the only thing that can expand the
+    7-character hashes the channels used until 2018: GitHub resolves a SHA
+    against a repository's entire fork network, where 7 characters collide
+    constantly, and answers 422 rather than picking one. Those hashes are
+    unambiguous within nixpkgs itself, so a clone settles them.
+    """
+    if nixpkgs and os.path.isdir(os.path.join(nixpkgs, '.git')):
+        try:
+            rev = subprocess.run(
+                ['git', '-C', nixpkgs, 'rev-parse', '--verify', f'{short}^{{commit}}'],
+                capture_output=True, text=True, check=True).stdout.strip()
+            date = subprocess.run(
+                ['git', '-C', nixpkgs, 'log', '-1', '--format=%cs', rev],
+                capture_output=True, text=True, check=True).stdout.strip()
+            return rev, date
+        except subprocess.CalledProcessError:
+            pass
+
     req = urllib.request.Request(API + short, headers={
         'Accept': 'application/vnd.github+json',
         'User-Agent': 'nixpkgs-multiverse',
@@ -90,7 +112,7 @@ names = sorted(n for n in prefixes('nixos/') if RELEASE.match(n) and n >= OLDEST
 
 out, moved, held, lookups = {}, [], 0, 0
 for name in names:
-    bump = re.compile(rf'^nixos-{re.escape(name)}\.(\d+)\.([0-9a-f]{{11,12}})$')
+    bump = re.compile(rf'^nixos-{re.escape(name)}\.(\d+)\.([0-9a-f]{{7,12}})$')
     published = [
         (int(m.group(1)), m.group(2))
         for d in prefixes(f'nixos/{name}/') if (m := bump.match(d))
