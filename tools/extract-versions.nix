@@ -13,15 +13,26 @@
 }:
 
 let
-  pkgs = import revPath {
+  entry = import revPath;
+
+  args = {
     inherit system;
     config = {
       allowAliases = true;
       allowUnfree = true;
       allowBroken = false;
     };
-    overlays = [ ];
   };
+
+  # nixpkgs only grew an `overlays` argument in 17.03 — 16.09 takes exactly
+  # { config, system } — and handing a function an argument it does not declare
+  # is a hard error, so the empty list is offered only where it is accepted.
+  # Without this every pre-17.03 revision fails extraction outright.
+  pkgs =
+    if (builtins.functionArgs entry) ? overlays then
+      entry (args // { overlays = [ ]; })
+    else
+      entry args;
 
   # Version of a single attribute, or null if it cannot be determined.
   # Prefers the explicit `version` attribute and falls back to parsing the

@@ -176,12 +176,29 @@ let
 
   newestMaterialisable = builtins.foldl' (acc: i: if materialisable i then i else acc) null offsets;
 
+  # nixpkgs only grew an `overlays` argument in 17.03 — 16.09 takes exactly
+  # { config, system } — and handing a function an argument it does not declare
+  # is a hard error, not an ignored extra. Every revision is imported through
+  # here so that the argument is offered only where it is accepted.
+  importRevision =
+    path:
+    let
+      entry = import path;
+      accepted = builtins.functionArgs entry;
+    in
+    if accepted ? overlays then
+      entry { inherit system config overlays; }
+    else if overlays == [ ] then
+      entry { inherit system config; }
+    else
+      throw "multiverse: this revision predates the `overlays` argument, which nixpkgs gained in 17.03, so it cannot take the overlays you passed";
+
   # Memoise per revision, keyed by offset. listToAttrs is lazy in its values, so
   # building this costs one thunk per revision and fetches nothing.
   instances = builtins.listToAttrs (
     map (i: {
       name = toString i;
-      value = import (pathFor i) { inherit system config overlays; };
+      value = importRevision (pathFor i);
     }) offsets
   );
 
