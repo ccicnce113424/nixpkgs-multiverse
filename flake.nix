@@ -35,6 +35,52 @@
             value = f system;
           }) systems
         );
+
+      # The dev shell and the tool wrappers are built out of the multiverse's
+      # own tip revision. That keeps `inputs = { }` intact: nothing is fetched
+      # unless somebody actually asks for a shell or runs a tool.
+      pkgsFor = system: (import ./multiverse.nix { inherit system; }).tip;
+
+      # What tools/*.sh reach for. `bash` is in the list because the scripts use
+      # `mapfile`, which is bash 4+ — the bash 3.2 macOS still ships fails on it.
+      #
+      # `nix` is deliberately absent: the scripts call `nix hash path` and
+      # `nix-instantiate` against the caller's own store, so the host's nix is
+      # the correct one to use.
+      toolDeps = pkgs: [
+        pkgs.bash
+        pkgs.python3
+        pkgs.git
+        pkgs.gnutar
+        pkgs.gnugrep
+        pkgs.coreutils
+      ];
+
+      # `nix run` executes a copy of tools/ out of the store, but every script
+      # rewrites revisions.json and index/ in place, so they need a checkout to
+      # act on. The wrapper hands the caller's directory over as
+      # MULTIVERSE_ROOT and refuses to guess when it is not a checkout.
+      wrapTool =
+        pkgs: name:
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = toolDeps pkgs;
+          text = ''
+            if [ ! -f "$PWD/revisions.json" ]; then
+              echo "${name}: run this from a nixpkgs-multiverse checkout (no revisions.json in $PWD)" >&2
+              exit 1
+            fi
+            export MULTIVERSE_ROOT="$PWD"
+            exec bash ${./tools}/${name}.sh "$@"
+          '';
+        };
+
+      tools = [
+        "build-index"
+        "fetch-unstable-revisions"
+        "add-narhashes"
+        "update-readme-status"
+      ];
     in
     {
       # The multiverse API, per system.
@@ -51,5 +97,29 @@
       packages = forAllSystems (system: {
         every-python = import ./demos/every-python.nix { inherit system; };
       });
+
+      # Everything tools/*.sh needs, so `tools/build-index.sh` runs the same way
+      # on any host — including the bash 4+ the scripts assume.
+      devShells = forAllSystems (system: {
+        default = (pkgsFor system).mkShellNoCC { packages = toolDeps (pkgsFor system); };
+      });
+
+      # The same tools without entering a shell first:
+      #   nix run .#build-index -- -n 30
+      apps = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        builtins.listToAttrs (
+          map (name: {
+            inherit name;
+            value = {
+              type = "app";
+              program = "${wrapTool pkgs name}/bin/${name}";
+            };
+          }) tools
+        )
+      );
     };
 }
