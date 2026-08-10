@@ -1,0 +1,84 @@
+# Keeps revisions.json and index/versions.json current with the nixos-unstable
+# channel archive, and commits whatever moved.
+#
+# The whole job is incremental. fetch-unstable-revisions.sh only looks up
+# channels it has never seen, build-index.sh --incremental only evaluates
+# offsets past the index's revisionCount, and neither needs a nixpkgs clone:
+# revisions are resolved through the GitHub API and materialised with
+# `nix flake prefetch`. A run that finds nothing new costs about a minute.
+name: update-index
+
+on:
+  schedule:
+    # nixos-unstable advances a handful of times a day, so hourly already tracks
+    # it closely and most runs will still find nothing. GitHub queues scheduled
+    # workflows and drops them under load, so treat this as a ceiling on
+    # frequency, not a promise of one.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+# Runs push to the default branch and can take several minutes when a new
+# revision lands, which is longer than the gap between two schedules.
+concurrency:
+  group: update-index
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      # What this saves is the tool wrappers and their closure, which every run
+      # would otherwise rebuild. It does not cache the revisions themselves:
+      # those arrive through builtins.fetchTree and `nix flake prefetch`, which
+      # fetch at evaluation time and never consult a substituter.
+      - uses: cachix/cachix-action@v17
+        with:
+          name: nixpkgs-multiverse
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      # NIXPKGS is deliberately left unset: with no clone on disk the script
+      # resolves new channel revisions through the GitHub API instead, which is
+      # a couple of requests rather than a five gigabyte fetch.
+      - name: Fetch new unstable revisions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix run .#fetch-unstable-revisions
+
+      # An incremental merge stops at the first revision it could not extract,
+      # rather than claiming coverage past it, so a transient failure is retried
+      # next run. A revision that fails permanently parks the index just behind
+      # it — visible as a "stopping at offset N" line here.
+      - name: Index whatever is new
+        run: nix run .#build-index -- --incremental
+
+      - name: Refresh the README status block
+        run: nix run .#update-readme-status
+
+      - name: Commit
+        run: |
+          if git diff --quiet -- revisions.json index README.md; then
+            echo "nothing new"
+            exit 0
+          fi
+
+          # Name the revision in the message, so the log reads as a history of
+          # the channel rather than a wall of identical "update index" commits.
+          tip=$(python3 -c 'import json; r = json.load(open("revisions.json"))[-1]; print(r["rev"][:12], r["date"])')
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add revisions.json index README.md
+          git commit -m "Index nixpkgs through ${tip}"
+          git push

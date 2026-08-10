@@ -27,7 +27,9 @@
   #              outside the tree is rejected under pure evaluation.
   # Both produce byte-identical derivations; verified against 25.05.
   fetcher ? "github",
-  nixpkgsSource ? "/home/fmzakari/code/github.com/NixOS/nixpkgs",
+  # Only consulted by the "local" fetcher, which cannot guess where a clone
+  # lives, so there is no default worth having.
+  nixpkgsSource ? null,
 }:
 
 let
@@ -59,8 +61,13 @@ let
   # The index stores bare offsets, so it is only valid against the revision list
   # it was built from. Appending revisions is safe; reordering is not, and this
   # catches that rather than silently resolving to the wrong commit.
+  #
+  # Covering *fewer* revisions than revisions.json holds is the ordinary state
+  # between an append and the indexing run that catches up to it — the offsets
+  # already recorded still point where they did. Only a count that runs past the
+  # end of the array proves the two files disagree about what offset 0 is.
   checkedIndex =
-    if (index.revisionCount or null) != nRevs then
+    if (index.revisionCount or null) == null || index.revisionCount > nRevs then
       throw ''
         multiverse: index/versions.json was built against ${toString (index.revisionCount or 0)}
         revisions but revisions.json now has ${toString nRevs}. Re-run tools/build-index.sh.
@@ -141,7 +148,9 @@ let
     let
       r = revAt i;
     in
-    if fetcher == "local" then
+    if fetcher == "local" && nixpkgsSource == null then
+      throw "multiverse: fetcher = \"local\" needs nixpkgsSource set to a nixpkgs clone"
+    else if fetcher == "local" then
       builtins.fetchGit {
         url = nixpkgsSource;
         rev = r.rev;
