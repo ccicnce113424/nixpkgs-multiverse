@@ -185,12 +185,22 @@ let
     else
       throw "multiverse: this revision predates the `overlays` argument, which nixpkgs gained in 17.03, so it cannot take the overlays you passed";
 
+  # Every package set carries where it came from. An imported nixpkgs has no
+  # idea which revision produced it — `lib.version` reads "26.11pre-git" for a
+  # fetched tree, and `path` is content-addressed — so without this, `at` hands
+  # back something you cannot ask any further questions about, and `behind`
+  # could only ever take a selector rather than a package set.
+  tagged = provenance: pkgs: pkgs // { multiverse = provenance; };
+
   # Memoise per revision, keyed by offset. listToAttrs is lazy in its values, so
   # building this costs one thunk per revision and fetches nothing.
   instances = builtins.listToAttrs (
     map (i: {
       name = toString i;
-      value = importRevision (pathFor i);
+      value = tagged {
+        inherit (revAt i) rev date;
+        label = labelOf i;
+      } (importRevision (pathFor i));
     }) offsets
   );
 
@@ -218,7 +228,9 @@ let
 
   # Memoised the same way as instances, and just as lazy: naming a release
   # costs a thunk, forcing one costs a fetch.
-  releaseInstances = builtins.mapAttrs (_: r: importRevision (pathForRelease r)) releaseTable;
+  releaseInstances = builtins.mapAttrs (
+    name: r: tagged (r // { release = name; }) (importRevision (pathForRelease r))
+  ) releaseTable;
 
   versionsFor = attr: attrIndex.${attr} or { };
 
@@ -246,7 +258,13 @@ rec {
   #   at "2024-06-12"   newest revision on or before that date — fixed forever
   #   at "aae12a743f75" commit hash prefix — fixed forever
   at =
-    sel: if releaseTable ? ${sel} then releaseInstances.${sel} else instances.${toString (resolve sel)};
+    sel:
+    if sel == "tip" then
+      tip
+    else if releaseTable ? ${sel} then
+      releaseInstances.${sel}
+    else
+      instances.${toString (resolve sel)};
 
   # The newest revision this index knows, as a real nixpkgs — `lib`,
   # `callPackage`, and a package set that is internally consistent, which is

@@ -87,6 +87,21 @@ nix-repl> multiverse.x86_64-linux.releases
 
 **Note**: Enumerating versions fetches nothing as it reads an index file only. A revision is materialised the first time you force a derivation.
 
+
+### Provenance
+
+Every set from the multiverse is tagged with its origin:
+
+```console
+nix-repl> (mv.at "2022-03-15").multiverse
+{ date = "2022-03-14"; label = "2022-03-14-73ad5f9e147c";
+  rev = "73ad5f9e147c0d2a2061f1d4bd91e05078dc0b58"; }
+
+nix-repl> (mv.at "26.05").multiverse
+{ build = 7376; date = "2026-08-09"; name = "nixos-26.05.7376.fcb8fcd6bf2d";
+  release = "26.05"; rev = "fcb8fcd6bf2d0adecae5bd491afaaaf8311b758d"; }
+```
+
 ### Releases move, revisions do not
 
 `at "26.05"` is a *channel*, not a snapshot. Backports land on `release-26.05` for the whole life of the release, and `at` follows them, exactly as `github:NixOS/nixpkgs/nixos-26.05` does:
@@ -130,6 +145,8 @@ Query the underlying revision data.
 mv.versionsOf "python3"
 # every known revision that shipped a version
 mv.revOf "python3" "3.8.9"
+# where a package set came from
+(mv.at "26.05").multiverse
 # every release channel tracked, oldest first
 mv.releases
 # the release table: what commit each channel is at, and when
