@@ -46,6 +46,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 mkdir -p "$WORK"
+FAILURES=0
 
 # The extraction cache is keyed by the extractor's own hash as well as the
 # revision. Without this, editing extract-versions.nix leaves every cached file
@@ -88,7 +89,8 @@ for i, r in sel: print(i, r['rev'], r.get('release') or r['date'])
     if [ -n "$NIXPKGS" ] && git -C "$NIXPKGS" cat-file -e "$sha^{commit}" 2>/dev/null; then
       tmp=$(mktemp -d)
       if ! git -C "$NIXPKGS" archive "$sha" 2>/dev/null | tar -x -C "$tmp"; then
-        rm -rf "$tmp"; echo "CHECKOUT FAILED (rev not in clone? try git fetch)"; continue
+        rm -rf "$tmp"; echo "CHECKOUT FAILED (rev not in clone? try git fetch)"
+        FAILURES=$((FAILURES + 1)); continue
       fi
       src="$tmp"
       # narHash from the same checkout: identical to what fetchTree computes for
@@ -96,7 +98,8 @@ for i, r in sel: print(i, r['rev'], r.get('release') or r['date'])
       narhash=$(nix hash path --sri --type sha256 "$tmp" 2>/dev/null || true)
     else
       if ! prefetched=$(nix flake prefetch --json "github:NixOS/nixpkgs/$sha" 2>/dev/null); then
-        echo "FETCH FAILED (no clone, and GitHub would not serve $sha)"; continue
+        echo "FETCH FAILED (no clone, and GitHub would not serve $sha)"
+        FAILURES=$((FAILURES + 1)); continue
       fi
       src=$(printf '%s' "$prefetched" | python3 -c 'import json,sys; print(json.load(sys.stdin)["storePath"])')
       narhash=$(printf '%s' "$prefetched" | python3 -c 'import json,sys; print(json.load(sys.stdin)["hash"])')
@@ -118,6 +121,7 @@ json.dump(revs, open('$REVFILE','w'), indent=1)
       echo "$n attrs in $((SECONDS-start))s"
     else
       rm -f "$dest.tmp"
+      FAILURES=$((FAILURES + 1))
       echo "EVAL FAILED ($((SECONDS-start))s): $(grep -m1 -o 'error:.*' "$dest.err" | head -c 55)"
     fi
     if [ -n "$tmp" ]; then
@@ -179,3 +183,15 @@ print(f"index: {merged} revisions merged, covering {covered}/{len(revs)}, "
       f"{len(attrs):,} attrs, {pairs:,} (attr, version) pairs")
 print(f"       -> {out} ({os.path.getsize(out)/1e6:.2f} MB)")
 PY
+
+# An incremental run indexes revisions that landed on nixos-unstable days ago;
+# one of those failing to evaluate is a bug to look at, not a casualty to shrug
+# off, and the index that comes out stops short of the revisions.json beside it.
+# Failing here is what keeps the update job from committing that pair.
+#
+# A full rebuild is held to a looser standard on purpose: it reaches back to
+# 2015, and a handful of those revisions will never evaluate on a current Nix.
+if [ "$INCREMENTAL" -eq 1 ] && [ "$FAILURES" -gt 0 ]; then
+  echo "$FAILURES revision(s) failed to index; index left behind revisions.json" >&2
+  exit 1
+fi

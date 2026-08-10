@@ -58,17 +58,10 @@ if 'name' in tip:
     channel = tip['name'].rsplit('.', 1)[0]
     current.append(f" · [`{channel}`]({CHANNEL_URL}{tip['name']}/)")
 
-lines = [BEGIN, coverage, ''.join(current)]
-
-# Only worth a reader's attention when it is not zero. These revisions are on
-# file but not usable yet: no narHash means nothing can fetch them, and no
-# extraction means none of their versions are in the index either.
-pending = len(revs) - index['revisionCount']
-if pending:
-    lines.append(f"- {pending:,} newer revisions are on file and waiting for the "
-                 f"next indexing run")
-
-lines.append(END)
+# No line for revisions that are on file but unindexed. build-index.sh fails
+# rather than half-finish an incremental run, so the update job never commits
+# that pair, and both numbers above stay true of what the repo actually ships.
+lines = [BEGIN, coverage, ''.join(current), END]
 
 text = open(readme).read()
 if BEGIN not in text or END not in text:

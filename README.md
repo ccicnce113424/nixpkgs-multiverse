@@ -8,6 +8,8 @@ Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 
 ## Status
 
+![github master branch workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/update-index.yml/badge.svg?branch=main)
+
 <!-- BEGIN index-status -->
 - **289,521 package versions** across **30,947 attributes**, from **1,396 revisions**
 - 2015-09-30 → 2026-07-19, newest [`241313f4e8e5`](https://github.com/NixOS/nixpkgs/commit/241313f4e8e508cb9b13278c2b0fa25b9ca27163)
