@@ -89,6 +89,7 @@
       tools = [
         "build-index"
         "fetch-unstable-revisions"
+        "fetch-releases"
         "add-narhashes"
         "update-readme-status"
       ];

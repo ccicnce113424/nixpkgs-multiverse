@@ -60,6 +60,17 @@ jobs:
       # rather than claiming coverage past it, so a transient failure is retried
       # next run. A revision that fails permanently parks the index just behind
       # it — visible as a "stopping at offset N" line here.
+      # Independent of the revision list: releases.json is a small mutable table
+      # of channel tips that nothing indexes, so it neither shifts an offset nor
+      # waits on an indexing run.
+      - name: Follow the release channels
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix run .#fetch-releases
+
+      # An incremental merge stops at the first revision it could not extract,
+      # rather than claiming coverage past it, and exits non-zero — so a run
+      # that half-indexes commits nothing and is simply retried next hour.
       - name: Index whatever is new
         run: nix run .#build-index -- --incremental
 
@@ -68,7 +79,7 @@ jobs:
 
       - name: Commit
         run: |
-          if git diff --quiet -- revisions.json index README.md; then
+          if git diff --quiet -- revisions.json releases.json index README.md; then
             echo "nothing new"
             exit 0
           fi
@@ -79,6 +90,6 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add revisions.json index README.md
+          git add revisions.json releases.json index README.md
           git commit -m "Index nixpkgs through ${tip}"
           git push

@@ -13,7 +13,6 @@
 # Usage:
 #   tools/build-index.sh                 # index every revision
 #   tools/build-index.sh -n 30           # first 30 revisions only (smoke test)
-#   tools/build-index.sh --releases      # only revisions with a release label
 #   tools/build-index.sh --merge-only    # rebuild the index from cache, no eval
 #   tools/build-index.sh --incremental   # only revisions the index has never
 #                                        # covered, merged into the existing one
@@ -33,13 +32,11 @@ REVFILE="$MT/revisions.json"
 OUT="$MT/index/versions.json"
 WORK="$MT/index/.per-rev"
 LIMIT=0
-ONLY_RELEASES=0
 MERGE_ONLY=0
 INCREMENTAL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     -n) LIMIT="${2:-0}"; shift 2 ;;
-    --releases) ONLY_RELEASES=1; shift ;;
     --merge-only) MERGE_ONLY=1; shift ;;
     --incremental) INCREMENTAL=1; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -60,12 +57,12 @@ if [ "$MERGE_ONLY" -eq 0 ]; then
   mapfile -t TARGETS < <(python3 -c "
 import json, os
 revs = json.load(open('$REVFILE'))
-sel = [(i, r) for i, r in enumerate(revs) if not $ONLY_RELEASES or r.get('release')]
+sel = list(enumerate(revs))
 if $INCREMENTAL:
     covered = json.load(open('$OUT'))['revisionCount'] if os.path.exists('$OUT') else 0
     sel = [(i, r) for i, r in sel if i >= covered]
 if $LIMIT: sel = sel[:$LIMIT]
-for i, r in sel: print(i, r['rev'], r.get('release') or r['date'])
+for i, r in sel: print(i, r['rev'], r['date'])
 ")
   echo "indexing ${#TARGETS[@]} revisions   extractor=$EXTRACTOR_HASH"
 

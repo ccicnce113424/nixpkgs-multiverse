@@ -33,11 +33,21 @@
 }:
 
 let
-  # One ordered array of every known revision, oldest first. Releases are
-  # ordinary entries carrying an extra `release` label ("25.05"); everything
-  # else is a nixos-unstable channel bump. There is no separate release list —
-  # a release is just a commit someone gave a nice name.
+  # One ordered array of every known revision, oldest first: every entry is a
+  # nixos-unstable channel bump. Append-only and immutable, because
+  # index/versions.json addresses it by offset — see checkedIndex below.
   revisions = builtins.fromJSON (builtins.readFile ./revisions.json);
+
+  # { "26.05" = { rev, date, build, name }; ... } — the current tip of each
+  # release channel, which is a different kind of thing entirely.
+  #
+  # A release moves. Backports land on release-26.05 for the whole life of the
+  # release, and `at "26.05"` follows them, exactly as
+  # github:NixOS/nixpkgs/nixos-26.05 does. That is why these are not entries in
+  # revisions.json: an offset there must mean the same tree forever, or every
+  # version the index recorded against it becomes a claim about a tree that has
+  # moved on. Nothing here is ever indexed, so nothing here can go stale.
+  releaseTable = builtins.fromJSON (builtins.readFile ./releases.json);
 
   # { revisionCount, attrs = { attr = { version = <offset into revisions>; }; } }
   #
@@ -77,34 +87,16 @@ let
 
   attrIndex = checkedIndex.attrs;
 
-  # A human handle for a revision: its release name if it has one, otherwise
-  # date plus short rev, which is what you actually want to see for an
-  # unstable bump.
+  # A human handle for a revision: date plus short rev. Release names are
+  # deliberately not used here — a release name resolves to a moving channel
+  # tip, so labelling a fixed offset with one would name a tree that `at` no
+  # longer returns.
   labelOf =
     i:
     let
       r = revAt i;
     in
-    r.release or "${r.date}-${builtins.substring 0 12 r.rev}";
-
-  # Release name -> offset. Only the labelled handful, so this stays small.
-  releaseOffsets = builtins.listToAttrs (
-    builtins.concatMap (
-      i:
-      let
-        r = revAt i;
-      in
-      if r ? release then
-        [
-          {
-            name = r.release;
-            value = i;
-          }
-        ]
-      else
-        [ ]
-    ) offsets
-  );
+    "${r.date}-${builtins.substring 0 12 r.rev}";
 
   # Newest revision dated on or before `date`. Revisions are date-ordered, so a
   # left fold keeping the last match is enough.
@@ -124,12 +116,12 @@ let
         acc
     ) null offsets;
 
-  # `at` accepts a release name, a YYYY-MM-DD date, or a commit hash prefix.
+  # Offset for a YYYY-MM-DD date or a commit hash prefix. Release names never
+  # reach here — `at` resolves those against releases.json, which is not part
+  # of this array.
   resolve =
     sel:
-    if releaseOffsets ? ${sel} then
-      releaseOffsets.${sel}
-    else if builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" sel != null then
+    if builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" sel != null then
       let
         i = offsetOnOrBefore sel;
       in
@@ -202,6 +194,32 @@ let
     }) offsets
   );
 
+  # Release tips carry no narHash and need none: for type = "github" a full
+  # commit hash is itself the lock, and fetchTree accepts it under pure
+  # evaluation. That is what keeps refreshing releases.json free — it never has
+  # to download a tree just to hash it.
+  pathForRelease =
+    r:
+    if fetcher == "local" && nixpkgsSource == null then
+      throw "multiverse: fetcher = \"local\" needs nixpkgsSource set to a nixpkgs clone"
+    else if fetcher == "local" then
+      builtins.fetchGit {
+        url = nixpkgsSource;
+        rev = r.rev;
+        allRefs = true;
+      }
+    else
+      builtins.fetchTree {
+        type = "github";
+        owner = "NixOS";
+        repo = "nixpkgs";
+        rev = r.rev;
+      };
+
+  # Memoised the same way as instances, and just as lazy: naming a release
+  # costs a thunk, forcing one costs a fetch.
+  releaseInstances = builtins.mapAttrs (_: r: importRevision (pathForRelease r)) releaseTable;
+
   versionsFor = attr: attrIndex.${attr} or { };
 
   # `builtins.attrNames` sorts lexicographically, which puts 3.12.10 before
@@ -216,14 +234,19 @@ rec {
   # Human handles for every revision, oldest first.
   revs = map labelOf offsets;
 
-  # Just the named releases.
-  releases = builtins.attrNames releaseOffsets;
+  # Every release channel being tracked, oldest first.
+  releases = builtins.attrNames releaseTable;
 
-  # A whole nixpkgs, as it was at that revision.
-  #   at "25.05"        release name
-  #   at "2024-06-12"   newest revision on or before that date
-  #   at "aae12a743f75" commit hash prefix
-  at = sel: instances.${toString (resolve sel)};
+  # The raw release table: what commit each channel is currently at, and when.
+  releaseTips = releaseTable;
+
+  # A whole nixpkgs.
+  #   at "25.05"        the release channel as it stands TODAY, backports and
+  #                     all — a moving target, like nixos-25.05 itself
+  #   at "2024-06-12"   newest revision on or before that date — fixed forever
+  #   at "aae12a743f75" commit hash prefix — fixed forever
+  at =
+    sel: if releaseTable ? ${sel} then releaseInstances.${sel} else instances.${toString (resolve sel)};
 
   # The newest revision this index knows, as a real nixpkgs — `lib`,
   # `callPackage`, and a package set that is internally consistent, which is

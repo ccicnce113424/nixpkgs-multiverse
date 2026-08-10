@@ -2,36 +2,31 @@
  {
   "rev": "69721a81d0dd010ca9a79f293e27f74634bcd2b1",
   "date": "2015-09-30",
-  "channel": "release",
-  "release": "15.09",
+  "channel": "release-commit",
   "narHash": "sha256-VuzP9RfndgC6yhL2U8X6stGULoOHr1HcscympKUgwV4="
  },
  {
   "rev": "8a7ca8508189facd3c34011dd0cdd895f840eb2f",
   "date": "2016-03-31",
-  "channel": "release",
-  "release": "16.03",
+  "channel": "release-commit",
   "narHash": "sha256-2xT+Jmk3mGMY4E+M38iNeCHq12MPNu9ZiYUxZl8sS1Q="
  },
  {
   "rev": "7d50dfaed5540495385b5c0feae90891d2d0e72b",
   "date": "2016-10-01",
-  "channel": "release",
-  "release": "16.09",
+  "channel": "release-commit",
   "narHash": "sha256-8K9wvu82flzlzpU1uJv/T8IaLGQlsCASwjxGcrVjpbM="
  },
  {
   "rev": "40e02267b9893677b3e69933a4f178a46e03c98e",
   "date": "2017-03-30",
-  "channel": "release",
-  "release": "17.03",
+  "channel": "release-commit",
   "narHash": "sha256-AqddK1XlGDcK/xd8ENmDad0wuw/JYSxtV+vj8LPPibs="
  },
  {
   "rev": "b213a386f91c89adee14d135d695bc623d70e61a",
   "date": "2017-09-29",
-  "channel": "release",
-  "release": "17.09",
+  "channel": "release-commit",
   "narHash": "sha256-UI+jQUhxRreVrn2kl7SsUBjFdQiBRv2CXRLScBMk/U4="
  },
  {
@@ -289,8 +284,7 @@
  {
   "rev": "4f57714e03b9e7fdc165b3a4aa8bfa0463afc027",
   "date": "2018-04-04",
-  "channel": "release",
-  "release": "18.03",
+  "channel": "release-commit",
   "narHash": "sha256-jtxfSXmc07z8U3l0+TuUCSHcd8BgkapvUzjUN7fwZEI="
  },
  {
@@ -653,8 +647,7 @@
  {
   "rev": "52bc0a35b9d813a2a5c56b4a50e871aac5d85996",
   "date": "2018-10-05",
-  "channel": "release",
-  "release": "18.09",
+  "channel": "release-commit",
   "narHash": "sha256-7X4jp9lLB0pDxIK/btVHnH9/+ET7uL9MtmWDoBU0acU="
  },
  {
@@ -1045,8 +1038,7 @@
  {
   "rev": "62cec46a6a20c84f5f479eacb0b41f3a451d8e8b",
   "date": "2019-04-08",
-  "channel": "release",
-  "release": "19.03",
+  "channel": "release-commit",
   "narHash": "sha256-vhXFo18tl7IOppyjeDRUDSa75OMepO+TwD6p5yEWVWA="
  },
  {
@@ -1668,8 +1660,7 @@
  {
   "rev": "0d99a63fd353198d13b1f6c17eb747a9b28f47c5",
   "date": "2019-10-09",
-  "channel": "release",
-  "release": "19.09",
+  "channel": "release-commit",
   "narHash": "sha256-IjHyx3uz9jYBh5R9v6lea5Hd/F6iYTBcyHkXHwSGGFY="
  },
  {
@@ -2207,8 +2198,7 @@
  {
   "rev": "ce342ae31d3d542f1243f01a36c46438261cbfb6",
   "date": "2020-04-20",
-  "channel": "release",
-  "release": "20.03",
+  "channel": "release-commit",
   "narHash": "sha256-mEKkeLgUrzAsdEaJ/1wdvYn0YZBAKEG3AN21koD2AgU="
  },
  {
@@ -2599,8 +2589,7 @@
  {
   "rev": "aea7242187f21a120fe73b5099c4167e12ec9aab",
   "date": "2020-10-27",
-  "channel": "release",
-  "release": "20.09",
+  "channel": "release-commit",
   "narHash": "sha256-nj2SvACFH+NERpye1kudcuygCcvnsZYv26M2+wgM5vE="
  },
  {
@@ -3236,8 +3225,7 @@
  {
   "rev": "fefb0df7d2ab2e1cabde7312238026dcdc972441",
   "date": "2021-05-31",
-  "channel": "release",
-  "release": "21.05",
+  "channel": "release-commit",
   "narHash": "sha256-ZjBd81a6J3TwtlBr3rHsZspYUwT9OdhDk+a/SgSEf7I="
  },
  {
@@ -3908,8 +3896,7 @@
  {
   "rev": "506445d88e183bce80e47fc612c710eb592045ed",
   "date": "2021-11-29",
-  "channel": "release",
-  "release": "21.11",
+  "channel": "release-commit",
   "narHash": "sha256-AjhmbT4UBlJWqxY0ea8a6GU2C2HdKUREkG43oRr3TZg="
  },
  {
@@ -4517,8 +4504,7 @@
  {
   "rev": "7a94fcdda304d143f9a40006c033d7e190311b54",
   "date": "2022-05-30",
-  "channel": "release",
-  "release": "22.05",
+  "channel": "release-commit",
   "narHash": "sha256-M6bJShji9AIDZ7Kh7CPwPBPb/T7RiVev2PAcOi4fxDQ="
  },
  {
@@ -5504,8 +5490,7 @@
  {
   "rev": "bd15cafc53d0aecd90398dd3ffc83a908bceb734",
   "date": "2022-11-30",
-  "channel": "release",
-  "release": "22.11",
+  "channel": "release-commit",
   "narHash": "sha256-/HEZNyGbnQecrgJnfE8d0WC5c1xuPSD2LUpB6YXlg4c="
  },
  {
@@ -6386,8 +6371,7 @@
  {
   "rev": "90d94ea32eed9991e2b8c6a761ccd8145935c57c",
   "date": "2023-05-31",
-  "channel": "release",
-  "release": "23.05",
+  "channel": "release-commit",
   "narHash": "sha256-btHN1czJ6rzteeCuE/PNrdssqYD2nIA4w48miQAFloM="
  },
  {
@@ -7093,8 +7077,7 @@
  {
   "rev": "7c6e3666e2040fb64d43b209b84f65898ea3095d",
   "date": "2023-11-29",
-  "channel": "release",
-  "release": "23.11",
+  "channel": "release-commit",
   "narHash": "sha256-MxCVrXY6v4QmfTwIysjjaX0XUhqBbxTWWB4HXtDYsdk="
  },
  {
@@ -7646,8 +7629,7 @@
  {
   "rev": "5646423bfac84ec68dfc60f2a322e627ef0d6a95",
   "date": "2024-05-31",
-  "channel": "release",
-  "release": "24.05",
+  "channel": "release-commit",
   "narHash": "sha256-vboIEwIQojofItm2xGCdZCzW96U85l9nDW3ifMuAIdM="
  },
  {
@@ -8115,8 +8097,7 @@
  {
   "rev": "aae12a743f75097dd3a60a8265978b995298babc",
   "date": "2024-11-14",
-  "channel": "release",
-  "release": "24.11",
+  "channel": "release-commit",
   "narHash": "sha256-CqCX4JG7UiHvkrBTpYC3wcEurvbtTADLbo3Ns2CEoL8="
  },
  {
@@ -8724,8 +8705,7 @@
  {
   "rev": "afb2b21ba489196da32cd9f0072e0dce6588a20a",
   "date": "2025-05-23",
-  "channel": "release",
-  "release": "25.05",
+  "channel": "release-commit",
   "narHash": "sha256-rWtXrcIzU5wm/C8F9LWvUfBGu5U5E7cFzPYT1pHIJaQ="
  },
  {
@@ -9228,8 +9208,7 @@
  {
   "rev": "f671a0d2a0fc25696ca8e18df4cba66b481d7b08",
   "date": "2025-11-30",
-  "channel": "release",
-  "release": "25.11",
+  "channel": "release-commit",
   "narHash": "sha256-M101xMtWdF1eSD0xhiR8nG8CXRlHmv6V+VoY65Smwf4="
  },
  {
@@ -9669,8 +9648,7 @@
  {
   "rev": "76b7bc98257455119a4ccb59746fd41c5e4d128d",
   "date": "2026-05-30",
-  "channel": "release",
-  "release": "26.05",
+  "channel": "release-commit",
   "narHash": "sha256-md0zn0RnwNvPyASas1yG5YUuwQ4ALA6ucL50l0DvqCo="
  },
  {

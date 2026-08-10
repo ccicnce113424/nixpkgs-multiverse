@@ -53,7 +53,7 @@ let
   mv = multiverse.multiverse.x86_64-linux;
   # newest revision the index knows, as a real Nixpkgs
   pkgs_tip = mv.tip;
-  # by release
+  # by release — the channel as it stands today, backports included
   pkgs_24_11 = mv.at "24.11";
   # newest revision on or before that date
   pkgs_2022_03_15 = mv.at "2022-03-15";
@@ -81,11 +81,39 @@ nix-repl> multiverse.x86_64-linux.revOf "python3" "3.8.9"
 "2021-07-06-00c86ad14639"
 
 nix-repl> multiverse.x86_64-linux.releases
-[ "15.09" "16.03" … "26.05" ]
+[ "17.03" "17.09" … "26.05" ]
 ```
 
 
 **Note**: Enumerating versions fetches nothing as it reads an index file only. A revision is materialised the first time you force a derivation.
+
+### Releases move, revisions do not
+
+`at "26.05"` is a *channel*, not a snapshot. Backports land on `release-26.05` for the whole life of the release, and `at` follows them, exactly as `github:NixOS/nixpkgs/nixos-26.05` does:
+
+```console
+# the channel tip, refreshed hourly
+nix-repl> (mv.at "26.05").frankenphp.version
+"1.12.6"
+
+# the release commit, fixed forever
+nix-repl> (mv.at "2026-05-30").frankenphp.version
+"1.12.3"
+```
+
+If you need a result that cannot drift, select by **date or commit**. 
+
+Releases live in their own file, `releases.json`, keyed by name
+and indexed by nothing:
+
+```console
+nix-repl> multiverse.x86_64-linux.releaseTips."26.05"
+{ build = 7273; date = "2026-08-08";
+  name = "nixos-26.05.7273.8b8c811c7c25";
+  rev = "8b8c811c7c2541c30382c5de7ed26be055569c60"; }
+```
+
+Each one is the highest-numbered published bump of that channel in the [nix-releases archive](https://nix-releases.s3.amazonaws.com/), so it exists in the [cache.nixos.org](https://cache.nixos.org) as well.
 
 
 Query the underlying revision data.
@@ -95,11 +123,13 @@ Query the underlying revision data.
 mv.versionsOf "python3"
 # every known revision that shipped a version
 mv.revOf "python3" "3.8.9"
-# all known revisions, newest first
+# every release channel tracked, oldest first
 mv.releases
+# the release table: what commit each channel is at, and when
+mv.releaseTips
 # every revision label, oldest first
 mv.revs
-# the raw {rev, date, channel, narHash, name} array, plus `release` on releases
+# the raw {rev, date, channel, narHash, name} array
 mv.revisions
 ```
 
@@ -212,6 +242,8 @@ import "${pkgs.path}/nixos/lib/eval-config.nix" {
 ```sh
 # refresh revisions.json from the channel archive
 nix run .#fetch-unstable-revisions
+# point releases.json at the current tip of every release channel
+nix run .#fetch-releases
 # extract versions + narHashes for every revision
 nix run .#build-index
 # only revisions the index has never covered
