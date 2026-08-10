@@ -27,9 +27,14 @@ COMMIT_URL = 'https://github.com/NixOS/nixpkgs/commit/'
 CHANNEL_URL = 'https://nix-releases.s3.amazonaws.com/nixos/unstable/'
 SHORT_REV = 12
 
-# revisions.json is date-ordered, so the last entry is what multiverse.nix
-# exposes as `tip` — the thing a reader actually wants to know the age of.
-tip = revs[-1]
+# The newest revision carrying a narHash, which is exactly what multiverse.nix
+# hands back as `tip`. A revision appended by fetch-unstable-revisions.sh has
+# none until build-index.sh reaches it and cannot be fetched in the meantime,
+# so naming the last entry here would advertise a revision that throws.
+tip = next((r for r in reversed(revs) if 'narHash' in r), None)
+if tip is None:
+    sys.exit("no revision has a narHash yet; run tools/build-index.sh first")
+
 attrs = index['attrs']
 pairs = sum(len(versions) for versions in attrs.values())
 
@@ -39,10 +44,10 @@ pairs = sum(len(versions) for versions in attrs.values())
 # and the lagging case gets a line of its own below.
 coverage = (
     f"- **{pairs:,} package versions** across **{len(attrs):,} attributes**, "
-    f"from **{len(revs):,} revisions**"
+    f"from **{index['revisionCount']:,} revisions**"
 )
 current = [
-    f"- {revs[0]['date']} → {revs[-1]['date']}, newest "
+    f"- {revs[0]['date']} → {tip['date']}, newest "
     f"[`{tip['rev'][:SHORT_REV]}`]({COMMIT_URL}{tip['rev']})"
 ]
 
@@ -55,12 +60,13 @@ if 'name' in tip:
 
 lines = [BEGIN, coverage, ''.join(current)]
 
-# Only worth a reader's attention when it is not zero: revisions are on file
-# but no version of theirs is reachable yet.
-lagging = len(revs) - index['revisionCount']
-if lagging:
-    lines.append(f"- **{lagging:,} revisions appended since the last indexing run** — "
-                 f"reachable through `at`, not yet in the version index")
+# Only worth a reader's attention when it is not zero. These revisions are on
+# file but not usable yet: no narHash means nothing can fetch them, and no
+# extraction means none of their versions are in the index either.
+pending = len(revs) - index['revisionCount']
+if pending:
+    lines.append(f"- {pending:,} newer revisions are on file and waiting for the "
+                 f"next indexing run")
 
 lines.append(END)
 
