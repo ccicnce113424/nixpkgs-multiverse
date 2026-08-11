@@ -11,8 +11,8 @@ Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 ![github master branch workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/update-index.yml/badge.svg?branch=main)
 
 <!-- BEGIN index-status -->
-- **304,484 package versions** across **31,783 attributes**, from **1,537 revisions**
-- 2013-10-31 → 2026-08-09, newest [`279b4a8275f0`](https://github.com/NixOS/nixpkgs/commit/279b4a8275f032c566576b3f181fa0f27197f588) · [`nixos-26.11pre1050399`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1050399.279b4a8275f0/)
+- **304,758 package versions** across **31,798 attributes**, from **1,538 revisions**
+- 2013-10-31 → 2026-08-10, newest [`2fcb964de67f`](https://github.com/NixOS/nixpkgs/commit/2fcb964de67fcf60b43471c55d5d99e61a9ccb5a) · [`nixos-26.11pre1051473`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1051473.2fcb964de67f/)
 <!-- END index-status -->
 
 ## Usage
