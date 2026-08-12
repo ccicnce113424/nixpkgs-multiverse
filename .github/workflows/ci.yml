@@ -2,11 +2,12 @@
 # on every change: formatting first, then `nix flake check`, which runs the
 # checks defined in flake.nix —
 #
-#   checks.index    — pure assertions over the committed JSON, no network
-#   checks.flake-at — flakeAt's flake shape; fetches three trees at eval time
-#   checks.compose  — the headline claim end to end: three Pythons from three
-#                     revisions composed into one buildEnv, built for real
-#                     (contents substitute from cache.nixos.org)
+#   checks.index        — pure assertions over the committed JSON, no network
+#   checks.flake-at     — flakeAt's flake shape; fetches three trees at eval
+#   checks.installables — the exact-match CLI keys (releases, commits, labels)
+#   checks.compose      — the headline claim end to end: three Pythons from
+#                         three revisions composed into one buildEnv, built
+#                         for real (contents substitute from cache.nixos.org)
 #
 # update-index.yml keeps the index fresh; this workflow keeps it honest.
 name: ci

@@ -32,6 +32,24 @@ $ nix run 'github:fzakaria/nixpkgs-multiverse#latest.python3' -- --version
 Python 3.14.6
 ```
 
+You can access also a package by its revision, which is a commit hash, a 12-character prefix, a `date-commit` label, the release version or tip.
+
+```console
+# the newest indexed revision
+$ nix run github:fzakaria/nixpkgs-multiverse#tip.hello
+
+# a release channel, by major.minor
+$ nix run github:fzakaria/nixpkgs-multiverse#26.05.hello
+
+# a revision by label, exactly as revOf returns it
+$ nix eval github:fzakaria/nixpkgs-multiverse#2021-07-18-967d40bec14b.python3.version
+"3.8.9"
+
+# the same revision by commit, a 12-character prefix or the full hash
+$ nix shell github:fzakaria/nixpkgs-multiverse#967d40bec14b.python3
+$ nix shell github:fzakaria/nixpkgs-multiverse#967d40bec14be87262b21ab901dbace23b7365db.python3
+```
+
 Query the flake for all the versions of a package that **ever existed in Nixpkgs**.
 
 ```console

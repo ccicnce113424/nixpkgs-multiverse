@@ -375,6 +375,59 @@ let
     name: r: mkFlakeInstance (r // { release = name; }) (pathForRelease r)
   ) releaseTable;
 
+  # Releases as a two-level tree, split at the dot: "25.05" becomes
+  # "25"."05". A release name cannot be a single flake attrpath segment
+  # without quoting — the CLI splits on dots — so the split is what makes
+  # `nix run .#25.05.python3` parse. A name that is not NN.NN-shaped is
+  # skipped rather than crashing the whole tree over one odd channel.
+  releaseTree = builtins.foldl' (
+    acc: name:
+    let
+      parts = builtins.match "([0-9]+)\\.([0-9]+)" name;
+      major = builtins.elemAt parts 0;
+      minor = builtins.elemAt parts 1;
+    in
+    if parts == null then
+      acc
+    else
+      acc
+      // {
+        ${major} = (acc.${major} or { }) // {
+          ${minor} = releaseInstances.${name};
+        };
+      }
+  ) { } (builtins.attrNames releaseTable);
+
+  # Every revision under three exact-match keys: the full commit (what a
+  # GitHub URL or a lock file hands you), the 12-character prefix (what
+  # labels and `revs` display), and the label itself. All three alias the
+  # memoised instance, so the whole set costs thunks, not fetches. Exact
+  # match is the deal here — arbitrary prefixes and date rounding stay with
+  # `at`, which can search; an attrset can only look up.
+  revisionKeys = builtins.listToAttrs (
+    builtins.concatMap (
+      i:
+      let
+        r = revAt i;
+        value = instances.${toString i};
+      in
+      [
+        {
+          name = r.rev;
+          inherit value;
+        }
+        {
+          name = builtins.substring 0 12 r.rev;
+          inherit value;
+        }
+        {
+          name = labelOf i;
+          inherit value;
+        }
+      ]
+    ) offsets
+  );
+
   versionsFor = attr: attrIndex.${attr} or { };
 
   # `builtins.attrNames` sorts lexicographically, which puts 3.12.10 before
@@ -516,4 +569,17 @@ rec {
     in
     version attr (builtins.elemAt sorted (builtins.length sorted - 1))
   ) attrIndex;
+
+  # Exact-match keys for flake attrpaths. flake.nix merges these into
+  # legacyPackages, which is what lets plain installable syntax name a
+  # revision — every key below avoids dots, so none of it needs quoting:
+  #
+  #   nix run .#25.05.python3                                  release
+  #   nix run .#2021-07-18-967d40bec14b.python3                label
+  #   nix run .#967d40bec14b.python3                           12-char prefix
+  #   nix run .#967d40bec14be87262b21ab901dbace23b7365db.hello full commit
+  #
+  # A sibling attrset rather than keys in the API itself, so `builtins.attrNames`
+  # on a multiverse stays readable and repl completion stays usable.
+  installables = releaseTree // revisionKeys;
 }

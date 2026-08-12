@@ -110,9 +110,18 @@
       # and evaluating every-python means fetching the ~60 revisions it draws
       # from — legacyPackages is the one output flake check never enumerates.
       # `nix build .#every-python` resolves identically from either output.
+      #
+      # `installables` merges in the exact-match revision keys, which is what
+      # makes `nix run .#25.05.python3` and `nix run .#<commit>.python3` work
+      # as plain attrpaths. Collision-free: every key starts with a digit and
+      # nothing in the API does.
       legacyPackages = forAllSystems (
         system:
-        import ./multiverse.nix { inherit system; }
+        let
+          mv = import ./multiverse.nix { inherit system; };
+        in
+        mv
+        // mv.installables
         // {
           every-python = import ./demos/every-python.nix { inherit system; };
         }
@@ -136,6 +145,7 @@
         {
           index = evalTest "test-index" ./tests/index.nix;
           flake-at = evalTest "test-flake-at" ./tests/flake-at.nix;
+          installables = evalTest "test-installables" ./tests/installables.nix;
           compose = (import ./tests/compose.nix { inherit system; }).env;
         }
       );
