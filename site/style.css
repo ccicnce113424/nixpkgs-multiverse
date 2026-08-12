@@ -141,6 +141,17 @@ code {
   align-items: baseline;
   padding: 0.3rem 0;
 }
+/* A channel build name — nixos-26.11pre1051473.2fcb964de67f — is one token with
+   no break the browser will take, so its min-content width is the whole string.
+   In the trailing 1fr track that becomes a floor the grid cannot go below, and
+   between roughly 640px and 780px of viewport it pushed the document wider than
+   the screen. Let the cells break mid-token instead: a wrapped build name costs
+   one line, a document wider than the viewport costs every block on the page,
+   which all stop at the viewport edge while the page scrolls past it. */
+.row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .head {
   font-weight: 600;
   border-bottom: 1px solid var(--line);
@@ -541,17 +552,21 @@ footer {
 
 /* ---------- narrow screens ----------
  *
- * One breakpoint, placed where the widest table stops fitting: the version
- * table's fixed tracks and gaps alone come to 30rem before its last column has
- * a single character in it, so on a phone every table pushed the document wider
- * than the screen. That cost more than the tables — a document wider than the
- * viewport strands every full-width block at viewport width, so the copyable
- * commands sat in a box narrower than the page they were on.
+ * One breakpoint, placed where the widest table stops being a table. The
+ * version table's fixed tracks and gaps come to 30rem before its last column
+ * holds a single character, and a channel build name wants another 19rem — so
+ * a table that fits needs about 50rem of viewport, and 48rem is the round
+ * number just under it. (Between the two the name takes a second line, which
+ * costs a line and nothing else.) A phone was nowhere near either figure: every
+ * table pushed the document wider than the screen, which costs more than the
+ * tables, since a document wider than the viewport strands every full-width
+ * block at viewport width — the copyable commands sat in a box narrower than
+ * the page they were on.
  *
  * Below the breakpoint the tables stop being tables, and the horizontal padding
  * that a mouse-sized layout can afford goes back to the content.
  */
-@media (max-width: 40rem) {
+@media (max-width: 48rem) {
   body {
     padding: 0.75rem;
   }
