@@ -211,6 +211,57 @@ As an input to your own flake
 }
 ```
 
+### Unfree packages and nixpkgs `config`
+
+A multiverse revision is an ordinary nixpkgs import, so unfree packages need
+`allowUnfree`. The `multiverse.<system>` flake output is built with an
+empty `config`:
+
+`lib.mkMultiverse` is the same API with `config` and `overlays` threaded
+through to every revision it hands out:
+
+```nix
+{
+  inputs.nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
+  inputs.multiverse.url = "github:fzakaria/nixpkgs-multiverse";
+  outputs =
+    { nix-vscode-extensions, multiverse, ... }:
+    let
+      system = "x86_64-linux";
+      mv = multiverse.lib.mkMultiverse {
+        inherit system;
+        config.allowUnfree = true;
+        overlays = [ inputs.nix-vscode-extensions.overlays.default ];
+      };
+    in
+    {
+      packages.${system}.code = mv.version "vscode" "1.107.0";
+    };
+}
+```
+
+`mv.tip`, `mv.at`, `mv.version`, `mv.versions` and `mv.latest` all carry that
+config.
+
+We recommend the following pattern for a NixOS system or home-manager configuration.
+
+```nix
+nixpkgs.overlays = [
+  (final: prev: {
+    mv = inputs.multiverse.lib.mkMultiverse {
+      system = final.stdenv.hostPlatform.system;
+      config.allowUnfree = true;
+      overlays = [
+        # whatever overlays you want to apply to every revision
+      ];
+    };
+  })
+];
+
+# ...then, in any module
+environment.systemPackages = [ pkgs.mv.versions.vscode."1.107.0" ];
+```
+
 ## Replacing several nixpkgs inputs
 
 A flake that pins two channels to get two package sets:
