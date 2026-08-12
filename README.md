@@ -12,6 +12,13 @@ and pin commands, plus the full revision and release tables.
 
 ![lotr meme "One flake to rule them all"](./multiverse_lotr.jpg)
 
+**Jump to:** [Usage](#usage) ·
+[Version history](#version-history) ·
+[Unfree packages](#unfree-packages-and-nixpkgs-config) ·
+[NixOS / home-manager module](#the-nixos-and-home-manager-module) ·
+[Replacing nixpkgs inputs](#replacing-several-nixpkgs-inputs) ·
+[Building the index](#building-the-index)
+
 ## Status
 
 ![github master branch workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/update-index.yml/badge.svg?branch=main)
