@@ -143,8 +143,51 @@
       #   nix eval .#multiverse.x86_64-linux.versionsOf --apply 'f: f "python3"'
       multiverse = forAllSystems (system: import ./multiverse.nix { inherit system; });
 
-      # `mkMultiverse` for callers who need to pass config/overlays through.
-      lib.mkMultiverse = args: import ./multiverse.nix args;
+      lib = {
+        # `mkMultiverse` for callers who need to pass config/overlays through.
+        mkMultiverse = args: import ./multiverse.nix args;
+
+        # An overlay that rewrites `pkgs.<attr>` to a pinned version, for the
+        # cases the modules deliberately do not cover: making every *other*
+        # module see the pin, so that `programs.<name>.package` and friends pick
+        # it up without being named individually.
+        #
+        # Handed out rather than set from inside the modules, because
+        # `nixpkgs.overlays` is discarded wherever home-manager runs with
+        # `useGlobalPkgs = true` — applying it is the caller's job, at the layer
+        # that honours it. See the comment at the top of modules/multiverse.nix.
+        #
+        # The system comes off `final` rather than being an argument: reading it
+        # from the package set being extended is what keeps this usable inside
+        # `nixpkgs.overlays` without a second source of truth for the platform.
+        pinOverlay =
+          {
+            pins,
+            config ? { },
+            overlays ? [ ],
+          }:
+          final: _prev:
+          let
+            mv = import ./multiverse.nix {
+              system = final.stdenv.hostPlatform.system;
+              inherit config overlays;
+            };
+          in
+          builtins.mapAttrs (attr: version: mv.version attr version) pins;
+      };
+
+      # One shared core, two entry points. The wrappers differ only in which
+      # package list they append to; see modules/multiverse.nix for why neither
+      # of them goes anywhere near `nixpkgs.overlays`.
+      nixosModules = rec {
+        multiverse = ./modules/nixos.nix;
+        default = multiverse;
+      };
+
+      homeManagerModules = rec {
+        multiverse = ./modules/home-manager.nix;
+        default = multiverse;
+      };
 
       # `nix build .#site` assembles the exact tree the pages workflow
       # deploys; `nix run .#serve` (below, in apps) serves it for testing.
@@ -195,6 +238,7 @@
           index = evalTest "test-index" ./tests/index.nix;
           flake-at = evalTest "test-flake-at" ./tests/flake-at.nix;
           installables = evalTest "test-installables" ./tests/installables.nix;
+          module = evalTest "test-module" ./tests/module.nix;
           compose = (import ./tests/compose.nix { inherit system; }).env;
         }
       );
