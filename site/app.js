@@ -1,7 +1,15 @@
 // The site is a Preact app written with htm tagged templates — no build
 // step, no JSX. "htm/preact" resolves through the import map in index.html
 // to a pinned, integrity-checked single-file CDN bundle (~13 KB).
-import { html, render, useState, useEffect, useMemo, useRef } from "htm/preact";
+import {
+  html,
+  render,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "htm/preact";
 
 const FLAKE = "github:fzakaria/nixpkgs-multiverse";
 const COMMIT_URL = "https://github.com/NixOS/nixpkgs/commit/";
@@ -10,11 +18,16 @@ const COMMIT_URL = "https://github.com/NixOS/nixpkgs/commit/";
 const ARCHIVE_URL = "https://releases.nixos.org/?prefix=nixos/";
 const MAX_RESULTS = 200;
 const MAX_PINS = 400;
+// How many revision rows to render at once. All 1,538 is 52,000px of page
+// before anything is even expanded, and expanding them all reaches 229,000px
+// across 1,563 horizontally-scrollable <code> blocks — which lays out fine
+// headless and janks a real browser badly. A window keeps both bounded.
+const REV_PAGE = 150;
 // How much of a nixpkgs commit sha appears in labels and in the ?rev= param.
 const REV_ABBREV = 12;
 const COPY_FLASH_MS = 1200;
 
-const VIEWS = ["packages", "revisions", "releases"];
+const VIEWS = ["packages", "revisions", "releases", "stats"];
 
 // Whether a navigation adds a history entry (clicks) or amends the current
 // one (typing, opening a row) — so Back walks views, not keystrokes.
@@ -127,12 +140,12 @@ const CopyIcon = () => html`
 // An internal link: a real href for copy-link / middle-click, an in-page
 // navigation for a plain click.
 function Link({ to, navigate, children, ...rest }) {
-  const onClick = (e) => {
-    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
-      return;
-    e.preventDefault();
-    navigate(to);
-  };
+  // `to` is a partial route, and `navigate` merges a patch onto the CURRENT
+  // route — so navigating with the patch alone keeps whatever view the link
+  // was clicked from. A package link inside the revisions tab then set `pkg`
+  // and stayed on revisions, where routeToQuery drops `pkg` again, so the
+  // click did nothing while the href beside it pointed at the package page.
+  // Navigate to the same fully-resolved target the href names.
   const target = {
     view: "packages",
     q: "",
@@ -141,6 +154,12 @@ function Link({ to, navigate, children, ...rest }) {
     rev: "",
     release: "",
     ...to,
+  };
+  const onClick = (e) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
+      return;
+    e.preventDefault();
+    navigate(target);
   };
   return html`<a href=${routeToHref(target)} onClick=${onClick} ...${rest}
     >${children}</a
@@ -154,9 +173,18 @@ function Link({ to, navigate, children, ...rest }) {
 // viewport inside it. A row the user toggles by hand is already on screen,
 // so it only records itself in the URL (or clears itself on close), without
 // stacking history entries.
-function useLinkableRow(selected, record) {
+function useLinkableRow(selected, record, bulk) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  // Which expand-all this row has already applied. A bulk toggle must not
+  // write itself into the URL: `record` calls `navigate`, which re-renders the
+  // whole app, so one expand-all across 1,538 rows would trigger 1,538 full
+  // re-renders — measured at 56 seconds before this guard worked.
+  //
+  // Comparing sequence numbers rather than racing a timer: `toggle` fires as a
+  // queued task, so a flag cleared on a setTimeout(0) is already false by the
+  // time most of the events arrive, and the navigations all got through.
+  const appliedSeq = useRef(null);
 
   useEffect(() => {
     if (!selected || open) return;
@@ -164,14 +192,38 @@ function useLinkableRow(selected, record) {
     ref.current?.querySelector("summary").scrollIntoView({ block: "start" });
   }, [selected]);
 
+  // Keyed on `seq` rather than on `open` so that expanding all, collapsing one
+  // by hand, then expanding all again still fires.
+  useEffect(() => {
+    if (!bulk) return;
+    appliedSeq.current = bulk.seq;
+    setOpen(bulk.open);
+  }, [bulk?.seq]);
+
   const onToggle = (e) => {
     const isOpen = e.currentTarget.open;
     setOpen(isOpen);
+    // A toggle that only reflects the expand-all we just applied is not a user
+    // action, so it neither records itself nor navigates.
+    if (bulk && appliedSeq.current === bulk.seq && isOpen === bulk.open) return;
     if (isOpen) record(true);
     else if (selected) record(false);
   };
 
   return { open, ref, onToggle };
+}
+
+// One expand/collapse control per view. Returns the state to thread into every
+// useLinkableRow on the page plus the button that drives it.
+function useBulk() {
+  const [bulk, setBulk] = useState(null);
+  const button = html`<button
+    class="bulk"
+    onClick=${() => setBulk({ open: !bulk?.open, seq: (bulk?.seq ?? 0) + 1 })}
+  >
+    ${bulk?.open ? "collapse all" : "expand all"}
+  </button>`;
+  return [bulk, button];
 }
 
 // A copyable command: one block, the command never wraps, the icon rides
@@ -236,10 +288,60 @@ function SearchResults({ q, index, attrNames, navigate }) {
   `;
 }
 
-function VersionRow({ attr, v, r, selected, navigate }) {
-  const { open, ref, onToggle } = useLinkableRow(selected, (isOpen) =>
-    navigate({ ver: isOpen ? v : "" }, Nav.REPLACE),
+// The runs for one version: when it was actually the version nixpkgs shipped.
+// Each end is a link to that revision, so a lifetime is navigable rather than
+// just readable.
+function Runs({ runs, revisions, navigate }) {
+  if (!runs) return null;
+  return html`
+    <div class="capt">
+      ${runs.length === 1
+        ? "when this was the version nixpkgs shipped"
+        : `${runs.length} separate stretches — it left nixpkgs and came back`}
+    </div>
+    <div class="runs">
+      ${runs.map(([s, e]) => {
+        const a = revisions[s],
+          b = revisions[e];
+        if (!a) return null;
+        return html`<div>
+          <${Link}
+            to=${{ view: "revisions", rev: a.rev.slice(0, REV_ABBREV) }}
+            navigate=${navigate}
+            >${a.date}<//
+          >${s === e
+            ? html`<span class="muted"> · one revision</span>`
+            : html`<span class="muted"> → </span>
+                <${Link}
+                  to=${{ view: "revisions", rev: b.rev.slice(0, REV_ABBREV) }}
+                  navigate=${navigate}
+                  >${b.date}<//
+                >
+                <span class="muted"> · ${e - s + 1} revisions</span>`}
+        </div>`;
+      })}
+    </div>
+  `;
+}
+
+function VersionRow({
+  attr,
+  v,
+  r,
+  runs,
+  revisions,
+  selected,
+  bulk,
+  onOpenChange,
+  navigate,
+}) {
+  const { open, ref, onToggle } = useLinkableRow(
+    selected,
+    (isOpen) => navigate({ ver: isOpen ? v : "" }, Nav.REPLACE),
+    bulk,
   );
+
+  useEffect(() => onOpenChange(v, open), [open]);
 
   const archive = archiveFor("unstable", r.name);
   return html`
@@ -267,12 +369,45 @@ function VersionRow({ attr, v, r, selected, navigate }) {
           text=${`github:NixOS/nixpkgs/${r.rev}`}
           caption="pin another flake's nixpkgs to it"
         />
+        <${Runs} runs=${runs} revisions=${revisions} navigate=${navigate} />
       </div>
     </details>
   `;
 }
 
 function PackageDetail({ attr, route, index, revisions, navigate }) {
+  const hist = useHistory(attr);
+  const [bulk, bulkButton] = useBulk();
+  const [openVers, setOpenVers] = useState(() => new Set());
+  // Read inside toggleVer without making it depend on the set, so the callback
+  // stays stable and every row does not re-render on each open/close.
+  const openRef = useRef(openVers);
+  openRef.current = openVers;
+
+  const onOpenChange = useCallback((v, isOpen) => {
+    setOpenVers((prev) => {
+      if (prev.has(v) === isOpen) return prev;
+      const next = new Set(prev);
+      if (isOpen) next.add(v);
+      else next.delete(v);
+      return next;
+    });
+  }, []);
+
+  // Clicking a bar drives the row directly rather than going through the URL.
+  // `ver` can only name one version, so routing the click through it could
+  // open a row but never close one — the timeline toggled on and never off.
+  const [force, setForce] = useState({});
+  const toggleVer = useCallback((v) => {
+    setForce((prev) => ({
+      ...prev,
+      [v]: { open: !openRef.current.has(v), seq: (prev[v]?.seq ?? 0) + 1 },
+    }));
+  }, []);
+
+  // An expand-all supersedes every per-version force, otherwise a row touched
+  // through the graph would ignore the button from then on.
+  useEffect(() => setForce({}), [bulk?.seq]);
   if (!index)
     return html`<div id="status" class="muted">Loading versions.json…</div>`;
   if (!index.attrs[attr])
@@ -283,13 +418,32 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
   const vers = Object.entries(index.attrs[attr]).sort((a, b) =>
     compareVersions(b[0], a[0]),
   ); // newest first
+
+  // Something the table does not already say: when this package entered
+  // nixpkgs, and whether it is still there. "newest first, click to expand"
+  // described the widget; this describes the package.
+  const offs = hist ? Object.values(hist).flatMap((v) => runsOf(v).flat()) : [];
+  const gone = offs.length && Math.max(...offs) < revisions.length - 1;
+  const lifetime = !offs.length
+    ? `${vers.length} versions`
+    : `${vers.length} versions · first packaged ${revisions[Math.min(...offs)].date}` +
+      (gone ? ` · gone since ${revisions[Math.max(...offs)].date}` : "");
+
   return html`
     <h2>
       <code>${attr}</code>
-      <span class="muted"
-        >· ${vers.length} versions, newest first — click a row to expand</span
-      >
+      <span class="muted">· ${lifetime}</span>
+      ${bulkButton}
     </h2>
+    <${Timeline}
+      attr=${attr}
+      hist=${hist}
+      revisions=${revisions}
+      openVers=${openVers}
+      toggleVer=${toggleVer}
+      route=${route}
+      navigate=${navigate}
+    />
     <div class="head cols-ver">
       <span>version</span><span>newest revision shipping it</span
       ><span>channel build</span>
@@ -303,7 +457,11 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
           attr=${attr}
           v=${v}
           r=${r}
+          runs=${hist?.[v] && runsOf(hist[v])}
+          revisions=${revisions}
           selected=${route.ver === v}
+          bulk=${force[v] ?? bulk}
+          onOpenChange=${onOpenChange}
           navigate=${navigate}
         />
       `;
@@ -378,9 +536,16 @@ function RevPins({ off, index, navigate }) {
   `;
 }
 
-function RevRow({ r, off, selected, index, navigate }) {
-  const { open, ref, onToggle } = useLinkableRow(selected, (isOpen) =>
-    navigate({ rev: isOpen ? r.rev.slice(0, REV_ABBREV) : "" }, Nav.REPLACE),
+// `churn` is [added, removed] for this revision against the one before it,
+// read straight off stats.json by offset — the revisions table would otherwise
+// have to load the 8 MB history to know it.
+function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
+  const [pins, setPins] = useState(false);
+  const { open, ref, onToggle } = useLinkableRow(
+    selected,
+    (isOpen) =>
+      navigate({ rev: isOpen ? r.rev.slice(0, REV_ABBREV) : "" }, Nav.REPLACE),
+    bulk,
   );
 
   const archive = archiveFor("unstable", r.name);
@@ -391,6 +556,14 @@ function RevRow({ r, off, selected, index, navigate }) {
         <code
           ><a href=${COMMIT_URL + r.rev}>${r.rev.slice(0, REV_ABBREV)}</a></code
         >
+        <span class="delta">
+          ${churn &&
+          html`${churn[0]
+            ? html`<span class="a">+${churn[0]}</span>`
+            : null}${churn[0] && churn[1] ? " " : ""}${churn[1]
+            ? html`<span class="d">−${churn[1]}</span>`
+            : null}`}
+        </span>
         <span class="muted">
           ${archive
             ? html`<a href=${archive}>${r.name}</a>`
@@ -404,22 +577,51 @@ function RevRow({ r, off, selected, index, navigate }) {
             text=${`nix run ${FLAKE}#${label(r)}.hello`}
             caption="run anything out of this revision"
           />
-          <${RevPins} off=${off} index=${index} navigate=${navigate} />
+          ${
+            // A revision pins up to MAX_PINS package versions, each a link.
+            // Rendering that inline is fine for one row and catastrophic for
+            // all of them at once — expand-all across 1,538 revisions would
+            // build on the order of half a million nodes and lock the tab. So
+            // a mass expand shows the command and puts the pins one click
+            // away; a row opened on its own still renders them immediately.
+            bulk?.open && !pins
+              ? html`<button class="more" onClick=${() => setPins(true)}>
+                  show the package versions pinned here
+                </button>`
+              : html`<${RevPins}
+                  off=${off}
+                  index=${index}
+                  navigate=${navigate}
+                />`
+          }
         `}
       </div>
     </details>
   `;
 }
 
-function Revisions({ route, revisions, index, navigate }) {
-  const rows = revisions.map((r, off) => ({ r, off })).reverse();
+function Revisions({ route, revisions, index, stats, navigate }) {
+  const all = revisions.map((r, off) => ({ r, off })).reverse();
+  const [shown, setShown] = useState(REV_PAGE);
+  const [bulk, bulkButton] = useBulk();
+  // A linked-to revision has to be rendered for its row to open itself, so
+  // widen the window far enough to include it.
+  const linked = route.rev
+    ? all.findIndex(({ r }) => r.rev.startsWith(route.rev))
+    : -1;
+  const limit = Math.max(shown, linked + 1);
+  const rows = all.slice(0, limit);
   return html`
-    <p class="muted">
-      Every indexed nixos-unstable channel bump, newest first. Click a row for
-      the run command and the package versions the index pins to it.
-    </p>
+    <h2>
+      <span class="muted"
+        >${revisions.length.toLocaleString()} channel bumps ·
+        ${revisions[0].date} → ${revisions[revisions.length - 1].date}</span
+      >
+      ${bulkButton}
+    </h2>
     <div class="head cols-rev">
-      <span>date</span><span>commit</span><span>channel build</span>
+      <span>date</span><span>commit</span><span>packages</span
+      ><span>channel build</span>
     </div>
     ${rows.map(
       ({ r, off }) => html`
@@ -429,18 +631,27 @@ function Revisions({ route, revisions, index, navigate }) {
           off=${off}
           selected=${!!route.rev && r.rev.startsWith(route.rev)}
           index=${index}
+          churn=${stats?.churn?.[off]}
+          bulk=${bulk}
           navigate=${navigate}
         />
       `,
     )}
+    ${limit < all.length &&
+    html`<button class="more" onClick=${() => setShown(limit + REV_PAGE)}>
+      show ${Math.min(REV_PAGE, all.length - limit)} more ·
+      ${(all.length - limit).toLocaleString()} older revisions remaining
+    </button>`}
   `;
 }
 
 /* ---------- releases ---------- */
 
-function ReleaseRow({ name, r, near, selected, navigate }) {
-  const { open, ref, onToggle } = useLinkableRow(selected, (isOpen) =>
-    navigate({ release: isOpen ? name : "" }, Nav.REPLACE),
+function ReleaseRow({ name, r, near, selected, bulk, navigate }) {
+  const { open, ref, onToggle } = useLinkableRow(
+    selected,
+    (isOpen) => navigate({ release: isOpen ? name : "" }, Nav.REPLACE),
+    bulk,
   );
 
   const archive = archiveFor(name, r.name);
@@ -482,11 +693,11 @@ function ReleaseRow({ name, r, near, selected, navigate }) {
 
 function Releases({ route, releases, revisions, navigate }) {
   const rows = Object.entries(releases).reverse();
+  const [bulk, bulkButton] = useBulk();
   return html`
     <p class="muted">
-      The current tip of every NixOS release channel. A release moves as
-      backports land, exactly like
-      <code>github:NixOS/nixpkgs/nixos-26.05</code>.
+      A release moves as backports land, exactly like
+      <code>github:NixOS/nixpkgs/nixos-26.05</code>. ${bulkButton}
     </p>
     <div class="head cols-rel">
       <span>release</span><span>as of</span><span>tip commit</span
@@ -509,10 +720,570 @@ function Releases({ route, releases, revisions, navigate }) {
           r=${r}
           near=${near}
           selected=${route.release === name}
+          bulk=${bulk}
           navigate=${navigate}
         />
       `;
     })}
+  `;
+}
+
+/* ---------- charts ----------
+ *
+ * Hand-rolled SVG rather than a charting library: the page has no build step
+ * and one pinned dependency, and these are three charts with one series each.
+ *
+ * Every chart here carries a hover layer AND a table view. The tooltip is an
+ * enhancement — no value is reachable only by hovering, which is also what
+ * keeps the charts usable from a keyboard and in the CVD case.
+ */
+
+// Left needs room for y-axis labels; right matches it so the plotted area is
+// centred in the card rather than hugging the right edge — which also stops
+// the end-dot and its surface ring being clipped by the figure bounds.
+const PLOT = { top: 16, right: 44, bottom: 22, left: 44 };
+const PLOT_H = 150;
+const TL_ROW_H = 15; // one version's row in the package timeline
+const TL_LABEL_W = 92;
+
+// Axis ticks on clean numbers. A tick set derived from the raw max lands on
+// values like 24,855 that nobody reads; step to the next 1/2/5×10ⁿ instead.
+function niceTicks(max, count = 4) {
+  if (max <= 0) return [0];
+  const raw = max / count;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 5, 10].find((m) => m * mag >= raw) * mag;
+  // The top tick has to be at or above `max`. Stopping at the last tick within
+  // `max` leaves the scale topping out below the data — 24,855 attributes on a
+  // 20,000 axis draws the line 26px ABOVE the plot, and since the svg has
+  // overflow visible it escapes upward into the subtitle rather than clipping.
+  const top = Math.ceil(max / step) * step;
+  const out = [];
+  for (let v = 0; v <= top; v += step) out.push(v);
+  return out;
+}
+
+const compact = (n) =>
+  n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`;
+
+// Year labels for a time axis, placed by pixel distance rather than by index.
+//
+// Counting rows (every Nth month, every Nth year) assumes the months are evenly
+// spread and they are not: the index is sparse before 2016 — one revision in
+// 2013, none at all in 2014 — so the first four year-starts sit within a few
+// pixels of each other and their labels overlap into mush. Dropping any label
+// that lands within `minPx` of the last one drawn keeps the axis readable at
+// every width, and is what lets the same code serve a 380px phone.
+function yearTicks(rows, X, minPx) {
+  const firsts = [];
+  rows.forEach((r, n) => {
+    const y = r.month.slice(0, 4);
+    if (!firsts.length || firsts[firsts.length - 1].y !== y)
+      firsts.push({ y, n });
+  });
+  const out = [];
+  let lastX = -Infinity;
+  for (const t of firsts) {
+    const x = X(t.n);
+    if (x - lastX < minPx) continue;
+    out.push({ ...t, x });
+    lastX = x;
+  }
+  return out;
+}
+const YEAR_GAP = 46; // px a four-digit year needs before the next one
+
+// SVG scales to its container, but text must not scale with it, so the chart
+// is drawn at the measured pixel width rather than through a viewBox.
+//
+// A callback ref rather than useRef + useEffect([]): a chart that shows a
+// loading line before its figure exists has no node to measure at mount, and a
+// once-only effect never gets a second chance — the chart then draws itself at
+// the fallback width forever, overflowing its container on anything narrower.
+// This attaches the observer whenever the node appears and detaches when it
+// goes, so remounting is handled too.
+function useWidth(fallback = 640) {
+  const [w, setW] = useState(fallback);
+  const obs = useRef(null);
+  const ref = useCallback((node) => {
+    obs.current?.disconnect();
+    obs.current = null;
+    if (!node) return;
+    setW(node.getBoundingClientRect().width);
+    obs.current = new ResizeObserver(([e]) => setW(e.contentRect.width));
+    obs.current.observe(node);
+  }, []);
+  return [ref, w];
+}
+
+// Shared hover plumbing: map a pointer x to the nearest data index. The hit
+// area is the whole plot rather than the marks, so there is no pinpointing.
+function useNearest(count, width) {
+  const [i, setI] = useState(null);
+  const inner = width - PLOT.left - PLOT.right;
+  const onMove = (e) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - box.left - PLOT.left;
+    setI(
+      Math.max(0, Math.min(count - 1, Math.round((x / inner) * (count - 1)))),
+    );
+  };
+  return { i, onMove, onLeave: () => setI(null) };
+}
+
+function Tooltip({ x, width, children }) {
+  // Flip the tooltip to the left of the crosshair near the right edge so it
+  // never overflows the figure.
+  const flip = x > width - 130;
+  return html`<div
+    class="tip"
+    style=${`left:${flip ? x - 8 : x + 8}px; top:4px; transform:translateX(${flip ? "-100%" : "0"})`}
+  >
+    ${children}
+  </div>`;
+}
+
+// A single-series trend over time. No legend by design — one series means the
+// title already names what is plotted, and a one-swatch box just restates it.
+function LineChart({ title, sub, rows, value, format, unit }) {
+  const [ref, width] = useWidth();
+  const pts = rows.map(value);
+  const max = Math.max(...pts);
+  const ticks = niceTicks(max);
+  const top = ticks[ticks.length - 1];
+  const inner = width - PLOT.left - PLOT.right;
+  const X = (n) => PLOT.left + (n / (rows.length - 1)) * inner;
+  const Y = (v) => PLOT.top + (1 - v / top) * PLOT_H;
+  const { i, onMove, onLeave } = useNearest(rows.length, width);
+
+  const line = pts.map((v, n) => `${n ? "L" : "M"}${X(n)},${Y(v)}`).join("");
+  const area = `${line}L${X(pts.length - 1)},${Y(0)}L${X(0)},${Y(0)}Z`;
+  const last = pts.length - 1;
+
+  const years = yearTicks(rows, X, YEAR_GAP);
+
+  return html`
+    <div class="chart">
+      <h3>${title}</h3>
+      <p class="sub">${sub}</p>
+      <figure ref=${ref}>
+        <svg
+          height=${PLOT_H + PLOT.top + PLOT.bottom}
+          onMouseMove=${onMove}
+          onMouseLeave=${onLeave}
+        >
+          <g class="grid">
+            ${ticks.map(
+              (t) =>
+                html`<line
+                  x1=${PLOT.left}
+                  x2=${width - PLOT.right}
+                  y1=${Y(t)}
+                  y2=${Y(t)}
+                />`,
+            )}
+          </g>
+          ${ticks.map(
+            (t) =>
+              html`<text x=${PLOT.left - 6} y=${Y(t) + 4} text-anchor="end"
+                >${compact(t)}</text
+              >`,
+          )}
+          ${years.map(
+            ({ y, x }) =>
+              html`<text x=${x} y=${PLOT_H + PLOT.top + 15} text-anchor="middle"
+                >${y}</text
+              >`,
+          )}
+          <path class="area" d=${area} />
+          <path class="series" d=${line} />
+          ${i !== null &&
+          html`<line
+            class="crosshair"
+            x1=${X(i)}
+            x2=${X(i)}
+            y1=${PLOT.top}
+            y2=${PLOT.top + PLOT_H}
+          />`}
+          <circle
+            class="enddot"
+            cx=${X(i ?? last)}
+            cy=${Y(pts[i ?? last])}
+            r="4"
+          />
+        </svg>
+        ${i !== null &&
+        html`<${Tooltip} x=${X(i)} width=${width}>
+          <span class="k">${rows[i].month}</span>
+          <b>${format(pts[i])}</b> ${unit}
+        <//>`}
+      </figure>
+      <details class="tableview">
+        <summary>table view</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>month</th>
+              <th>${unit}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(
+              (r, n) =>
+                html`<tr>
+                  <td>${r.month}</td>
+                  <td>${format(pts[n])}</td>
+                </tr>`,
+            )}
+          </tbody>
+        </table>
+      </details>
+    </div>
+  `;
+}
+
+// Added above the zero line, removed below — the polarity is the story, so
+// this is a diverging pair rather than two arbitrary categorical hues.
+function ChurnChart({ rows }) {
+  const [ref, width] = useWidth();
+  const max = Math.max(...rows.map((r) => Math.max(r.added, r.removed)));
+  const ticks = niceTicks(max, 3);
+  const top = ticks[ticks.length - 1];
+  const half = PLOT_H / 2;
+  const inner = width - PLOT.left - PLOT.right;
+  const zero = PLOT.top + half;
+  const Y = (v) => zero - (v / top) * half;
+  // A 2px gap in the surface color separates neighbours; nothing is stroked.
+  const bw = Math.max(1, inner / rows.length - 2);
+  const X = (n) => PLOT.left + (n / rows.length) * inner;
+  const { i, onMove, onLeave } = useNearest(rows.length, width);
+
+  return html`
+    <div class="chart">
+      <h3>Packages added and removed</h3>
+      <p class="sub">
+        Attributes entering and leaving nixpkgs each month. Above the line is
+        added, below is removed.
+      </p>
+      <div class="legend">
+        <span><i style="background:var(--chart-added)"></i>added</span>
+        <span><i style="background:var(--chart-removed)"></i>removed</span>
+      </div>
+      <figure ref=${ref}>
+        <svg
+          height=${PLOT_H + PLOT.top + PLOT.bottom}
+          onMouseMove=${onMove}
+          onMouseLeave=${onLeave}
+        >
+          ${ticks.slice(1).map(
+            (t) => html`
+              <g class="grid">
+                <line
+                  x1=${PLOT.left}
+                  x2=${width - PLOT.right}
+                  y1=${Y(t)}
+                  y2=${Y(t)}
+                />
+                <line
+                  x1=${PLOT.left}
+                  x2=${width - PLOT.right}
+                  y1=${Y(-t)}
+                  y2=${Y(-t)}
+                />
+              </g>
+              <text x=${PLOT.left - 6} y=${Y(t) + 4} text-anchor="end"
+                >${compact(t)}</text
+              >
+              <text x=${PLOT.left - 6} y=${Y(-t) + 4} text-anchor="end"
+                >${compact(t)}</text
+              >
+            `,
+          )}
+          ${rows.map(
+            (r, n) => html`
+              <rect
+                class="bar-added"
+                x=${X(n)}
+                width=${bw}
+                y=${Y(r.added)}
+                height=${zero - Y(r.added)}
+              />
+              <rect
+                class="bar-removed"
+                x=${X(n)}
+                width=${bw}
+                y=${zero}
+                height=${zero - Y(r.removed)}
+              />
+            `,
+          )}
+          <line
+            class="zero"
+            x1=${PLOT.left}
+            x2=${width - PLOT.right}
+            y1=${zero}
+            y2=${zero}
+          />
+          ${yearTicks(rows, X, YEAR_GAP).map(
+            ({ y, x }) =>
+              html`<text x=${x} y=${PLOT_H + PLOT.top + 15} text-anchor="middle"
+                >${y}</text
+              >`,
+          )}
+        </svg>
+        ${i !== null &&
+        html`<${Tooltip} x=${X(i)} width=${width}>
+          <span class="k">${rows[i].month}</span> <b>+${rows[i].added}</b> /
+          <b>−${rows[i].removed}</b>
+        <//>`}
+      </figure>
+      <details class="tableview">
+        <summary>table view</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>month</th>
+              <th>added</th>
+              <th>removed</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(
+              (r) =>
+                html`<tr>
+                  <td>${r.month}</td>
+                  <td>${r.added}</td>
+                  <td>${r.removed}</td>
+                </tr>`,
+            )}
+          </tbody>
+        </table>
+      </details>
+    </div>
+  `;
+}
+
+function Stats({ stats }) {
+  if (!stats)
+    return html`<div id="status" class="muted">Loading stats.json…</div>`;
+  const t = stats.totals;
+  const velocity = stats.monthly.filter((m) => m.commitsPerDay != null);
+
+  return html`
+    <p class="muted">
+      What the index says about nixpkgs itself, ${t.firstDate} → ${t.lastDate}.
+    </p>
+    <div class="kpis">
+      <div class="kpi">
+        <div class="v">${t.attrs.toLocaleString()}</div>
+        <div class="l">versioned attributes today</div>
+      </div>
+      <div class="kpi">
+        <div class="v">${t.versions.toLocaleString()}</div>
+        <div class="l">package versions ever</div>
+      </div>
+      <div class="kpi">
+        <div class="v">${t.additions.toLocaleString()}</div>
+        <div class="l">attributes added all time</div>
+      </div>
+      <div class="kpi">
+        <div class="v">${t.removals.toLocaleString()}</div>
+        <div class="l">attributes removed all time</div>
+      </div>
+    </div>
+
+    <${LineChart}
+      title="Commits per day"
+      sub=${"nixpkgs' own commit counter, read out of each channel bump's name and divided by the days since the previous one."}
+      rows=${velocity}
+      value=${(r) => r.commitsPerDay}
+      format=${(v) => v.toFixed(0)}
+      unit="commits/day"
+    />
+
+    <${LineChart}
+      title="Versioned attributes in nixpkgs"
+      sub="Top-level attributes carrying a version at each month's last channel bump. Package sets and anything without a .version are not counted."
+      rows=${stats.monthly}
+      value=${(r) => r.attrs}
+      format=${(v) => v.toLocaleString()}
+      unit="attributes"
+    />
+
+    <${ChurnChart} rows=${stats.monthly} />
+  `;
+}
+
+/* ---------- per-package timeline ----------
+ *
+ * history.json is 8 MB, and a timeline needs one attribute out of it, so the
+ * site build splits it by the first two characters of the attribute name and
+ * this fetches the one shard. Median shard is 2 KB.
+ *
+ * Cached per shard at module scope: opening five packages beginning "py"
+ * fetches once.
+ */
+const shardOf = (attr) =>
+  [...attr.slice(0, 2).toLowerCase()]
+    .map((c) => (/[a-z0-9]/.test(c) ? c : "_"))
+    .join("") || "_";
+
+const shardCache = new Map();
+function loadShard(attr) {
+  const key = shardOf(attr);
+  if (!shardCache.has(key))
+    shardCache.set(
+      key,
+      fetch(`history/${key}.json`).then((r) => {
+        if (!r.ok) throw new Error(`history/${key}.json: HTTP ${r.status}`);
+        return r.json();
+      }),
+    );
+  return shardCache.get(key);
+}
+
+// On disk a version with one unbroken run is [first, last]; one with gaps is a
+// list of those pairs. Same collapse multiverse.nix expands in runsOf.
+const runsOf = (v) => (v && !Array.isArray(v[0]) ? [v] : v);
+
+// One fetch per package page. The timeline and every version row read the
+// same object, so opening a row costs nothing extra.
+function useHistory(attr) {
+  const [hist, setHist] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setHist(null);
+    loadShard(attr)
+      .then((d) => live && setHist(d.attrs[attr] ?? {}))
+      .catch(() => live && setHist({}));
+    return () => {
+      live = false;
+    };
+  }, [attr]);
+  return hist;
+}
+
+function Timeline({
+  attr,
+  hist,
+  revisions,
+  openVers,
+  toggleVer,
+  route,
+  navigate,
+}) {
+  const [hover, setHover] = useState(null);
+  const [ref, width] = useWidth();
+
+  if (!hist) return html`<p class="muted">Loading timeline…</p>`;
+
+  const vers = Object.keys(hist).sort((a, b) => compareVersions(b, a));
+  if (!vers.length) return null;
+
+  // The axis spans this package's own lifetime, not the whole index. A package
+  // first packaged in 2022 would otherwise spend three quarters of its chart on
+  // empty years, squeezing every bar it does have into the right-hand corner.
+  const bounds = vers.flatMap((v) => runsOf(hist[v]).flat());
+  const span = Math.max(1, Math.max(...bounds) - Math.min(...bounds));
+  const pad = Math.max(1, Math.round(span * 0.02));
+  const lo = Math.max(0, Math.min(...bounds) - pad);
+  const hi = Math.min(revisions.length - 1, Math.max(...bounds) + pad);
+
+  const gutter = Math.min(TL_LABEL_W, width * 0.28);
+  const inner = width - gutter - PLOT.right;
+  const X = (off) => gutter + ((off - lo) / Math.max(1, hi - lo)) * inner;
+  const height = vers.length * TL_ROW_H + PLOT.bottom;
+
+  // Same distance rule as the trend charts, over the visible window only: the
+  // index has one revision in 2013 and none in 2014, so year-start offsets
+  // bunch up wherever the sparse early period is on screen.
+  const years = yearTicks(
+    revisions.slice(lo, hi + 1).map((r) => ({ month: r.date })),
+    (n) => X(lo + n),
+    YEAR_GAP + 14,
+  );
+
+  return html`
+    <div class="chart">
+      <h3>When each version was the one nixpkgs shipped</h3>
+      <p class="sub">
+        One row per version. A version with a gap draws as more than one bar —
+        it left nixpkgs and came back.
+      </p>
+      <figure ref=${ref}>
+        <svg height=${height} onMouseLeave=${() => setHover(null)}>
+          <g class="grid">
+            ${years.map(
+              ({ x }) =>
+                html`<line
+                  x1=${x}
+                  x2=${x}
+                  y1="0"
+                  y2=${vers.length * TL_ROW_H}
+                />`,
+            )}
+          </g>
+          ${years.map(
+            ({ y, x }) =>
+              html`<text x=${x} y=${height - 6} text-anchor="middle"
+                >${y}</text
+              >`,
+          )}
+          ${vers.map((v, n) => {
+            const y = n * TL_ROW_H;
+            // Every open row, not just the one in the URL: `ver` holds a
+            // single version, so with several rows expanded the graph would
+            // highlight one of them and silently ignore the rest.
+            const sel = openVers.has(v) || route.ver === v;
+            return html`
+              <g
+                class=${`tl-row${sel ? " tl-sel" : ""}`}
+                onMouseEnter=${() => setHover({ v, y })}
+                onClick=${() => toggleVer(v)}
+                style="cursor:pointer"
+              >
+                <rect
+                  class="tl-bg"
+                  x="0"
+                  y=${y}
+                  width=${Math.max(0, width)}
+                  height=${TL_ROW_H}
+                  fill="transparent"
+                />
+                <text class="tl-label" x="0" y=${y + 11}>${v}</text>
+                ${runsOf(hist[v]).map(([s, e]) => {
+                  // A single-revision run would otherwise be invisible, so
+                  // every bar gets a 2px floor.
+                  const x = X(s);
+                  const w = Math.max(2, X(e) - x);
+                  return html`<rect
+                    class="tl-bar"
+                    x=${x}
+                    y=${y + 3}
+                    width=${w}
+                    height=${TL_ROW_H - 6}
+                    rx="1"
+                  />`;
+                })}
+              </g>
+            `;
+          })}
+        </svg>
+        ${hover &&
+        html`<div
+          class="tip"
+          style=${`left:${gutter}px; top:${hover.y + TL_ROW_H}px`}
+        >
+          <b>${hover.v}</b>
+          ${runsOf(hist[hover.v]).map(
+            ([s, e]) =>
+              html`<div class="k">
+                ${revisions[s].date}${s === e ? "" : ` → ${revisions[e].date}`}
+              </div>`,
+          )}
+        </div>`}
+      </figure>
+    </div>
   `;
 }
 
@@ -522,6 +1293,7 @@ function App() {
   const [route, setRoute] = useState(readRoute);
   const [small, setSmall] = useState(null); // { revisions, releases } — load fast
   const [index, setIndex] = useState(null); // versions.json — the big one
+  const [stats, setStats] = useState(null); // stats.json — 13 KB, charts
   const [error, setError] = useState(null);
 
   // Navigation writes the URL first, then re-renders from the same route, so
@@ -557,9 +1329,17 @@ function App() {
         if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`);
         return r.json();
       });
-    Promise.all([json("revisions.json"), json("releases.json")])
-      .then(([revisions, releases]) => {
+    // stats.json rides with the two small files rather than behind the
+    // index: it is 13 KB and it is all the charts need, so the Stats tab
+    // renders on first paint instead of waiting on 5.5 MB it never reads.
+    Promise.all([
+      json("revisions.json"),
+      json("releases.json"),
+      json("stats.json"),
+    ])
+      .then(([revisions, releases, s]) => {
         setSmall({ revisions, releases });
+        setStats(s);
         return json("versions.json").then(setIndex);
       })
       .catch((err) => setError(err.message));
@@ -570,7 +1350,7 @@ function App() {
     [index],
   );
 
-  const stats = useMemo(() => {
+  const summary = useMemo(() => {
     if (!index || !small) return null;
     let versions = 0;
     for (const a of attrNames) versions += Object.keys(index.attrs[a]).length;
@@ -602,7 +1382,7 @@ function App() {
     <p class="muted" id="stats">
       ${error
         ? `Failed to load index data: ${error}`
-        : (stats ?? "Loading index…")}
+        : (summary ?? "Loading index…")}
     </p>
 
     <nav>
@@ -634,8 +1414,13 @@ function App() {
         route=${route}
         revisions=${small.revisions}
         index=${index}
+        stats=${stats}
         navigate=${navigate}
       />`}
+    </section>
+
+    <section hidden=${route.view !== "stats"}>
+      ${route.view === "stats" && html`<${Stats} stats=${stats} />`}
     </section>
 
     <section hidden=${route.view !== "releases"}>

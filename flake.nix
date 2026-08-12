@@ -105,13 +105,51 @@
           # dirtyRev; anything else keeps the placeholder and the footer stays
           # hidden.
           commit = self.rev or self.dirtyRev or "__COMMIT__";
+
+          # history.json split by the first two characters of the attribute
+          # name, so a package page fetches only the shard holding it.
+          #
+          # A timeline needs the history of exactly one attribute; serving the
+          # whole 8 MB file to draw it would cost more than every other request
+          # on the page combined. Two characters puts the median shard at 2 KB
+          # and the 90th percentile at 26 KB.
+          #
+          # A build artifact rather than committed data: the repo keeps the one
+          # file multiverse.nix reads, and the deploy gets the 792 pieces. That
+          # also means the split can be retuned without a data commit.
+          shardHistory = pkgs.writeText "shard-history.py" ''
+            import json, os, sys
+
+            src, dest = sys.argv[1:3]
+            hist = json.load(open(src))
+            os.makedirs(dest, exist_ok=True)
+
+            buckets = {}
+            for attr, vers in hist["attrs"].items():
+                # Anything not alphanumeric folds to _, so the shard name is
+                # always a safe filename and the site can compute it with the
+                # same one-liner.
+                key = "".join(c if c.isalnum() else "_" for c in attr[:2].lower()) or "_"
+                buckets.setdefault(key, {})[attr] = vers
+
+            for key, attrs in buckets.items():
+                json.dump(
+                    {"revisionCount": hist["revisionCount"], "attrs": attrs},
+                    open(os.path.join(dest, key + ".json"), "w"),
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            print(f"sharded {len(hist['attrs'])} attrs into {len(buckets)} files")
+          '';
         in
-        pkgs.runCommand "nixpkgs-multiverse-site" { } ''
+        pkgs.runCommand "nixpkgs-multiverse-site" { nativeBuildInputs = [ pkgs.python3 ]; } ''
           mkdir -p $out
           cp ${./site}/* $out/
           cp ${./revisions.json} $out/revisions.json
           cp ${./releases.json} $out/releases.json
           cp ${./index/versions.json} $out/versions.json
+          cp ${./index/stats.json} $out/stats.json
+          python3 ${shardHistory} ${./index/history.json} $out/history
 
           # The social-card image the og:/twitter: meta tags point at.
           cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg

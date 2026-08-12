@@ -185,7 +185,7 @@ summary.row a:hover {
   grid-template-columns: 9rem 17rem 1fr;
 }
 .cols-rev {
-  grid-template-columns: 7rem 9rem 1fr;
+  grid-template-columns: 7rem 9rem 7rem 1fr;
 }
 .cols-rel {
   grid-template-columns: 5rem 7rem 9rem 1fr;
@@ -240,4 +240,267 @@ footer {
   white-space: nowrap;
   background: none;
   padding: 0;
+}
+
+/* ---------- charts ----------
+ *
+ * Colors are roles, not hex, so the dark block below swaps them in one place.
+ * The two series hues are the validated diverging pair (blue ↔ red): they clear
+ * the lightness band, chroma floor, CVD separation and 3:1 contrast against
+ * BOTH of this site's surfaces (#ffffff / #16181d). Do not substitute by eye.
+ *
+ * Grid and axis reuse --line, which is already the site's one-step-off-surface
+ * hairline, so charts sit at the same visual weight as the tables.
+ */
+:root {
+  --chart-series: #2a78d6;
+  --chart-added: #2a78d6;
+  --chart-removed: #e34948;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-series: #3987e5;
+    --chart-added: #3987e5;
+    --chart-removed: #e66767;
+  }
+}
+
+.chart {
+  margin: 1.4rem 0 1.8rem;
+}
+.chart h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.1rem;
+}
+.chart .sub {
+  font-size: 12px;
+  color: var(--muted);
+  /* Enough clearance that a two-line subtitle never crowds the plot: the svg
+     is overflow:visible so the end-dot and its ring sit slightly proud of the
+     top gridline. */
+  margin: 0 0 0.9rem;
+}
+/* The container grows with its content rather than fixing a height, so the
+   x-axis band is never the thing that gets clipped into a nested scrollbar. */
+.chart figure {
+  margin: 0;
+  position: relative;
+}
+.chart svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.chart .grid line,
+.chart .axis line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart text {
+  fill: var(--muted);
+  font:
+    11px system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.chart .series {
+  fill: none;
+  stroke: var(--chart-series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart .area {
+  fill: var(--chart-series);
+  opacity: 0.1;
+  stroke: none;
+}
+/* The end-dot carries a 2px ring in the surface color so it stays legible
+   where it crosses the line or a gridline. */
+.chart .enddot {
+  fill: var(--chart-series);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+.chart .crosshair {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+.chart .bar-added {
+  fill: var(--chart-added);
+}
+.chart .bar-removed {
+  fill: var(--chart-removed);
+}
+.chart .zero {
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+/* Legend — always present for two or more series, so identity never rests on
+   color alone. The swatch carries the hue; the text stays in ink. */
+.legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+  z-index: 2;
+}
+.tip b {
+  font-weight: 600;
+}
+.tip .k {
+  color: var(--muted);
+}
+
+/* Every chart has a table twin, so no value is reachable only by hovering. */
+.chart .tableview {
+  margin-top: 0.5rem;
+  font-size: 12px;
+}
+.chart .tableview table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.chart .tableview th,
+.chart .tableview td {
+  text-align: right;
+  padding: 0.15rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.chart .tableview th:first-child,
+.chart .tableview td:first-child {
+  text-align: left;
+}
+.chart summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+
+/* KPI row: the headline numbers, which are stat tiles rather than a one-bar
+   chart. Proportional figures — tabular-nums makes a big number look loose. */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0 0.5rem;
+}
+.kpi {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
+}
+.kpi .v {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.kpi .l {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- per-package timeline ----------
+ *
+ * One row per version, bars where that version was actually the one nixpkgs
+ * shipped. A version with a gap draws as two bars, which is the point.
+ */
+.tl-row:hover .tl-bg {
+  fill: var(--code-bg);
+}
+.tl-bar {
+  fill: var(--chart-series);
+}
+.tl-label {
+  fill: var(--fg);
+  font:
+    11px ui-monospace,
+    monospace;
+}
+/* A selected version: the bar changes hue AND its row is shaded. A run can be
+   a single revision — three pixels — and colour alone on a mark that small is
+   not a signal anyone can find. */
+.tl-sel .tl-bar {
+  fill: var(--chart-removed);
+}
+.tl-sel .tl-bg {
+  fill: var(--code-bg);
+}
+
+/* Delta text in the revisions table. The +/− sign carries the meaning and the
+   color is the secondary channel, which is what keeps this readable under
+   red-green CVD — the most common kind, and the reason a bare red/green pair
+   is never allowed to carry meaning alone.
+
+   Measured against both surfaces: added 7.54 light / 5.29 dark, removed 4.80
+   light / 5.50 dark. All clear the 4.5:1 floor for text. */
+:root {
+  --delta-add: #006300;
+  --delta-del: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --delta-add: #0ca30c;
+    --delta-del: #e66767;
+  }
+}
+.delta {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.delta .a {
+  color: var(--delta-add);
+}
+.delta .d {
+  color: var(--delta-del);
+}
+
+/* A version's runs, inside its expanded row. */
+.runs {
+  font-size: 13px;
+  margin: 0.2rem 0 0.4rem;
+}
+.runs div {
+  padding: 0.1rem 0;
+}
+
+/* Expand/collapse every row on the page. */
+.bulk {
+  float: right;
+  font:
+    12px system-ui,
+    sans-serif;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem 0;
 }
