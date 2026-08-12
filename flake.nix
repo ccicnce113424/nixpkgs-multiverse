@@ -152,8 +152,28 @@
 
       # `nix fmt`. The tree wrapper rather than bare `nixfmt`, which now
       # deprecates being handed a directory and formats stdin when `nix fmt` is
-      # called with no paths at all.
-      formatter = forAllSystems (system: (pkgsFor system).nixfmt-tree);
+      # called with no paths at all. Extended with prettier so the site's
+      # html/css/js is held to a formatter too, not just the Nix code.
+      formatter = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.nixfmt-tree.override {
+          runtimeInputs = [ pkgs.prettier ];
+          settings = {
+            formatter.prettier = {
+              command = "prettier";
+              options = [ "--write" ];
+              includes = [
+                "*.css"
+                "*.js"
+                "*.html"
+              ];
+            };
+          };
+        }
+      );
 
       # Everything tools/*.sh needs, so `tools/build-index.sh` runs the same way
       # on any host — including the bash 4+ the scripts assume.

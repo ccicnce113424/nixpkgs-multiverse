@@ -1,88 +1,226 @@
-  /* Minimal on purpose: system fonts, one accent, dark mode via media query. */
+/* Minimal on purpose: system fonts, one accent, dark mode via media query. */
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6a6a6a;
+  --line: #e0e0e0;
+  --accent: #4f6bed;
+  --code-bg: #f4f4f4;
+}
+@media (prefers-color-scheme: dark) {
   :root {
-    --bg: #ffffff; --fg: #1a1a1a; --muted: #6a6a6a;
-    --line: #e0e0e0; --accent: #4f6bed; --code-bg: #f4f4f4;
+    --bg: #16181d;
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --line: #33363d;
+    --accent: #8fa3ff;
+    --code-bg: #22252c;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #16181d; --fg: #e6e6e6; --muted: #9a9a9a;
-      --line: #33363d; --accent: #8fa3ff; --code-bg: #22252c;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0 auto; padding: 1rem; max-width: 60rem;
-    background: var(--bg); color: var(--fg);
-    font: 15px/1.5 system-ui, sans-serif;
-  }
-  h1 { font-size: 1.3rem; margin: 0.2rem 0; }
-  h1 a { color: inherit; text-decoration: none; }
-  h2 { font-size: 1.1rem; margin: 1rem 0 0.3rem; }
-  .muted { color: var(--muted); }
-  a { color: var(--accent); }
-  nav { margin: 1rem 0; border-bottom: 1px solid var(--line); }
-  nav button {
-    background: none; border: none; border-bottom: 2px solid transparent;
-    padding: 0.4rem 0.8rem; font: inherit; color: var(--muted); cursor: pointer;
-  }
-  nav button.active { color: var(--fg); border-bottom-color: var(--accent); }
-  input[type="search"] {
-    width: 100%; padding: 0.5rem; font: inherit;
-    background: var(--bg); color: var(--fg);
-    border: 1px solid var(--line); border-radius: 4px;
-  }
-  code { font: 13px/1.5 ui-monospace, monospace; background: var(--code-bg); border-radius: 3px; padding: 0.1rem 0.3rem; }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0 auto;
+  padding: 1rem;
+  max-width: 60rem;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+}
+h1 {
+  font-size: 1.3rem;
+  margin: 0.2rem 0;
+}
+h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+h2 {
+  font-size: 1.1rem;
+  margin: 1rem 0 0.3rem;
+}
+.muted {
+  color: var(--muted);
+}
+a {
+  color: var(--accent);
+}
+nav {
+  margin: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+nav button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.4rem 0.8rem;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+nav button.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+input[type="search"] {
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+code {
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+}
 
-  /* A copyable command: one block, the command never wraps, the icon rides
+/* A copyable command: one block, the command never wraps, the icon rides
      on the right edge. */
-  .cmd {
-    display: flex; align-items: center; gap: 0.5rem;
-    background: var(--code-bg); border-radius: 4px;
-    padding: 0.45rem 0.6rem; margin: 0.25rem 0 0.6rem;
-  }
-  .cmd code { background: none; padding: 0; white-space: pre; overflow-x: auto; flex: 1; }
-  .cmd button {
-    background: none; border: none; padding: 0.1rem; cursor: pointer;
-    color: var(--muted); flex: none; line-height: 0;
-  }
-  .cmd button:hover { color: var(--fg); }
-  .capt { font-size: 12px; color: var(--muted); margin-top: 0.5rem; }
+.cmd {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 0.45rem 0.6rem;
+  margin: 0.25rem 0 0.6rem;
+}
+.cmd code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+  overflow-x: auto;
+  flex: 1;
+}
+.cmd button {
+  background: none;
+  border: none;
+  padding: 0.1rem;
+  cursor: pointer;
+  color: var(--muted);
+  flex: none;
+  line-height: 0;
+}
+.cmd button:hover {
+  color: var(--fg);
+}
+.capt {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
 
-  /* Expandable rows: a grid summary, detail body indented beneath. */
-  .head, summary.row {
-    display: grid; gap: 0.8rem; align-items: baseline;
-    padding: 0.3rem 0 0.3rem 1.1rem;
-  }
-  .head { font-weight: 600; border-bottom: 1px solid var(--line); padding-left: 1.1rem; }
-  details.item { border-bottom: 1px solid var(--line); }
-  summary.row { cursor: pointer; list-style: none; position: relative; scroll-margin-top: 1.5rem; }
-  summary.row::-webkit-details-marker { display: none; }
-  summary.row::before { content: "▸"; position: absolute; left: 0; color: var(--muted); font-size: 11px; }
-  details[open] > summary.row::before { content: "▾"; }
-  summary.row:hover { background: var(--code-bg); }
-  /* Links inside a row keep the row's color until hovered themselves, so the
+/* Expandable rows: a grid summary, detail body indented beneath. */
+.head,
+summary.row {
+  display: grid;
+  gap: 0.8rem;
+  align-items: baseline;
+  padding: 0.3rem 0 0.3rem 1.1rem;
+}
+.head {
+  font-weight: 600;
+  border-bottom: 1px solid var(--line);
+  padding-left: 1.1rem;
+}
+details.item {
+  border-bottom: 1px solid var(--line);
+}
+summary.row {
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+  scroll-margin-top: 1.5rem;
+}
+summary.row::-webkit-details-marker {
+  display: none;
+}
+summary.row::before {
+  content: "▸";
+  position: absolute;
+  left: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+details[open] > summary.row::before {
+  content: "▾";
+}
+summary.row:hover {
+  background: var(--code-bg);
+}
+/* Links inside a row keep the row's color until hovered themselves, so the
      commit and channel build read as part of the row but light up on target. */
-  summary.row a { color: inherit; text-decoration: none; }
-  summary.row a:hover { color: var(--accent); text-decoration: underline; }
-  .body { padding: 0.2rem 0 0.8rem 1.1rem; }
-  .links { font-size: 13px; margin: 0.3rem 0; }
-  .links a { margin-right: 1rem; }
+summary.row a {
+  color: inherit;
+  text-decoration: none;
+}
+summary.row a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.body {
+  padding: 0.2rem 0 0.8rem 1.1rem;
+}
+.links {
+  font-size: 13px;
+  margin: 0.3rem 0;
+}
+.links a {
+  margin-right: 1rem;
+}
 
-  .cols-ver { grid-template-columns: 9rem 17rem 1fr; }
-  .cols-rev { grid-template-columns: 7rem 9rem 1fr; }
-  .cols-rel { grid-template-columns: 5rem 7rem 9rem 1fr; }
+.cols-ver {
+  grid-template-columns: 9rem 17rem 1fr;
+}
+.cols-rev {
+  grid-template-columns: 7rem 9rem 1fr;
+}
+.cols-rel {
+  grid-template-columns: 5rem 7rem 9rem 1fr;
+}
 
-  .pkg { cursor: pointer; padding: 0.15rem 0; }
-  .pkg:hover { color: var(--accent); }
-  .pins { columns: 3 14rem; font-size: 13px; margin: 0.4rem 0; }
-  .pins div { break-inside: avoid; }
-  button.more {
-    font: 13px system-ui, sans-serif; cursor: pointer; color: var(--accent);
-    background: none; border: none; padding: 0.2rem 0;
-  }
-  #status { margin: 0.5rem 0; }
+.pkg {
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+.pkg:hover {
+  color: var(--accent);
+}
+.pins {
+  columns: 3 14rem;
+  font-size: 13px;
+  margin: 0.4rem 0;
+}
+.pins div {
+  break-inside: avoid;
+}
+button.more {
+  font:
+    13px system-ui,
+    sans-serif;
+  cursor: pointer;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0.2rem 0;
+}
+#status {
+  margin: 0.5rem 0;
+}
 
 footer {
-  margin-top: 2rem; padding: 0.8rem 0; border-top: 1px solid var(--line);
-  font-size: 13px; text-align: center;
+  margin-top: 2rem;
+  padding: 0.8rem 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  text-align: center;
 }

@@ -47,6 +47,8 @@ jobs:
           cp site/* _site/
           cp revisions.json releases.json _site/
           cp index/versions.json _site/
+          # The social-card image the og:/twitter: meta tags point at.
+          cp multiverse_lotr.jpg _site/
           # Stamp the deploying commit into the footer — this names exactly
           # the tree the data files above were copied from.
           sed -i "s/__COMMIT__/${GITHUB_SHA}/" _site/app.js
