@@ -213,13 +213,21 @@ function useLinkableRow(selected, record, bulk) {
   return { open, ref, onToggle };
 }
 
+// Every {open, seq} force — expand-all and per-version alike — draws its
+// sequence number from here. useLinkableRow keys its effect on `seq`, so two
+// independent counters collide the moment both reach the same value: after one
+// expand-all (seq 1), the first per-version toggle also minted seq 1, the dep
+// did not change, and clicking a bar silently did nothing.
+let forceSeq = 0;
+const nextSeq = () => ++forceSeq;
+
 // One expand/collapse control per view. Returns the state to thread into every
 // useLinkableRow on the page plus the button that drives it.
 function useBulk() {
   const [bulk, setBulk] = useState(null);
   const button = html`<button
     class="bulk"
-    onClick=${() => setBulk({ open: !bulk?.open, seq: (bulk?.seq ?? 0) + 1 })}
+    onClick=${() => setBulk({ open: !bulk?.open, seq: nextSeq() })}
   >
     ${bulk?.open ? "collapse all" : "expand all"}
   </button>`;
@@ -398,11 +406,20 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
   // `ver` can only name one version, so routing the click through it could
   // open a row but never close one — the timeline toggled on and never off.
   const [force, setForce] = useState({});
+  // navigate closes over the current route, so it is a new function every
+  // render; holding it in a ref keeps toggleVer stable and stops every row
+  // re-rendering whenever the route changes.
+  const navRef = useRef(navigate);
+  navRef.current = navigate;
+
   const toggleVer = useCallback((v) => {
-    setForce((prev) => ({
-      ...prev,
-      [v]: { open: !openRef.current.has(v), seq: (prev[v]?.seq ?? 0) + 1 },
-    }));
+    const willOpen = !openRef.current.has(v);
+    setForce((prev) => ({ ...prev, [v]: { open: willOpen, seq: nextSeq() } }));
+    // The URL holds the most recently expanded version, whichever way it was
+    // opened. Composing every open row into the query was the alternative and
+    // does not scale: expanding all 1,538 revisions would be a ~20,000
+    // character URL, past what servers and CDNs accept.
+    navRef.current({ ver: willOpen ? v : "" }, Nav.REPLACE);
   }, []);
 
   // An expand-all supersedes every per-version force, otherwise a row touched
@@ -540,6 +557,14 @@ function RevPins({ off, index, navigate }) {
 // read straight off stats.json by offset — the revisions table would otherwise
 // have to load the 8 MB history to know it.
 function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
+  // A revision pins up to MAX_PINS package versions, each one a link. That is
+  // fine for a row opened on its own and ruinous for 150 at once, so a mass
+  // expand shows the command and puts the pins one click away.
+  //
+  // Decided when the row opens, NOT read live from `bulk`: collapsing flips
+  // bulk.open to false while every row is still open, so a live read renders
+  // all 150 pin lists for one frame before the rows close — ~120k nodes built
+  // and thrown away, measured at 2.8s against 60ms to expand.
   const [pins, setPins] = useState(false);
   const { open, ref, onToggle } = useLinkableRow(
     selected,
@@ -547,6 +572,9 @@ function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
       navigate({ rev: isOpen ? r.rev.slice(0, REV_ABBREV) : "" }, Nav.REPLACE),
     bulk,
   );
+  // Must sit below `open` — naming it in the dependency array above the
+  // declaration is a temporal-dead-zone throw at render time, not a warning.
+  useEffect(() => setPins(open && !bulk?.open), [open]);
 
   const archive = archiveFor("unstable", r.name);
   return html`
@@ -577,23 +605,15 @@ function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
             text=${`nix run ${FLAKE}#${label(r)}.hello`}
             caption="run anything out of this revision"
           />
-          ${
-            // A revision pins up to MAX_PINS package versions, each a link.
-            // Rendering that inline is fine for one row and catastrophic for
-            // all of them at once — expand-all across 1,538 revisions would
-            // build on the order of half a million nodes and lock the tab. So
-            // a mass expand shows the command and puts the pins one click
-            // away; a row opened on its own still renders them immediately.
-            bulk?.open && !pins
-              ? html`<button class="more" onClick=${() => setPins(true)}>
-                  show the package versions pinned here
-                </button>`
-              : html`<${RevPins}
-                  off=${off}
-                  index=${index}
-                  navigate=${navigate}
-                />`
-          }
+          ${pins
+            ? html`<${RevPins}
+                off=${off}
+                index=${index}
+                navigate=${navigate}
+              />`
+            : html`<button class="more" onClick=${() => setPins(true)}>
+                show the package versions pinned here
+              </button>`}
         `}
       </div>
     </details>
@@ -639,8 +659,9 @@ function Revisions({ route, revisions, index, stats, navigate }) {
     )}
     ${limit < all.length &&
     html`<button class="more" onClick=${() => setShown(limit + REV_PAGE)}>
-      show ${Math.min(REV_PAGE, all.length - limit)} more ·
-      ${(all.length - limit).toLocaleString()} older revisions remaining
+      ${`show ${Math.min(REV_PAGE, all.length - limit)} more · ${(
+        all.length - limit
+      ).toLocaleString()} older revisions remaining`}
     </button>`}
   `;
 }
