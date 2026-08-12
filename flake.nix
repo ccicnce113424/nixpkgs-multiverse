@@ -61,7 +61,7 @@
       toolDeps = pkgs: [
         pkgs.bash
         pkgs.python3
-        pkgs.git
+        pkgs.gitMinimal
         pkgs.gnutar
         pkgs.gnugrep
         pkgs.coreutils
