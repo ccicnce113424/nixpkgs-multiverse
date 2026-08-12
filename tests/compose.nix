@@ -5,8 +5,11 @@
 # cannot do at all — the three Pythons below come from three different nixpkgs
 # revisions and coexist in one derivation because Nix keeps their dependency
 # graphs disjoint.
+{
+  system ? builtins.currentSystem,
+}:
 let
-  mv = import ../. { };
+  mv = import ../. { inherit system; };
 
   # Newest revision supplies the builder itself; the contents come from wherever
   # each version happens to live.

@@ -9,6 +9,7 @@ Every nixpkgs revision, reachable from a **single evaluation**. One flake input,
 ## Status
 
 ![github master branch workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/update-index.yml/badge.svg?branch=main)
+![ci workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/ci.yml/badge.svg?branch=main)
 
 <!-- BEGIN index-status -->
 - **304,758 package versions** across **31,798 attributes**, from **1,538 revisions**
@@ -175,6 +176,8 @@ mv.versionsOf "python3"
 mv.revOf "python3" "3.8.9"
 # unstable as it stood N days before any anchor
 mv.daysBehind "tip" 7
+# a revision as the flake attrset `inputs.nixpkgs` would have been
+mv.flakeAt "26.05"
 # where a package set came from
 (mv.at "26.05").multiverse
 # every release channel tracked, oldest first
@@ -279,16 +282,53 @@ home-manager.lib.homeManagerConfiguration {
 }
 ```
 
-NixOS is the same shape, with one wrinkle that you must go through `eval-config.nix`, which is what `nixosSystem` wraps:
+NixOS needs one more step: `nixosSystem` lives on the nixpkgs *flake*, a
+package set's `lib` does not have it, so build the system from `flakeAt`:
 
 ```nix
-let
-  pkgs = mv.at "26.05";
-in
-import "${pkgs.path}/nixos/lib/eval-config.nix" {
-  inherit system;
+(mv.flakeAt "26.05").lib.nixosSystem {
+  system = "x86_64-linux";
   modules = [ ./configuration.nix ];
 }
+```
+
+### Pinning another flake's nixpkgs
+
+A transitive input can be pinned without adding a top-level nixpkgs input:
+
+```nix
+inputs.home-manager.inputs.nixpkgs.url = "github:NixOS/nixpkgs/73ad5f9e147c0d2a2061f1d4bd91e05078dc0b58";
+```
+
+The lock machinery only takes concrete refs, but the commit behind any
+multiverse selector is one `nix eval` away, off the provenance tag:
+
+```console
+$ nix eval --raw 'github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux' \
+    --apply 'mv: (mv.at "2022-03-15").multiverse.rev'
+73ad5f9e147c0d2a2061f1d4bd91e05078dc0b58
+```
+
+Any selector `at` takes works. Answering fetches that one tree (nothing is
+built); a release tip comes straight off the table and fetches nothing:
+
+```console
+$ nix eval --raw 'github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux.releaseTips."26.05".rev'
+fcb8fcd6bf2d0adecae5bd491afaaaf8311b758d
+```
+
+To pin whatever revision ships a specific package version, `revOf` names it,
+and the label it returns is itself a selector, so it feeds straight back into
+`at`:
+
+```console
+$ nix eval --raw 'github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux' \
+    --apply 'mv: mv.revOf "python3" "3.8.9"'
+2021-07-18-967d40bec14b
+
+$ nix eval --raw 'github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux' \
+    --apply 'mv: (mv.at (mv.revOf "python3" "3.8.9")).multiverse.rev'
+967d40bec14be87262b21ab901dbace23b7365db
 ```
 
 ## Building the index

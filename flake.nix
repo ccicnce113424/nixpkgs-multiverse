@@ -86,13 +86,15 @@
           '';
         };
 
-      tools = [
-        "build-index"
-        "fetch-unstable-revisions"
-        "fetch-releases"
-        "add-narhashes"
-        "update-readme-status"
-      ];
+      # The scripts behind `nix run .#<tool>`, each with the description its
+      # app surfaces through `nix flake show` and `nix flake check`.
+      tools = {
+        build-index = "Build index/versions.json (and narHashes) from revisions.json";
+        fetch-unstable-revisions = "Append new nixos-unstable channel bumps to revisions.json";
+        fetch-releases = "Refresh releases.json with the current tip of every release channel";
+        add-narhashes = "Fill in narHash for revisions that lack one";
+        update-readme-status = "Rewrite the status block at the top of README.md";
+      };
     in
     {
       # The multiverse API, per system.
@@ -103,12 +105,40 @@
       lib.mkMultiverse = args: import ./multiverse.nix args;
 
       # legacyPackages is the conventional escape hatch for a non-flat package
-      # set, which is exactly what a multiverse is.
-      legacyPackages = forAllSystems (system: import ./multiverse.nix { inherit system; });
+      # set, which is exactly what a multiverse is. The demo rides here rather
+      # than in `packages` because `nix flake check` evaluates every package,
+      # and evaluating every-python means fetching the ~60 revisions it draws
+      # from — legacyPackages is the one output flake check never enumerates.
+      # `nix build .#every-python` resolves identically from either output.
+      legacyPackages = forAllSystems (
+        system:
+        import ./multiverse.nix { inherit system; }
+        // {
+          every-python = import ./demos/every-python.nix { inherit system; };
+        }
+      );
 
-      packages = forAllSystems (system: {
-        every-python = import ./demos/every-python.nix { inherit system; };
-      });
+      # `nix flake check` runs the test suite. The eval tests return a small
+      # summary attrset only after their assertions hold, so serialising the
+      # summary into a derivation makes *evaluation* the test — the build step
+      # just writes it out. compose is a real build: three Pythons from three
+      # revisions in one buildEnv.
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+          evalTest =
+            name: file:
+            pkgs.runCommand name {
+              summary = builtins.toJSON (import file { inherit system; });
+            } ''echo "$summary" > $out'';
+        in
+        {
+          index = evalTest "test-index" ./tests/index.nix;
+          flake-at = evalTest "test-flake-at" ./tests/flake-at.nix;
+          compose = (import ./tests/compose.nix { inherit system; }).env;
+        }
+      );
 
       # `nix fmt`. The tree wrapper rather than bare `nixfmt`, which now
       # deprecates being handed a directory and formats stdin when `nix fmt` is
@@ -128,15 +158,11 @@
         let
           pkgs = pkgsFor system;
         in
-        builtins.listToAttrs (
-          map (name: {
-            inherit name;
-            value = {
-              type = "app";
-              program = "${wrapTool pkgs name}/bin/${name}";
-            };
-          }) tools
-        )
+        builtins.mapAttrs (name: description: {
+          type = "app";
+          program = "${wrapTool pkgs name}/bin/${name}";
+          meta = { inherit description; };
+        }) tools
       );
     };
 }

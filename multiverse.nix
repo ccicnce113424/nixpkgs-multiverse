@@ -150,12 +150,23 @@ let
         acc
     ) null offsets;
 
-  # Offset for a YYYY-MM-DD date or a commit hash prefix. Release names never
-  # reach here — `at` resolves those against releases.json, which is not part
-  # of this array.
+  # Offset for a YYYY-MM-DD date, a commit hash prefix, or a revision label
+  # (`YYYY-MM-DD-<hex>`, the handle revOf and revs hand out, so their output
+  # feeds straight back in). Release names never reach here — `at` resolves
+  # those against releases.json, which is not part of this array.
   resolve =
     sel:
-    if builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" sel != null then
+    let
+      labelParts = builtins.match "([0-9]{4}-[0-9]{2}-[0-9]{2})-([0-9a-f]+)" sel;
+    in
+    if labelParts != null then
+      # A label names an exact revision, so resolve the commit prefix and
+      # ignore the date half — decoration, not a search key.
+      let
+        i = offsetOfRev (builtins.elemAt labelParts 1);
+      in
+      if i == null then throw "multiverse: no revision matches label '${sel}'" else i
+    else if builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" sel != null then
       let
         i = offsetOnOrBefore sel;
       in
@@ -165,7 +176,7 @@ let
         i = offsetOfRev sel;
       in
       if i == null then
-        throw "multiverse: '${sel}' is not a release name, a YYYY-MM-DD date, or a known commit"
+        throw "multiverse: '${sel}' is not a release name, a YYYY-MM-DD date, a revision label, or a known commit"
       else
         i;
 
@@ -201,6 +212,14 @@ let
   materialisable = i: fetcher == "local" || (revAt i) ? narHash;
 
   newestMaterialisable = builtins.foldl' (acc: i: if materialisable i then i else acc) null offsets;
+
+  # The offset `tip` and `flakeAt "tip"` resolve to, with the empty-index
+  # failure named once instead of at every call site.
+  checkedTipOffset =
+    if newestMaterialisable == null then
+      throw "multiverse: no revision has a narHash; run tools/build-index.sh"
+    else
+      newestMaterialisable;
 
   # A selector's date, read straight out of revisions.json or releases.json.
   # Nothing is materialised to answer this, which is the whole reason a window
@@ -299,6 +318,63 @@ let
     name: r: tagged (r // { release = name; }) (importRevision (pathForRelease r))
   ) releaseTable;
 
+  # A fetched revision as a *flake* attrset: the value `inputs.nixpkgs` would
+  # have been, had the revision been declared as a flake input. Shaped after
+  # what Nix's own call-flake.nix constructs — outputs first, then sourceInfo,
+  # so source metadata wins any collision, then the bookkeeping attributes.
+  # `pathFor` and `pathForRelease` both return a fetcher result, which is
+  # exactly the sourceInfo attrset this needs (outPath, rev, narHash,
+  # lastModified, ...).
+  #
+  # config and overlays deliberately do NOT apply here: a real flake input
+  # never sees the consumer's nixpkgs config, so neither does this one. Use
+  # `at` for a configured package set.
+  mkFlakeInstance =
+    provenance: sourceInfo:
+    let
+      # nixpkgs' own flake.nix has taken exactly `{ self }` since it appeared
+      # in 20.03, so this fix-point is all call-flake.nix does for it. Trees
+      # older than that get the two outputs the nixpkgs flake is consumed
+      # through, synthesised the same vanilla way the real flake.nix builds
+      # them.
+      outputs =
+        if builtins.pathExists (sourceInfo.outPath + "/flake.nix") then
+          (import (sourceInfo.outPath + "/flake.nix")).outputs { self = result; }
+        else
+          {
+            lib = import (sourceInfo.outPath + "/lib");
+            legacyPackages.${system} = import sourceInfo.outPath { inherit system; };
+          };
+
+      result =
+        outputs
+        // sourceInfo
+        // {
+          inherit (sourceInfo) outPath;
+          inputs = { };
+          inherit outputs sourceInfo;
+          _type = "flake";
+          multiverse = provenance;
+        };
+    in
+    result;
+
+  # Memoised like `instances`, and for the same reason: two flakeAt calls that
+  # land on the same offset share one import.
+  flakeInstances = builtins.listToAttrs (
+    map (i: {
+      name = toString i;
+      value = mkFlakeInstance {
+        inherit (revAt i) rev date;
+        label = labelOf i;
+      } (pathFor i);
+    }) offsets
+  );
+
+  releaseFlakeInstances = builtins.mapAttrs (
+    name: r: mkFlakeInstance (r // { release = name; }) (pathForRelease r)
+  ) releaseTable;
+
   versionsFor = attr: attrIndex.${attr} or { };
 
   # `builtins.attrNames` sorts lexicographically, which puts 3.12.10 before
@@ -324,6 +400,9 @@ rec {
   #                     all — a moving target, like nixos-25.05 itself
   #   at "2024-06-12"   newest revision on or before that date — fixed forever
   #   at "aae12a743f75" commit hash prefix — fixed forever
+  #   at "2021-07-18-967d40bec14b"
+  #                     a revision label, as revOf and revs hand out — fixed
+  #                     forever, so revOf's answer feeds straight back in
   at =
     sel:
     if sel == "tip" then
@@ -346,11 +425,27 @@ rec {
   # between an append and the indexing run that catches up to it, the last few
   # entries have no narHash and cannot be fetched. `tip` is a promise to hand
   # back a working nixpkgs, so it walks back to the newest one that is.
-  tip =
-    if newestMaterialisable == null then
-      throw "multiverse: no revision has a narHash; run tools/build-index.sh"
+  tip = instances.${toString checkedTipOffset};
+
+  # A whole nixpkgs as the flake attrset `inputs.nixpkgs` would have been —
+  # same selectors as `at`, but the flake shape instead of a package set:
+  #
+  #   (flakeAt "26.05").lib.nixosSystem { ... }
+  #   (flakeAt "26.05").legacyPackages.${system}.hello
+  #
+  # This is what flake-world entry points consume. `nixosSystem` in particular
+  # only exists on the nixpkgs *flake* — a package set's `lib` does not have
+  # it — and it stamps `nixpkgs.flake.source` from `self`, so registry and
+  # NIX_PATH pinning point at the real fetched tree. Source metadata (rev,
+  # narHash, lastModified) rides along for the same reason.
+  flakeAt =
+    sel:
+    if sel == "tip" then
+      flakeInstances.${toString checkedTipOffset}
+    else if releaseTable ? ${sel} then
+      releaseFlakeInstances.${sel}
     else
-      instances.${toString newestMaterialisable};
+      flakeInstances.${toString (resolve sel)};
 
   # A soak period: the whole of nixos-unstable as it stood some number of days
   # before an anchor. The anchor is any selector `at` takes:
