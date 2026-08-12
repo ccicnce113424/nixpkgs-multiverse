@@ -492,9 +492,11 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
       (gone ? ` · gone since ${revisions[Math.max(...offs)].date}` : "");
 
   return html`
-    <h2>
-      <code>${attr}</code>
-      <span class="muted">· ${lifetime}</span>
+    <h2 class="bulkline">
+      <span>
+        <code>${attr}</code>
+        <span class="muted">· ${lifetime}</span>
+      </span>
       ${bulkButton}
     </h2>
     <${Timeline}
@@ -675,7 +677,7 @@ function Revisions({ route, revisions, index, stats, navigate }) {
   const limit = Math.max(shown, linked + 1);
   const rows = all.slice(0, limit);
   return html`
-    <h2>
+    <h2 class="bulkline">
       <span class="muted"
         >${revisions.length.toLocaleString()} channel bumps ·
         ${revisions[0].date} → ${revisions[revisions.length - 1].date}</span
@@ -761,9 +763,12 @@ function Releases({ route, releases, revisions, navigate }) {
   const rows = Object.entries(releases).reverse();
   const [bulk, bulkButton] = useBulk();
   return html`
-    <p class="muted">
-      A release moves as backports land, exactly like
-      <code>github:NixOS/nixpkgs/nixos-26.05</code>. ${bulkButton}
+    <p class="muted bulkline">
+      <span>
+        A release moves as backports land, exactly like
+        <code>github:NixOS/nixpkgs/nixos-26.05</code>.
+      </span>
+      ${bulkButton}
     </p>
     <div class="head cols-rel">
       <span></span><span>release</span><span>as of</span><span>tip commit</span

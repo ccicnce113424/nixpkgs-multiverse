@@ -214,8 +214,12 @@ code {
 .pkg:hover {
   color: var(--accent);
 }
+/* Three columns where there is room for three. The 10rem minimum is set by the
+   narrowest useful column rather than by the widest attribute name: at 14rem a
+   phone could only ever fit one column, and a single column of short names
+   wastes half the screen. Names longer than the column wrap inside it. */
 .pins {
-  columns: 3 14rem;
+  columns: 3 10rem;
   font-size: 13px;
   margin: 0.4rem 0;
 }
@@ -508,9 +512,23 @@ footer {
   padding: 0.1rem 0;
 }
 
-/* Expand/collapse every row on the page. */
+/* Expand/collapse every row on the page, and the heading line that carries it.
+ *
+ * The button used to be float:right, which pins it beside the FIRST line of the
+ * heading — so once the heading wrapped, which it does on any phone, the button
+ * stayed up on line one and the wrapped text ran underneath it, landing the
+ * control on top of the rows below. As a flex item it sits at the end of the
+ * line and drops to a line of its own when the heading needs one. */
+.bulkline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.8rem;
+}
 .bulk {
-  float: right;
+  /* Holds the button against the right edge on both the shared line and the
+     line of its own it takes after wrapping. */
+  margin-left: auto;
   font:
     12px system-ui,
     sans-serif;
@@ -519,4 +537,62 @@ footer {
   border: none;
   cursor: pointer;
   padding: 0.2rem 0;
+}
+
+/* ---------- narrow screens ----------
+ *
+ * One breakpoint, placed where the widest table stops fitting: the version
+ * table's fixed tracks and gaps alone come to 30rem before its last column has
+ * a single character in it, so on a phone every table pushed the document wider
+ * than the screen. That cost more than the tables — a document wider than the
+ * viewport strands every full-width block at viewport width, so the copyable
+ * commands sat in a box narrower than the page they were on.
+ *
+ * Below the breakpoint the tables stop being tables, and the horizontal padding
+ * that a mouse-sized layout can afford goes back to the content.
+ */
+@media (max-width: 40rem) {
+  body {
+    padding: 0.75rem;
+  }
+
+  /* The fixed tracks are the thing that overflows, so drop them: a row becomes
+     a line of cells that wraps. The header row names tracks that no longer
+     exist, so it goes with them. */
+  .head {
+    display: none;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.6rem;
+  }
+  /* Last cell in every table is the channel build — the longest string in the
+     row and the least load-bearing. On its own line it leaves the cells that
+     identify the row (version, date, commit) together on the first one, and it
+     is indented clear of the disclosure marker so it still reads as part of the
+     row above rather than as a row of its own. */
+  .row > :last-child {
+    flex-basis: 100%;
+    padding-left: 2rem;
+  }
+
+  .body {
+    padding-left: 0.6rem;
+  }
+
+  /* A command that scrolls sideways inside a page is a poor target for a thumb,
+     and no font size fits `nix run '…#versions.python3Packages.foo."3.8.2"'` on
+     a phone anyway — so on a narrow screen the command wraps instead of
+     scrolling. Nothing is lost by it: the copy button, not a text selection, is
+     how a command gets off this page. */
+  .cmd {
+    align-items: flex-start;
+    padding: 0.45rem 0.5rem;
+  }
+  .cmd code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow-x: visible;
+  }
 }
