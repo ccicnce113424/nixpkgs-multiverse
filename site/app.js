@@ -176,41 +176,75 @@ function Link({ to, navigate, children, ...rest }) {
 function useLinkableRow(selected, record, bulk) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  // Which expand-all this row has already applied. A bulk toggle must not
-  // write itself into the URL: `record` calls `navigate`, which re-renders the
-  // whole app, so one expand-all across 1,538 rows would trigger 1,538 full
-  // re-renders — measured at 56 seconds before this guard worked.
-  //
-  // Comparing sequence numbers rather than racing a timer: `toggle` fires as a
-  // queued task, so a flag cleared on a setTimeout(0) is already false by the
-  // time most of the events arrive, and the navigations all got through.
-  const appliedSeq = useRef(null);
 
   useEffect(() => {
     if (!selected || open) return;
     setOpen(true);
-    ref.current?.querySelector("summary").scrollIntoView({ block: "start" });
+    ref.current?.querySelector(".row").scrollIntoView({ block: "start" });
   }, [selected]);
 
   // Keyed on `seq` rather than on `open` so that expanding all, collapsing one
   // by hand, then expanding all again still fires.
   useEffect(() => {
     if (!bulk) return;
-    appliedSeq.current = bulk.seq;
     setOpen(bulk.open);
   }, [bulk?.seq]);
 
-  const onToggle = (e) => {
-    const isOpen = e.currentTarget.open;
-    setOpen(isOpen);
-    // A toggle that only reflects the expand-all we just applied is not a user
-    // action, so it neither records itself nor navigates.
-    if (bulk && appliedSeq.current === bulk.seq && isOpen === bulk.open) return;
-    if (isOpen) record(true);
+  // Only a user action reaches here. The <details> version could not assume
+  // that — the element fires `toggle` for programmatic opens too, so a bulk
+  // expand looked exactly like 1,538 clicks and each one navigated. Driving
+  // the open state ourselves makes the distinction structural.
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) record(true);
     else if (selected) record(false);
   };
 
-  return { open, ref, onToggle };
+  return { open, ref, toggle };
+}
+
+// A valid id from arbitrary text, for aria-controls.
+const domId = (s) => "b-" + s.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+// The disclosure row.
+//
+// <details>/<summary> is the obvious markup and is exactly what Chromium
+// flagged 348 times: everything visible while a row is collapsed has to live
+// inside <summary>, these rows carry commit and channel-build links, and an
+// interactive element nested inside a <summary> is not reliably reachable by
+// keyboard or announced by assistive technology.
+//
+// So the disclosure is a real <button> and the links are its siblings — every
+// one an ordinary tab stop, nothing nested inside anything interactive. The
+// row stays clickable as a convenience on top of the button, never as the only
+// way to open it, and a click that lands on a link is left alone.
+function Row({ cols, id, label, open, toggle, rowRef, children, body }) {
+  const onClick = (e) => {
+    if (e.target.closest("a")) return;
+    toggle();
+  };
+  return html`
+    <div class="item" ref=${rowRef}>
+      <div class=${`row ${cols}`} onClick=${onClick}>
+        <button
+          class="disclose"
+          type="button"
+          aria-expanded=${open ? "true" : "false"}
+          aria-controls=${id}
+          aria-label=${`${open ? "Collapse" : "Expand"} ${label}`}
+          onClick=${(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+        >
+          ${open ? "▾" : "▸"}
+        </button>
+        ${children}
+      </div>
+      <div class="body" id=${id} hidden=${!open}>${open && body}</div>
+    </div>
+  `;
 }
 
 // Every {open, seq} force — expand-all and per-version alike — draws its
@@ -343,7 +377,7 @@ function VersionRow({
   onOpenChange,
   navigate,
 }) {
-  const { open, ref, onToggle } = useLinkableRow(
+  const { open, ref, toggle } = useLinkableRow(
     selected,
     (isOpen) => navigate({ ver: isOpen ? v : "" }, Nav.REPLACE),
     bulk,
@@ -353,22 +387,14 @@ function VersionRow({
 
   const archive = archiveFor("unstable", r.name);
   return html`
-    <details class="item" ref=${ref} open=${open} onToggle=${onToggle}>
-      <summary class="row cols-ver">
-        <code>${v}</code>
-        <span>
-          <${Link}
-            to=${{ view: "revisions", rev: r.rev.slice(0, REV_ABBREV) }}
-            navigate=${navigate}
-          >
-            ${label(r)}
-          <//>
-        </span>
-        <span class="muted"
-          >${archive && html`<a href=${archive}>${r.name}</a>`}</span
-        >
-      </summary>
-      <div class="body">
+    <${Row}
+      cols="cols-ver"
+      id=${domId(`${attr}-${v}`)}
+      label=${`version ${v}`}
+      open=${open}
+      toggle=${toggle}
+      rowRef=${ref}
+      body=${html`
         <${Cmd}
           text=${`nix run '${FLAKE}#versions.${attr}."${v}"'`}
           caption="run this version"
@@ -378,8 +404,21 @@ function VersionRow({
           caption="pin another flake's nixpkgs to it"
         />
         <${Runs} runs=${runs} revisions=${revisions} navigate=${navigate} />
-      </div>
-    </details>
+      `}
+    >
+      <code>${v}</code>
+      <span>
+        <${Link}
+          to=${{ view: "revisions", rev: r.rev.slice(0, REV_ABBREV) }}
+          navigate=${navigate}
+        >
+          ${label(r)}
+        <//>
+      </span>
+      <span class="muted"
+        >${archive && html`<a href=${archive}>${r.name}</a>`}</span
+      >
+    <//>
   `;
 }
 
@@ -439,7 +478,13 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
   // Something the table does not already say: when this package entered
   // nixpkgs, and whether it is still there. "newest first, click to expand"
   // described the widget; this describes the package.
-  const offs = hist ? Object.values(hist).flatMap((v) => runsOf(v).flat()) : [];
+  // `hist` is the sentinel string "error" when the shard failed to load.
+  // Treating that as data walks its characters and ends at revisions[NaN].date,
+  // which throws — so everything below reads `history`, which is null instead.
+  const history = hist && hist !== "error" ? hist : null;
+  const offs = history
+    ? Object.values(history).flatMap((v) => runsOf(v).flat())
+    : [];
   const gone = offs.length && Math.max(...offs) < revisions.length - 1;
   const lifetime = !offs.length
     ? `${vers.length} versions`
@@ -462,7 +507,7 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
       navigate=${navigate}
     />
     <div class="head cols-ver">
-      <span>version</span><span>newest revision shipping it</span
+      <span></span><span>version</span><span>newest revision shipping it</span
       ><span>channel build</span>
     </div>
     ${vers.map(([v, off]) => {
@@ -474,7 +519,7 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
           attr=${attr}
           v=${v}
           r=${r}
-          runs=${hist?.[v] && runsOf(hist[v])}
+          runs=${history?.[v] && runsOf(history[v])}
           revisions=${revisions}
           selected=${route.ver === v}
           bulk=${force[v] ?? bulk}
@@ -566,7 +611,7 @@ function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
   // all 150 pin lists for one frame before the rows close — ~120k nodes built
   // and thrown away, measured at 2.8s against 60ms to expand.
   const [pins, setPins] = useState(false);
-  const { open, ref, onToggle } = useLinkableRow(
+  const { open, ref, toggle } = useLinkableRow(
     selected,
     (isOpen) =>
       navigate({ rev: isOpen ? r.rev.slice(0, REV_ABBREV) : "" }, Nav.REPLACE),
@@ -578,45 +623,43 @@ function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
 
   const archive = archiveFor("unstable", r.name);
   return html`
-    <details class="item" ref=${ref} open=${open} onToggle=${onToggle}>
-      <summary class="row cols-rev">
-        <span>${r.date}</span>
-        <code
-          ><a href=${COMMIT_URL + r.rev}>${r.rev.slice(0, REV_ABBREV)}</a></code
-        >
-        <span class="delta">
-          ${churn &&
-          html`${churn[0]
-            ? html`<span class="a">+${churn[0]}</span>`
-            : null}${churn[0] && churn[1] ? " " : ""}${churn[1]
-            ? html`<span class="d">−${churn[1]}</span>`
-            : null}`}
-        </span>
-        <span class="muted">
-          ${archive
-            ? html`<a href=${archive}>${r.name}</a>`
-            : r.name || r.channel || ""}
-        </span>
-      </summary>
-      <div class="body">
-        ${open &&
-        html`
-          <${Cmd}
-            text=${`nix run ${FLAKE}#${label(r)}.hello`}
-            caption="run anything out of this revision"
-          />
-          ${pins
-            ? html`<${RevPins}
-                off=${off}
-                index=${index}
-                navigate=${navigate}
-              />`
-            : html`<button class="more" onClick=${() => setPins(true)}>
-                show the package versions pinned here
-              </button>`}
-        `}
-      </div>
-    </details>
+    <${Row}
+      cols="cols-rev"
+      id=${domId(r.rev)}
+      label=${`revision ${r.date}`}
+      open=${open}
+      toggle=${toggle}
+      rowRef=${ref}
+      body=${html`
+        <${Cmd}
+          text=${`nix run ${FLAKE}#${label(r)}.hello`}
+          caption="run anything out of this revision"
+        />
+        ${pins
+          ? html`<${RevPins} off=${off} index=${index} navigate=${navigate} />`
+          : html`<button class="more" onClick=${() => setPins(true)}>
+              show the package versions pinned here
+            </button>`}
+      `}
+    >
+      <span>${r.date}</span>
+      <code
+        ><a href=${COMMIT_URL + r.rev}>${r.rev.slice(0, REV_ABBREV)}</a></code
+      >
+      <span class="delta">
+        ${churn &&
+        html`${churn[0]
+          ? html`<span class="a">+${churn[0]}</span>`
+          : null}${churn[0] && churn[1] ? " " : ""}${churn[1]
+          ? html`<span class="d">−${churn[1]}</span>`
+          : null}`}
+      </span>
+      <span class="muted">
+        ${archive
+          ? html`<a href=${archive}>${r.name}</a>`
+          : r.name || r.channel || ""}
+      </span>
+    <//>
   `;
 }
 
@@ -640,7 +683,7 @@ function Revisions({ route, revisions, index, stats, navigate }) {
       ${bulkButton}
     </h2>
     <div class="head cols-rev">
-      <span>date</span><span>commit</span><span>packages</span
+      <span></span><span>date</span><span>commit</span><span>packages</span
       ><span>channel build</span>
     </div>
     ${rows.map(
@@ -669,7 +712,7 @@ function Revisions({ route, revisions, index, stats, navigate }) {
 /* ---------- releases ---------- */
 
 function ReleaseRow({ name, r, near, selected, bulk, navigate }) {
-  const { open, ref, onToggle } = useLinkableRow(
+  const { open, ref, toggle } = useLinkableRow(
     selected,
     (isOpen) => navigate({ release: isOpen ? name : "" }, Nav.REPLACE),
     bulk,
@@ -677,20 +720,14 @@ function ReleaseRow({ name, r, near, selected, bulk, navigate }) {
 
   const archive = archiveFor(name, r.name);
   return html`
-    <details class="item" ref=${ref} open=${open} onToggle=${onToggle}>
-      <summary class="row cols-rel">
-        <code>${name}</code>
-        <span>${r.date}</span>
-        <code
-          ><a href=${COMMIT_URL + r.rev}>${r.rev.slice(0, REV_ABBREV)}</a></code
-        >
-        <span class="muted"
-          >${archive
-            ? html`<a href=${archive}>${r.name}</a>`
-            : r.name || ""}</span
-        >
-      </summary>
-      <div class="body">
+    <${Row}
+      cols="cols-rel"
+      id=${domId(`rel-${name}`)}
+      label=${`release ${name}`}
+      open=${open}
+      toggle=${toggle}
+      rowRef=${ref}
+      body=${html`
         <${Cmd}
           text=${`nix run ${FLAKE}#${name}.hello`}
           caption="run anything out of this release, backports included"
@@ -698,17 +735,25 @@ function ReleaseRow({ name, r, near, selected, bulk, navigate }) {
         ${near &&
         html`<div class="links">
           <${Link}
-            to=${{
-              view: "revisions",
-              rev: near.rev.slice(0, REV_ABBREV),
-            }}
+            to=${{ view: "revisions", rev: near.rev.slice(0, REV_ABBREV) }}
             navigate=${navigate}
           >
             unstable as of ${r.date} →
           <//>
         </div>`}
-      </div>
-    </details>
+      `}
+    >
+      <code>${name}</code>
+      <span>${r.date}</span>
+      <code
+        ><a href=${COMMIT_URL + r.rev}>${r.rev.slice(0, REV_ABBREV)}</a></code
+      >
+      <span class="muted"
+        >${archive
+          ? html`<a href=${archive}>${r.name}</a>`
+          : r.name || ""}</span
+      >
+    <//>
   `;
 }
 
@@ -721,7 +766,7 @@ function Releases({ route, releases, revisions, navigate }) {
       <code>github:NixOS/nixpkgs/nixos-26.05</code>. ${bulkButton}
     </p>
     <div class="head cols-rel">
-      <span>release</span><span>as of</span><span>tip commit</span
+      <span></span><span>release</span><span>as of</span><span>tip commit</span
       ><span>channel build</span>
     </div>
     ${rows.map(([name, r]) => {
@@ -830,8 +875,15 @@ function useWidth(fallback = 640) {
     obs.current?.disconnect();
     obs.current = null;
     if (!node) return;
-    setW(node.getBoundingClientRect().width);
-    obs.current = new ResizeObserver(([e]) => setW(e.contentRect.width));
+    // Zero means the node is not rendered yet — inside a section still marked
+    // hidden, or measured before layout. Taking it would compute a negative
+    // plot width and draw nothing; hold the fallback until a real width
+    // arrives, which the observer below delivers.
+    const w0 = node.getBoundingClientRect().width;
+    if (w0 > 0) setW(w0);
+    obs.current = new ResizeObserver(([e]) => {
+      if (e.contentRect.width > 0) setW(e.contentRect.width);
+    });
     obs.current.observe(node);
   }, []);
   return [ref, w];
@@ -1176,7 +1228,10 @@ function useHistory(attr) {
     setHist(null);
     loadShard(attr)
       .then((d) => live && setHist(d.attrs[attr] ?? {}))
-      .catch(() => live && setHist({}));
+      // A failed shard used to land here as {}, which Timeline renders as
+      // nothing at all — indistinguishable from a package with no history and
+      // the reason the graph looked like it "sometimes" did not appear.
+      .catch(() => live && setHist("error"));
     return () => {
       live = false;
     };
@@ -1196,6 +1251,10 @@ function Timeline({
   const [hover, setHover] = useState(null);
   const [ref, width] = useWidth();
 
+  if (hist === "error")
+    return html`<p class="muted">
+      Could not load the version history for <code>${attr}</code>.
+    </p>`;
   if (!hist) return html`<p class="muted">Loading timeline…</p>`;
 
   const vers = Object.keys(hist).sort((a, b) => compareVersions(b, a));
@@ -1332,6 +1391,12 @@ function App() {
     } catch {
       /* throttled — ignore */
     }
+    // A push is a move to a different page, so it starts at the top. Without
+    // this the browser keeps the old offset: clicking a package from a
+    // scrolled revisions list lands you part-way down its version table.
+    // Replaces (opening a row, clicking a bar) deliberately keep their place,
+    // and a row that scrolls itself into view does so in a later effect.
+    if (mode === Nav.PUSH) scrollTo(0, 0);
     setRoute(next);
   };
 

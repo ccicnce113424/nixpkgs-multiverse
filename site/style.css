@@ -122,51 +122,66 @@ code {
   margin-top: 0.5rem;
 }
 
-/* Expandable rows: a grid summary, detail body indented beneath. */
+/* Expandable rows.
+ *
+ * Deliberately NOT <details>/<summary>: every row carries commit and
+ * channel-build links, everything visible while collapsed must live inside
+ * <summary>, and an interactive element nested in a <summary> is not reliably
+ * keyboard-reachable — Chromium reported 348 of them. The disclosure is a real
+ * <button> and the links are its siblings; see the Row component in app.js.
+ *
+ * The button takes the first grid column rather than being absolutely
+ * positioned, so the marker, the header cells and the row cells all share one
+ * track list and stay aligned.
+ */
 .head,
-summary.row {
+.row {
   display: grid;
   gap: 0.8rem;
   align-items: baseline;
-  padding: 0.3rem 0 0.3rem 1.4rem;
+  padding: 0.3rem 0;
 }
 .head {
   font-weight: 600;
   border-bottom: 1px solid var(--line);
-  padding-left: 1.4rem;
 }
-details.item {
+.item {
   border-bottom: 1px solid var(--line);
 }
-summary.row {
+.row {
   cursor: pointer;
-  list-style: none;
-  position: relative;
   scroll-margin-top: 1.5rem;
 }
-summary.row::-webkit-details-marker {
-  display: none;
-}
-summary.row::before {
-  content: "▸";
-  position: absolute;
-  left: 0;
-  color: var(--muted);
-  font-size: 15px;
-}
-details[open] > summary.row::before {
-  content: "▾";
-}
-summary.row:hover {
+.row:hover {
   background: var(--code-bg);
 }
+.disclose {
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  text-align: left;
+}
+/* The row is clickable as a convenience, so the button is the only thing that
+   takes focus — it needs a visible ring or keyboard users cannot see where
+   they are. */
+.disclose:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 /* Links inside a row keep the row's color until hovered themselves, so the
-     commit and channel build read as part of the row but light up on target. */
-summary.row a {
+   commit and channel build read as part of the row but light up on target. */
+.row a {
   color: inherit;
   text-decoration: none;
 }
-summary.row a:hover {
+.row a:hover {
   color: var(--accent);
   text-decoration: underline;
 }
@@ -181,14 +196,15 @@ summary.row a:hover {
   margin-right: 1rem;
 }
 
+/* First track is the disclosure button. */
 .cols-ver {
-  grid-template-columns: 9rem 17rem 1fr;
+  grid-template-columns: 1.4rem 9rem 17rem 1fr;
 }
 .cols-rev {
-  grid-template-columns: 7rem 9rem 7rem 1fr;
+  grid-template-columns: 1.4rem 7rem 9rem 7rem 1fr;
 }
 .cols-rel {
-  grid-template-columns: 5rem 7rem 9rem 1fr;
+  grid-template-columns: 1.4rem 5rem 7rem 9rem 1fr;
 }
 
 .pkg {
