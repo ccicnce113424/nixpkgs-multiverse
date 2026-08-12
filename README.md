@@ -400,6 +400,13 @@ $ nix eval --raw 'github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux' \
 967d40bec14be87262b21ab901dbace23b7365db
 ```
 
+## Browsing the index
+
+The whole index is browsable at **<https://fzakaria.github.io/nixpkgs-multiverse/>** —
+search any attribute for every version it ever shipped, with copy-paste run
+and pin commands, plus the full revision and release tables.
+
+
 ## Building the index
 
 ```sh
