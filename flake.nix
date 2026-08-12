@@ -16,7 +16,7 @@
   inputs = { };
 
   outputs =
-    { ... }:
+    { self, ... }:
     let
       systems = [
         "x86_64-linux"
@@ -86,6 +86,48 @@
           '';
         };
 
+      # The deployable site: the static files from site/ plus the three data
+      # files the page fetches at runtime. The data is copied in rather than
+      # fetched from raw.githubusercontent.com so that versions.json and
+      # revisions.json always deploy atomically — the offsets in one are only
+      # valid against the other.
+      #
+      # app.js is renamed to app.<content-hash>.js and index.html rewritten to
+      # match, so the served HTML and script can never be a mismatched pair
+      # across deploys, and the script could be cached immutably.
+      siteFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+
+          # The commit stamped into the footer. From a clean checkout self.rev
+          # names exactly the tree the data files came from; a dirty tree gets
+          # dirtyRev; anything else keeps the placeholder and the footer stays
+          # hidden.
+          commit = self.rev or self.dirtyRev or "__COMMIT__";
+        in
+        pkgs.runCommand "nixpkgs-multiverse-site" { } ''
+          mkdir -p $out
+          cp ${./site}/* $out/
+          cp ${./revisions.json} $out/revisions.json
+          cp ${./releases.json} $out/releases.json
+          cp ${./index/versions.json} $out/versions.json
+
+          # The social-card image the og:/twitter: meta tags point at.
+          cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg
+
+          chmod -R u+w $out
+          substituteInPlace $out/app.js --replace-quiet "__COMMIT__" "${commit}"
+
+          # The output path is known before building, so the page can name
+          # the very store path it is served out of (a benign self-reference).
+          substituteInPlace $out/app.js --replace-fail "__STORE_PATH__" "$out"
+
+          hash=$(sha256sum $out/app.js | cut -c1-12)
+          mv $out/app.js "$out/app.$hash.js"
+          substituteInPlace $out/index.html --replace-fail "app.js" "app.$hash.js"
+        '';
+
       # The scripts behind `nix run .#<tool>`, each with the description its
       # app surfaces through `nix flake show` and `nix flake check`.
       tools = {
@@ -103,6 +145,13 @@
 
       # `mkMultiverse` for callers who need to pass config/overlays through.
       lib.mkMultiverse = args: import ./multiverse.nix args;
+
+      # `nix build .#site` assembles the exact tree the pages workflow
+      # deploys; `nix run .#serve` (below, in apps) serves it for testing.
+      packages = forAllSystems (system: rec {
+        site = siteFor system;
+        default = site;
+      });
 
       # legacyPackages is the conventional escape hatch for a non-flat package
       # set, which is exactly what a multiverse is. The demo rides here rather
@@ -207,6 +256,64 @@
           program = "${wrapTool pkgs name}/bin/${name}";
           meta = { inherit description; };
         }) tools
+        // {
+          # `nix run .#serve [port]` — the built site on a local port.
+          #
+          # Not a bare `python -m http.server`: every file in a store output
+          # carries the epoch as its mtime, so If-Modified-Since would 304 a
+          # file from a *previous* build — the browser then shows a stale site
+          # across rebuilds no matter what changed. Ignore conditional
+          # requests and forbid caching outright; this server exists only for
+          # testing. (GitHub Pages serves real validators, so the deployed
+          # site is unaffected.)
+          serve =
+            let
+              script = pkgs.writeText "serve-site.py" ''
+                import functools
+                import http.server
+                import os
+                import sys
+
+                class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
+                    def send_head(self):
+                        del self.headers["If-Modified-Since"]
+                        del self.headers["If-None-Match"]
+                        return super().send_head()
+
+                    def end_headers(self):
+                        self.send_header("Cache-Control", "no-store")
+                        super().end_headers()
+
+                port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+                handler = functools.partial(
+                    NoCacheHandler, directory=os.environ["SITE_ROOT"]
+                )
+                # Name the store path being served, so a glance at the
+                # terminal settles which build the browser should be showing.
+                print(f"serving {os.environ['SITE_ROOT']}", flush=True)
+                print(f"     on http://127.0.0.1:{port}", flush=True)
+                try:
+                    http.server.ThreadingHTTPServer(
+                        ("127.0.0.1", port), handler
+                    ).serve_forever()
+                except KeyboardInterrupt:
+                    sys.exit(0)
+              '';
+            in
+            {
+              type = "app";
+              program = "${
+                pkgs.writeShellApplication {
+                  name = "serve-site";
+                  runtimeInputs = [ pkgs.python3 ];
+                  text = ''
+                    SITE_ROOT=${siteFor system} exec python3 ${script} "$@"
+                  '';
+                }
+              }/bin/serve-site";
+              meta.description = "Serve the built site locally for testing";
+            };
+        }
       );
     };
 }

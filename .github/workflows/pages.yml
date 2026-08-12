@@ -1,8 +1,7 @@
-# Publishes the index browser to GitHub Pages: the site/ files plus the three
-# data files the page fetches at runtime. The data is copied into the artifact
-# rather than fetched from raw.githubusercontent.com so that versions.json and
-# revisions.json always deploy atomically — the offsets in one are only valid
-# against the other.
+# Publishes the index browser to GitHub Pages. The deployed tree is
+# `nix build .#site` — the same derivation `nix run .#serve` tests locally —
+# which bundles the site/ files with the data files, stamps the commit into
+# the footer, and content-hashes app.js. See siteFor in flake.nix.
 #
 # update-index.yml commits hourly when the channel moves, so the site tracks
 # the index at the same cadence.
@@ -41,17 +40,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Assemble the site
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build the site
+        # The store output is read-only and symlinked; the pages artifact
+        # needs a plain writable directory, so dereference-copy it out.
         run: |
-          mkdir -p _site
-          cp site/* _site/
-          cp revisions.json releases.json _site/
-          cp index/versions.json _site/
-          # The social-card image the og:/twitter: meta tags point at.
-          cp multiverse_lotr.jpg _site/
-          # Stamp the deploying commit into the footer — this names exactly
-          # the tree the data files above were copied from.
-          sed -i "s/__COMMIT__/${GITHUB_SHA}/" _site/app.js
+          nix build .#site
+          cp -rL result _site
+          chmod -R u+w _site
 
       - uses: actions/configure-pages@v5
 

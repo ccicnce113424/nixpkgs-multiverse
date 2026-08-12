@@ -36,47 +36,27 @@
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="stylesheet" href="style.css" />
+
+    <!-- Preact + htm in one pinned, integrity-checked file (~13 KB). The
+         import map keeps app.js free of CDN URLs; browsers that support the
+         importmap "integrity" key verify the bundle, older ones ignore it. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "htm/preact": "https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js"
+        },
+        "integrity": {
+          "https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js": "sha384-StNNHifqKmppGEDNqrv+YtX8PD3mhAhLtNbioQ4QxbPNqaTnktcDjsIPGjcDoiKa"
+        }
+      }
+    </script>
   </head>
   <body>
     <h1>
       <a href="https://github.com/fzakaria/nixpkgs-multiverse">nixpkgs-multiverse</a>
     </h1>
-    <p class="muted" id="stats">Loading index…</p>
 
-    <nav>
-      <button data-view="packages" class="active">Packages</button>
-      <button data-view="revisions">Revisions</button>
-      <button data-view="releases">Releases</button>
-    </nav>
-
-    <section id="packages">
-      <input
-        type="search"
-        id="search"
-        placeholder="Search 30,000+ package attributes — e.g. python3, ripgrep, nodejs"
-        autofocus
-      />
-      <div id="status" class="muted"></div>
-      <div id="results"></div>
-    </section>
-
-    <section id="revisions" hidden>
-      <p class="muted">
-        Every indexed nixos-unstable channel bump, newest first. Click a row for the run command and
-        the package versions the index pins to it.
-      </p>
-      <div id="revlist"></div>
-    </section>
-
-    <section id="releases" hidden>
-      <p class="muted">
-        The current tip of every NixOS release channel. A release moves as backports land, exactly
-        like
-        <code>github:NixOS/nixpkgs/nixos-26.05</code>
-        .
-      </p>
-      <div id="rellist"></div>
-    </section>
+    <div id="app"><p class="muted">Loading index…</p></div>
 
     <footer class="muted">
       Made with ❤️ by
@@ -87,8 +67,9 @@
         · built from
         <a id="built-link" href=""><code id="built-sha"></code></a>
       </span>
+      <div id="store" hidden><code id="store-path"></code></div>
     </footer>
 
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>

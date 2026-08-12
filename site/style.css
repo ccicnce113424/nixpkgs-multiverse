@@ -101,10 +101,13 @@ code {
   overflow-x: auto;
   flex: 1;
 }
+/* Generous padding (pulled back with a negative margin so the block keeps
+     its size) makes the icon an easy target on both desktop and touch. */
 .cmd button {
   background: none;
   border: none;
-  padding: 0.1rem;
+  padding: 0.5rem;
+  margin: -0.35rem;
   cursor: pointer;
   color: var(--muted);
   flex: none;
@@ -125,12 +128,12 @@ summary.row {
   display: grid;
   gap: 0.8rem;
   align-items: baseline;
-  padding: 0.3rem 0 0.3rem 1.1rem;
+  padding: 0.3rem 0 0.3rem 1.4rem;
 }
 .head {
   font-weight: 600;
   border-bottom: 1px solid var(--line);
-  padding-left: 1.1rem;
+  padding-left: 1.4rem;
 }
 details.item {
   border-bottom: 1px solid var(--line);
@@ -149,7 +152,7 @@ summary.row::before {
   position: absolute;
   left: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 15px;
 }
 details[open] > summary.row::before {
   content: "▾";
@@ -168,7 +171,7 @@ summary.row a:hover {
   text-decoration: underline;
 }
 .body {
-  padding: 0.2rem 0 0.8rem 1.1rem;
+  padding: 0.2rem 0 0.8rem 1.4rem;
 }
 .links {
   font-size: 13px;
@@ -223,4 +226,18 @@ footer {
   border-top: 1px solid var(--line);
   font-size: 13px;
   text-align: center;
+}
+/* The second footer line: a store path is a single 68-character token —
+     broken across lines it is unreadable and awkward to select. Hold it on
+     one line and let the font shrink instead: 12px needs ~490px, which the
+     measure has on a desktop but a phone does not, so the vw term takes
+     over below ~570px viewport (one line down to a 320px phone). */
+#store {
+  margin-top: 0.3rem;
+}
+#store code {
+  font-size: min(12px, 2.1vw);
+  white-space: nowrap;
+  background: none;
+  padding: 0;
 }
