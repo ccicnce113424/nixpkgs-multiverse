@@ -4,7 +4,7 @@
 
 Every nixpkgs revision, reachable from a **single evaluation**. One flake input, no juggling `nixpkgs` pinned at N commits.
 
-The whole index is browsable at **<https://fzakaria.github.io/nixpkgs-multiverse/>**
+The whole index is browsable at **<https://nixmultiverse.com/>**
 
 Search any attribute for every version it ever shipped, with copy-paste run
 and pin commands, plus the full revision and release tables.
