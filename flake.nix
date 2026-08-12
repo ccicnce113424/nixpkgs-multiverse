@@ -86,6 +86,43 @@
           '';
         };
 
+      # The database `mv` reads: revisions.json, releases.json and
+      # index/history.json projected into SQLite, one row per run.
+      #
+      # Derived at build time and never committed. It is binary, it would change
+      # every time the hourly job lands a revision, and a committed copy could
+      # sit beside JSON it no longer matches. Building it here means the data
+      # version *is* the flake version: a newer index arrives through
+      # `nix flake update multiverse` and rewraps the binary.
+      #
+      # $out is the file itself rather than a directory holding it, so
+      # `nix build .#index-db` leaves a ./result you can hand straight to
+      # sqlite3 — 13 years of nixpkgs, queryable with SQL.
+      indexDbFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.runCommand "multiverse.db"
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+
+            # Names the checkout the data came from, so a database found on its
+            # own can be traced back. A dirty tree has nothing honest to say.
+            MV_BUILT_FROM = self.rev or "";
+          }
+          ''
+            # build-db.py takes a checkout root; the store paths are individual
+            # files, so assemble the layout it expects.
+            root=$(mktemp -d)
+            mkdir -p "$root/index"
+            cp ${./revisions.json} "$root/revisions.json"
+            cp ${./releases.json} "$root/releases.json"
+            cp ${./index/history.json} "$root/index/history.json"
+
+            python3 ${./mv/build-db.py} "$root" $out
+          '';
+
       # The deployable site: the static files from site/ plus the three data
       # files the page fetches at runtime. The data is copied in rather than
       # fetched from raw.githubusercontent.com so that versions.json and
@@ -232,6 +269,7 @@
       # deploys; `nix run .#serve` (below, in apps) serves it for testing.
       packages = forAllSystems (system: rec {
         site = siteFor system;
+        index-db = indexDbFor system;
         default = site;
       });
 
