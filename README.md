@@ -4,6 +4,11 @@
 
 Every nixpkgs revision, reachable from a **single evaluation**. One flake input, no juggling `nixpkgs` pinned at N commits.
 
+The whole index is browsable at **<https://fzakaria.github.io/nixpkgs-multiverse/>** —
+search any attribute for every version it ever shipped, with copy-paste run
+and pin commands, plus the full revision and release tables.
+
+
 ![lotr meme "One flake to rule them all"](./multiverse_lotr.jpg)
 
 ## Status
@@ -399,12 +404,6 @@ $ nix eval --raw 'github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux' \
     --apply 'mv: (mv.at (mv.revOf "python3" "3.8.9")).multiverse.rev'
 967d40bec14be87262b21ab901dbace23b7365db
 ```
-
-## Browsing the index
-
-The whole index is browsable at **<https://fzakaria.github.io/nixpkgs-multiverse/>** —
-search any attribute for every version it ever shipped, with copy-paste run
-and pin commands, plus the full revision and release tables.
 
 
 ## Building the index
