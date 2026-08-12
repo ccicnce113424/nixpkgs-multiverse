@@ -214,6 +214,46 @@ mv.revs
 mv.revisions
 ```
 
+### Version history
+
+`index/versions.json` records only the newest revision that shipped each
+version, which is all `version` and `versionsOf` need. `index/history.json`
+records **when each version was present**, as ranges of revisions: a
+lifetime, a removal, or "what did nixpkgs have on this date" is answerable
+without fetching anything.
+
+```console
+nix-repl> mv.lifetimeOf "python3" "3.8.9"
+{ earliest = "2021-04-26"; latest = "2021-07-18";
+  earliestLabel = "2021-04-26-8e4fe32876ca"; latestLabel = "2021-07-18-967d40bec14b";
+  runs = [ { first = "2021-04-26"; last = "2021-07-18"; … } ]; }
+
+# what an attribute had at a revision — no fetch, where reading
+# (mv.at "2022-03-15").python3.version materialises the whole revision
+nix-repl> mv.versionAt "python3" "2022-03-15"
+"3.9.10"
+
+# when something left nixpkgs; null while it is still here
+nix-repl> mv.goneSince "python2"
+{ date = "2026-05-30"; label = "2026-05-30-76b7bc982574"; version = "2.7.18.12"; }
+
+# every version of a package with its lifetime, oldest first
+nix-repl> mv.historyOf "ripgrep"
+```
+
+The label `goneSince` hands back is a selector, so it feeds straight into `at`
+to get a working derivation out of the last revision that had the package:
+
+```nix
+(mv.at (mv.goneSince "python2").label).python2
+```
+
+**A version is not always present the whole time.**
+A version may have been upgraded and then downgraded, or removed and later re-added several times.
+
+- `earliest` / `latest` are the **outer bounds of every sighting**.
+- `runs` are the **unbroken stretches**.
+
 As an input to your own flake
 
 ```nix
@@ -527,6 +567,10 @@ nix run .#build-index -- -n 30
 nix run .#build-index -- --merge-only
 # extract this many revisions at once
 nix run .#build-index -- -j 40
+# fold version lifetimes out of the same extractions
+nix run .#build-history
+# only what the history has never covered
+nix run .#build-history -- --incremental
 # rewrite the status block at the top of this README
 nix run .#update-readme-status
 ```
@@ -539,7 +583,7 @@ Set `NIXPKGS=/path/to/nixpkgs` to use a clone instead, which trades the download
 
 MIT, please see [LICENSE](LICENSE).
 
-The Nix expressions and tooling are original work. `revisions.json` and
-`index/versions.json` are generated metadata about nixpkgs: revisions, dates,
-hashes and version strings, not nixpkgs source. Nixpkgs itself is MIT and is
+The Nix expressions and tooling are original work. `revisions.json`,
+`index/versions.json` and `index/history.json` are generated metadata about
+nixpkgs: revisions, dates, hashes and version strings, not nixpkgs source. Nixpkgs itself is MIT and is
 fetched at evaluation time.

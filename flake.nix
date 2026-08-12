@@ -132,6 +132,7 @@
       # app surfaces through `nix flake show` and `nix flake check`.
       tools = {
         build-index = "Build index/versions.json (and narHashes) from revisions.json";
+        build-history = "Build index/history.json (version lifetimes) from the extraction cache";
         fetch-unstable-revisions = "Append new nixos-unstable channel bumps to revisions.json";
         fetch-releases = "Refresh releases.json with the current tip of every release channel";
         add-narhashes = "Fill in narHash for revisions that lack one";
@@ -239,6 +240,7 @@
           flake-at = evalTest "test-flake-at" ./tests/flake-at.nix;
           installables = evalTest "test-installables" ./tests/installables.nix;
           module = evalTest "test-module" ./tests/module.nix;
+          history = evalTest "test-history" ./tests/history.nix;
           compose = (import ./tests/compose.nix { inherit system; }).env;
         }
       );

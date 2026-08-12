@@ -74,6 +74,15 @@ jobs:
       - name: Index whatever is new
         run: nix run .#build-index -- --incremental
 
+      # Must run in this job, not a later one: history is folded from the
+      # per-revision extractions the step above just wrote into index/.per-rev,
+      # and that directory is gitignored, so it exists only for the life of this
+      # runner. Running it here is also what keeps history.json and
+      # versions.json covering the same revisions — if the step above fails the
+      # workflow stops and neither file advances.
+      - name: Fold the new revisions into the version history
+        run: nix run .#build-history -- --incremental
+
       - name: Refresh the README status block
         run: nix run .#update-readme-status
 

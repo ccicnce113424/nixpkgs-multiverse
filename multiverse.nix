@@ -435,9 +435,48 @@ let
   # only builtins: reaching for `lib.sort` would mean instantiating a revision
   # just to order a list of strings.
   sortVersions = builtins.sort (a: b: builtins.compareVersions a b < 0);
+
+  # When each version was present, as run-length ranges of revision offsets —
+  # the timeline `index` deliberately does not carry, since it keeps only the
+  # newest revision per version.
+  history = builtins.fromJSON (builtins.readFile ./index/history.json);
+
+  # Same offsets-are-only-valid-against-the-list-they-were-built-from guard the
+  # index gets. History is written by tools/build-history.sh from the same
+  # extraction cache, so the two files should agree; disagreeing with
+  # revisions.json is what proves one of them is stale.
+  checkedHistory =
+    if (history.revisionCount or null) == null || history.revisionCount > nRevs then
+      throw ''
+        multiverse: index/history.json was built against ${toString (history.revisionCount or 0)}
+        revisions but revisions.json now has ${toString nRevs}. Re-run tools/build-history.sh.
+      ''
+    else
+      history;
+
+  # On disk a version with one unbroken run is stored as [first, last] and one
+  # with gaps as a list of those pairs — 91.6% of pairs are single-run, so the
+  # collapse is most of a megabyte. Everything below works on the expanded form.
+  runsOf =
+    attr: ver:
+    let
+      raw = (checkedHistory.attrs.${attr} or { }).${ver} or null;
+    in
+    if raw == null then
+      null
+    else if builtins.isList (builtins.head raw) then
+      raw
+    else
+      [ raw ];
+
+  # Revisions inside the covered prefix that were never extracted, so a gap in a
+  # run can be told apart from a revision nobody ever looked at.
+  skipped = checkedHistory.skipped;
 in
 rec {
-  inherit revisions index;
+  # `history` is the raw file; forcing it is what parses it, so naming it here
+  # costs nothing until something reads it.
+  inherit revisions index history;
 
   # Human handles for every revision, oldest first.
   revs = map labelOf offsets;
@@ -511,6 +550,133 @@ rec {
 
   # Every known version of an attribute, oldest first.
   versionsOf = attr: sortVersions (builtins.attrNames (versionsFor attr));
+
+  # ---------------------------------------------------------------------------
+  # History. Everything below reads index/history.json rather than the index,
+  # and nothing above touches it — see the `history` binding for why that split
+  # is load-bearing rather than tidiness.
+  # ---------------------------------------------------------------------------
+
+  # When a version was present, as dates and labels rather than raw offsets:
+  #
+  #   lifetimeOf "python3" "3.8.9"
+  #   => { earliest = "2021-03-02"; latest = "2021-11-14";
+  #        earliestLabel = "2021-03-02-…"; latestLabel = "2021-11-14-…";
+  #        runs = [ { first = …; last = …; … } ]; }
+  #
+  # null for a pair the history does not know.
+  #
+  # Two levels, named apart because they claim different things. `earliest` and
+  # `latest` are the outer bounds of every sighting — the version was seen at
+  # each of those dates, and nothing is asserted about the span between them.
+  # `runs` are the unbroken stretches, so a run's `first`/`last` really are the
+  # ends of a range the version held throughout.
+  lifetimeOf =
+    attr: ver:
+    let
+      rs = runsOf attr ver;
+      spans = map (r: {
+        first = (revAt (builtins.elemAt r 0)).date;
+        last = (revAt (builtins.elemAt r 1)).date;
+        firstLabel = labelOf (builtins.elemAt r 0);
+        lastLabel = labelOf (builtins.elemAt r 1);
+      }) (if rs == null then [ ] else rs);
+      firstRun = builtins.head spans;
+      lastRun = builtins.elemAt spans (builtins.length spans - 1);
+    in
+    if rs == null then
+      null
+    else
+      {
+        earliest = firstRun.first;
+        earliestLabel = firstRun.firstLabel;
+        latest = lastRun.last;
+        latestLabel = lastRun.lastLabel;
+        runs = spans;
+      };
+
+  # Every version an attribute ever had, with its lifetime, oldest version
+  # first. The timeline for one package, answered without fetching anything.
+  historyOf =
+    attr:
+    map (ver: { inherit ver; } // lifetimeOf attr ver) (
+      sortVersions (builtins.attrNames (checkedHistory.attrs.${attr} or { }))
+    );
+
+  # What version an attribute had at a given revision — the question the
+  # newest-only index cannot answer at all, and which otherwise costs a ~378 MB
+  # fetch of the whole revision just to read one `.version`.
+  #
+  #   versionAt "python3" "2022-03-15"  => "3.9.10"
+  #
+  # Takes the same selectors `at` does, minus releases: a release tip is a
+  # moving channel head rather than an indexed offset, so there is no honest
+  # answer to give for one.
+  versionAt =
+    attr: sel:
+    let
+      off = if sel == "tip" then checkedTipOffset else resolve sel;
+      vers = builtins.attrNames (checkedHistory.attrs.${attr} or { });
+      covers =
+        ver: builtins.any (r: builtins.elemAt r 0 <= off && off <= builtins.elemAt r 1) (runsOf attr ver);
+      hits = builtins.filter covers vers;
+    in
+    if releaseTable ? ${sel} then
+      throw ''
+        multiverse: versionAt cannot take the release "${sel}". A release is a channel
+        tip that moves, not a revision the index has an offset for. Select by date or
+        commit, or read the version off the package set: (at "${sel}").${attr}.version
+      ''
+    else if hits == [ ] then
+      null
+    else
+      builtins.head hits;
+
+  # When an attribute was last seen, or null if it is still in the newest
+  # revision the history covers. This is what makes "whatever happened to
+  # `foo`" answerable, and the label it returns feeds straight back into `at`
+  # to get a working derivation out of the last revision that had it:
+  #
+  #   goneSince "python2"  => { date = "2026-05-30"; label = "2026-05-30-…";
+  #                             version = "2.7.18.12"; }
+  #
+  # An attribute the history has never seen throws rather than answering null.
+  # Null has to mean "still here", and quietly returning it for a name that was
+  # never in nixpkgs — or for a package set like `gnome3`, which has no
+  # `.version` and so was never indexed — would report the two as the same.
+  goneSince =
+    attr:
+    let
+      vers = builtins.attrNames (checkedHistory.attrs.${attr} or { });
+      lastOffOf =
+        ver:
+        let
+          rs = runsOf attr ver;
+        in
+        builtins.elemAt (builtins.elemAt rs (builtins.length rs - 1)) 1;
+      newest = builtins.foldl' (
+        acc: v: if acc == null || lastOffOf v > lastOffOf acc then v else acc
+      ) null vers;
+    in
+    if vers == [ ] then
+      throw ''
+        multiverse: ${attr} is not in the history index, so there is no last sighting
+        to report. Attributes without a `.version` — package sets such as `gnome3` —
+        are never indexed, and neither are nested sets like `python3Packages.*`.
+      ''
+    else if lastOffOf newest >= checkedHistory.revisionCount - 1 then
+      null
+    else
+      {
+        date = (revAt (lastOffOf newest)).date;
+        label = labelOf (lastOffOf newest);
+        version = newest;
+      };
+
+  # Revisions inside the covered prefix that were never extracted. A gap in a
+  # run means "absent"; an offset in here means "never looked", and the two are
+  # not the same claim.
+  skippedRevisions = map labelOf skipped;
 
   # The revision a given version resolves to, as a human handle.
   revOf =
