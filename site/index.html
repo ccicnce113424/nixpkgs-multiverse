@@ -8,24 +8,13 @@
       name="description"
       content="Every nixpkgs revision that ever existed, reachable from a single flake. Search 300,000+ package versions across 13 years of nixpkgs and copy the exact command to run or pin any of them."
     />
-    <link
-      rel="canonical"
-      href="https://fzakaria.github.io/nixpkgs-multiverse/"
-    />
+    <link rel="canonical" href="https://fzakaria.github.io/nixpkgs-multiverse/" />
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>"
     />
-    <meta
-      name="theme-color"
-      content="#ffffff"
-      media="(prefers-color-scheme: light)"
-    />
-    <meta
-      name="theme-color"
-      content="#16181d"
-      media="(prefers-color-scheme: dark)"
-    />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16181d" media="(prefers-color-scheme: dark)" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="nixpkgs-multiverse" />
@@ -37,10 +26,7 @@
       property="og:description"
       content="Search 300,000+ package versions across 13 years of nixpkgs history, and copy the exact nix run or pin command for any of them."
     />
-    <meta
-      property="og:url"
-      content="https://fzakaria.github.io/nixpkgs-multiverse/"
-    />
+    <meta property="og:url" content="https://fzakaria.github.io/nixpkgs-multiverse/" />
     <meta
       property="og:image"
       content="https://fzakaria.github.io/nixpkgs-multiverse/multiverse_lotr.jpg"
@@ -53,9 +39,7 @@
   </head>
   <body>
     <h1>
-      <a href="https://github.com/fzakaria/nixpkgs-multiverse"
-        >nixpkgs-multiverse</a
-      >
+      <a href="https://github.com/fzakaria/nixpkgs-multiverse">nixpkgs-multiverse</a>
     </h1>
     <p class="muted" id="stats">Loading index…</p>
 
@@ -78,29 +62,31 @@
 
     <section id="revisions" hidden>
       <p class="muted">
-        Every indexed nixos-unstable channel bump, newest first. Click a row for
-        the run command and the package versions the index pins to it.
+        Every indexed nixos-unstable channel bump, newest first. Click a row for the run command and
+        the package versions the index pins to it.
       </p>
       <div id="revlist"></div>
     </section>
 
     <section id="releases" hidden>
       <p class="muted">
-        The current tip of every NixOS release channel. A release moves as
-        backports land, exactly like
-        <code>github:NixOS/nixpkgs/nixos-26.05</code>.
+        The current tip of every NixOS release channel. A release moves as backports land, exactly
+        like
+        <code>github:NixOS/nixpkgs/nixos-26.05</code>
+        .
       </p>
       <div id="rellist"></div>
     </section>
 
     <footer class="muted">
-      Made with ❤️ by <a href="https://fzakaria.com">Farid Zakaria</a> ·
-      <a href="https://github.com/fzakaria/nixpkgs-multiverse/blob/main/LICENSE"
-        >MIT</a
-      >
-      <span id="built" hidden
-        >· built from <a id="built-link" href=""><code id="built-sha"></code></a
-      ></span>
+      Made with ❤️ by
+      <a href="https://fzakaria.com">Farid Zakaria</a>
+      ·
+      <a href="https://github.com/fzakaria/nixpkgs-multiverse/blob/main/LICENSE">MIT</a>
+      <span id="built" hidden>
+        · built from
+        <a id="built-link" href=""><code id="built-sha"></code></a>
+      </span>
     </footer>
 
     <script src="app.js"></script>

@@ -168,8 +168,22 @@
               includes = [
                 "*.css"
                 "*.js"
-                "*.html"
               ];
+            };
+            # HTML separately: the default whitespace-sensitive mode emits
+            # `></a\n>` gymnastics to keep inline spacing byte-identical.
+            # This page keeps its inline spacing in text nodes, so the
+            # insensitive mode is safe and far more readable.
+            formatter.prettier-html = {
+              command = "prettier";
+              options = [
+                "--write"
+                "--html-whitespace-sensitivity"
+                "ignore"
+                "--print-width"
+                "100"
+              ];
+              includes = [ "*.html" ];
             };
           };
         }
