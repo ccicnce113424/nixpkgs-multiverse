@@ -1,8 +1,8 @@
-//! The index, as `mv` sees it: a SQLite database baked into the binary's own
+//! The index, as `mvs` sees it: a SQLite database baked into the binary's own
 //! store path at build time.
 //!
 //! Resolution is deliberately trivial — `--db` for development, otherwise
-//! `$MV_DB`, which the wrapper always sets. No cache directory, no fallback
+//! `$MVS_DB`, which the wrapper always sets. No cache directory, no fallback
 //! chain, no network. The data version is the flake version.
 
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 
 /// The environment variable the Nix wrapper sets to the database's store path.
-pub const DB_ENV: &str = "MV_DB";
+pub const DB_ENV: &str = "MVS_DB";
 
 /// How many characters of a commit hash a revision label carries. The same 12
 /// as `multiverse.nix`, so a label printed here feeds straight back into
@@ -62,14 +62,14 @@ pub struct Index {
 }
 
 impl Index {
-    /// Open the database named by `--db`, or by `$MV_DB` if that is unset.
+    /// Open the database named by `--db`, or by `$MVS_DB` if that is unset.
     pub fn open(explicit: Option<&Path>) -> Result<Index> {
         let path: PathBuf = match explicit {
             Some(p) => p.to_path_buf(),
             None => std::env::var_os(DB_ENV).map(PathBuf::from).ok_or_else(|| {
                 anyhow!(
                     "no index database: ${DB_ENV} is unset and --db was not given.\n\
-                         The wrapper built by `nix build .#mv` always sets it; running the \
+                         The wrapper built by `nix build .#mvs` always sets it; running the \
                          binary directly needs `--db $(nix build --no-link --print-out-paths \
                          .#index-db)`."
                 )
@@ -261,7 +261,7 @@ impl Index {
     }
 
     /// Attributes matching a GLOB pattern. A pattern without wildcards is
-    /// treated as a substring search, which is what people mean by `mv query
+    /// treated as a substring search, which is what people mean by `mvs query
     /// search python`.
     pub fn search(&self, pattern: &str, limit: usize) -> Result<Vec<String>> {
         let glob = if pattern.contains(['*', '?', '[']) {

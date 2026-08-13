@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake the committed JSON index into the SQLite database `mv` reads.
+"""Bake the committed JSON index into the SQLite database `mvs` reads.
 
 The JSON files stay canonical: this is a pure projection of revisions.json,
 releases.json, index/versions.json and index/history.json into a shape queries
@@ -149,8 +149,8 @@ def main():
         "revisionsInFile": str(n_revs),
         "skipped": json.dumps(history.get("skipped", [])),
     }
-    if os.environ.get("MV_BUILT_FROM"):
-        meta["built_from"] = os.environ["MV_BUILT_FROM"]
+    if os.environ.get("MVS_BUILT_FROM"):
+        meta["built_from"] = os.environ["MVS_BUILT_FROM"]
     db.executemany("INSERT INTO meta(key, value) VALUES (?,?)", meta.items())
 
     db.commit()

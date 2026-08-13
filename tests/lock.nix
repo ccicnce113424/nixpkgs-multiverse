@@ -1,4 +1,4 @@
-# Tests `readLock`, the Nix half of `mv lock`, by evaluating this file strictly:
+# Tests `readLock`, the Nix half of `mvs lock`, by evaluating this file strictly:
 #
 #   nix eval --json -f tests/lock.nix --apply 'f: f { }'
 #
@@ -22,7 +22,7 @@ let
   label = mv.revOf "ripgrep" pinnedVersion;
   rev = builtins.substring 11 12 label;
 
-  # A lock file as `mv lock` writes one.
+  # A lock file as `mvs lock` writes one.
   lockFile =
     pins:
     builtins.toFile "multiverse.lock" (
@@ -91,7 +91,7 @@ assert !(attempt missing "definitely-not-a-package");
 # An unreadable format version is refused.
 assert !future.success;
 
-# An empty lock is a lock, not a failure: `mv lock rm` leaves one behind.
+# An empty lock is a lock, not a failure: `mvs lock rm` leaves one behind.
 assert mv.readLock (lockFile { }) == { };
 
 {

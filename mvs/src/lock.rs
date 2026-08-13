@@ -1,17 +1,17 @@
-//! `mv lock` — per-package pins.
+//! `mvs lock` — per-package pins.
 //!
-//! Each pin names one revision, and `mv lock update <attr>` moves **only** that
+//! Each pin names one revision, and `mvs lock update <attr>` moves **only** that
 //! entry. Every other pin stays exactly where it was, which is the whole point:
 //! a single flake input moves everything at once, and that is why people end up
 //! not updating at all.
 //!
 //! The two-step workflow this implies is honest rather than accidental. A pin
 //! can never point past what the index knows, because materialising a revision
-//! needs its narHash and `mv` only has the ones in its baked database:
+//! needs its narHash and `mvs` only has the ones in its baked database:
 //!
 //! ```console
 //! $ nix flake update multiverse    # learn about newer revisions
-//! $ mv lock update helix           # move this one package
+//! $ mvs lock update helix           # move this one package
 //! ```
 
 use std::collections::BTreeMap;
@@ -33,7 +33,7 @@ use crate::version;
 pub const LOCK_FILE: &str = "multiverse.lock";
 
 /// Schema version of the lock file. Bumped only for a change that an older
-/// `mv` could misread; a new optional field does not need one.
+/// `mvs` could misread; a new optional field does not need one.
 pub const LOCK_VERSION: u32 = 1;
 
 #[derive(Serialize, Deserialize)]
@@ -51,7 +51,7 @@ pub struct Pin {
     pub version: String,
     pub date: String,
 
-    /// The version prefix the pin was added with, if any. `mv lock update`
+    /// The version prefix the pin was added with, if any. `mvs lock update`
     /// stays inside it — a pin added as `python3@3.8` is a decision to be on
     /// 3.8, and update must not silently walk it to 3.14.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -79,7 +79,7 @@ impl Lock {
 
         if lock.version != LOCK_VERSION {
             return Err(anyhow!(
-                "{} is version {}, and this mv understands version {LOCK_VERSION}. \
+                "{} is version {}, and this mvs understands version {LOCK_VERSION}. \
                  Update multiverse.",
                 path.display(),
                 lock.version
@@ -132,7 +132,7 @@ fn pin_for(index: &Index, constraint: &Constraint) -> Result<Pin> {
     })
 }
 
-/// `mv lock add <attr>[@ver]`
+/// `mvs lock add <attr>[@ver]`
 pub fn add(index: &Index, path: &Path, spec: &str, format: Format) -> Result<()> {
     let constraint = Constraint::parse(spec)?;
     let mut lock = Lock::read(path)?;
@@ -158,7 +158,7 @@ pub fn add(index: &Index, path: &Path, spec: &str, format: Format) -> Result<()>
     Ok(())
 }
 
-/// `mv lock rm <attr>`
+/// `mvs lock rm <attr>`
 pub fn remove(path: &Path, attr: &str, format: Format) -> Result<()> {
     let mut lock = Lock::read(path)?;
     let removed = lock
@@ -178,7 +178,7 @@ pub fn remove(path: &Path, attr: &str, format: Format) -> Result<()> {
     Ok(())
 }
 
-/// `mv lock update [<attr>]` — move one pin, or every pin with `--all`.
+/// `mvs lock update [<attr>]` — move one pin, or every pin with `--all`.
 ///
 /// Each entry is recomputed on its own, so an update to one package cannot
 /// move another. That is the whole difference from a flake input.
@@ -254,7 +254,7 @@ pub fn update(
     Ok(())
 }
 
-/// `mv lock list`
+/// `mvs lock list`
 pub fn list(path: &Path, format: Format) -> Result<()> {
     let lock = Lock::read(path)?;
 
@@ -285,7 +285,7 @@ mod tests {
     use super::*;
 
     fn temp_lock(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mv-lock-test-{}-{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("mvs-lock-test-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir.join(LOCK_FILE)
     }
@@ -333,7 +333,7 @@ mod tests {
     }
 
     /// Absent and unreadable lock files. A missing one is an empty lock, since
-    /// `mv lock add` has to work in a directory that has none; a future format
+    /// `mvs lock add` has to work in a directory that has none; a future format
     /// version is an error rather than a guess.
     #[test]
     fn handles_missing_and_future_files() {
@@ -350,7 +350,7 @@ mod tests {
     }
 }
 
-/// `mv lock status` — how far behind each pin has fallen.
+/// `mvs lock status` — how far behind each pin has fallen.
 ///
 /// This is where the history index earns its place: "3 versions and 47 days
 /// behind" with nothing fetched and no clock consulted. Both numbers are

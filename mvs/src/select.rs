@@ -40,7 +40,7 @@ pub fn resolve(index: &Index, selector: &str, releases: Releases) -> Result<Targ
             return Err(anyhow!(
                 "{sel} is a release: a channel tip that moves, not a revision the index has \
                  an offset for.\nIts head as of {date} is {rev}. Select by date or by commit \
-                 instead — `mv query at {date} <attr>`.",
+                 instead — `mvs query at {date} <attr>`.",
                 sel = selector,
                 date = release.date,
                 rev = &release.rev[..12],

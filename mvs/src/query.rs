@@ -1,4 +1,4 @@
-//! `mv query` — everything read-only.
+//! `mvs query` — everything read-only.
 //!
 //! Each subcommand answers one question the index can answer without
 //! materialising a revision. `query at` is the sharpest example: it says what
@@ -105,7 +105,7 @@ fn unknown_attr(index: &Index, attr: &str) -> Result<anyhow::Error> {
     ))
 }
 
-/// `mv query versions <attr>` — every version, oldest first, with its lifetime.
+/// `mvs query versions <attr>` — every version, oldest first, with its lifetime.
 pub fn versions(index: &Index, attr: &str, format: Format) -> Result<()> {
     let runs = index.runs_of(attr)?;
     if runs.is_empty() {
@@ -169,7 +169,7 @@ pub fn versions(index: &Index, attr: &str, format: Format) -> Result<()> {
     Ok(())
 }
 
-/// `mv query when <attr> <ver>` — first and last sighting, every run, and the
+/// `mvs query when <attr> <ver>` — first and last sighting, every run, and the
 /// gaps between them.
 pub fn when(index: &Index, attr: &str, ver: &str, format: Format) -> Result<()> {
     let runs = index.runs_of(attr)?;
@@ -251,7 +251,7 @@ pub fn when(index: &Index, attr: &str, ver: &str, format: Format) -> Result<()> 
     Ok(())
 }
 
-/// `mv query at <sel> <attr>` — the version that revision shipped.
+/// `mvs query at <sel> <attr>` — the version that revision shipped.
 pub fn at(index: &Index, selector: &str, attr: &str, format: Format) -> Result<()> {
     let revision = select::resolve_revision(index, selector)?;
     let runs = index.runs_of(attr)?;
@@ -283,7 +283,7 @@ pub fn at(index: &Index, selector: &str, attr: &str, format: Format) -> Result<(
     Ok(())
 }
 
-/// `mv query gone <attr>` — last sighting, or still current.
+/// `mvs query gone <attr>` — last sighting, or still current.
 pub fn gone(index: &Index, attr: &str, format: Format) -> Result<()> {
     let runs = index.runs_of(attr)?;
     if runs.is_empty() {
@@ -326,7 +326,7 @@ pub fn gone(index: &Index, attr: &str, format: Format) -> Result<()> {
     Ok(())
 }
 
-/// `mv query rev <sel>` — resolve any selector to commit, date and label.
+/// `mvs query rev <sel>` — resolve any selector to commit, date and label.
 pub fn rev(index: &Index, selector: &str, format: Format) -> Result<()> {
     match select::resolve(index, selector, Releases::Allowed)? {
         Target::Revision(r) => {
@@ -371,7 +371,7 @@ pub fn rev(index: &Index, selector: &str, format: Format) -> Result<()> {
     }
 }
 
-/// `mv query search <pattern>` — attribute search, with each hit's state.
+/// `mvs query search <pattern>` — attribute search, with each hit's state.
 pub fn search(index: &Index, pattern: &str, limit: usize, format: Format) -> Result<()> {
     // One over the limit, so "there are more" can be said without counting the
     // whole table.
@@ -438,7 +438,7 @@ pub fn search(index: &Index, pattern: &str, limit: usize, format: Format) -> Res
     Ok(())
 }
 
-/// `mv query diff <a> <b>` — what changed between two revisions.
+/// `mvs query diff <a> <b>` — what changed between two revisions.
 pub fn diff(index: &Index, a: &str, b: &str, limit: usize, format: Format) -> Result<()> {
     let (from, to) = (
         select::resolve_revision(index, a)?,
@@ -578,7 +578,7 @@ fn section(
     }
 }
 
-/// `mv query stats` — headline numbers, straight out of the database.
+/// `mvs query stats` — headline numbers, straight out of the database.
 pub fn stats(index: &Index, format: Format) -> Result<()> {
     let conn = index.connection();
     let tip: Revision = index.tip()?;

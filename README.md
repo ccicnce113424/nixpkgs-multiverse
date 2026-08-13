@@ -15,7 +15,7 @@ and pin commands, plus the full revision and release tables.
 **Jump to:** [Usage](#usage) ·
 [Version history](#version-history) ·
 [Unfree packages](#unfree-packages-and-nixpkgs-config) ·
-[The `mv` CLI](#the-mv-cli) ·
+[The `mvs` CLI](#the-mv-cli) ·
 [NixOS / home-manager module](#the-nixos-and-home-manager-module) ·
 [Replacing nixpkgs inputs](#replacing-several-nixpkgs-inputs) ·
 [Building the index](#building-the-index)
@@ -80,7 +80,7 @@ $ nix eval --json --apply 'f: f "python3"' \
 ```
 
 The same question, and every other one below, is a subcommand of
-[`mv`](#the-mv-cli) — `mv query versions python3` — which answers it out of a
+[`mvs`](#the-mv-cli) — `mvs query versions python3` — which answers it out of a
 baked database rather than an evaluation.
 
 Create a specific complete revision of Nixpkgs using the `at` function.
@@ -319,9 +319,9 @@ through to every revision it hands out:
 `mv.tip`, `mv.at`, `mv.version`, `mv.versions` and `mv.latest` all carry that
 config.
 
-## The `mv` CLI
+## The `mvs` CLI
 
-Everything above is an evaluation. `mv` answers the same questions as a
+Everything above is an evaluation. `mvs` answers the same questions as a
 program — offline, in milliseconds, out of a SQLite database baked into its own
 store path at build time.
 
@@ -344,18 +344,18 @@ the same answers.
 
 `--json` works on every subcommand.
 
-### Reading the index — `mv query`
+### Reading the index — `mvs query`
 
 | command | answers |
 |---|---|
-| `mv query versions <attr>` | every version, oldest first, with its lifetime |
-| `mv query when <attr> <ver>` | first and last sighting, every run, the gaps |
-| `mv query at <sel> <attr>` | the version that revision shipped |
-| `mv query gone <attr>` | last sighting, or still current |
-| `mv query rev <sel>` | resolve any selector to commit, date and label |
-| `mv query search <pattern>` | attribute search |
-| `mv query diff <a> <b>` | added / removed / upgraded / downgraded |
-| `mv query stats` | headline numbers |
+| `mvs query versions <attr>` | every version, oldest first, with its lifetime |
+| `mvs query when <attr> <ver>` | first and last sighting, every run, the gaps |
+| `mvs query at <sel> <attr>` | the version that revision shipped |
+| `mvs query gone <attr>` | last sighting, or still current |
+| `mvs query rev <sel>` | resolve any selector to commit, date and label |
+| `mvs query search <pattern>` | attribute search |
+| `mvs query diff <a> <b>` | added / removed / upgraded / downgraded |
+| `mvs query stats` | headline numbers |
 
 A *selector* is the same vocabulary `at` takes: `tip`, a release (`26.05`), a
 date (`2022-03-15`), a commit prefix, or a revision label.
@@ -366,7 +366,7 @@ had on a date without materialising anything, where reading
 look at one string:
 
 ```console
-$ mv query at 2022-03-15 python3
+$ mvs query at 2022-03-15 python3
 3.9.10
   2022-03-14-73ad5f9e147c (2022-03-14)
 ```
@@ -375,7 +375,7 @@ A version is not always present the whole time, and `when` says so rather than
 flattening it into a range:
 
 ```console
-$ mv query when emacs 25.1
+$ mvs query when emacs 25.1
 emacs 25.1 · 60 revisions · 2016-09-24 .. 2017-04-27
 RUN  FIRST                    LAST                     REVS
 1    2016-09-24-adfcc2d9531e  2016-09-24-adfcc2d9531e  1
@@ -385,7 +385,7 @@ RUN  FIRST                    LAST                     REVS
   gap: 1 revision between 2017-04-27 and 2017-04-27
 ```
 
-### One revision for several packages — `mv solve`
+### One revision for several packages — `mvs solve`
 
 Composing versions from *different* revisions gives a closure with two libcs
 and two opensslls. That is fine for a leaf command-line tool and wrong for
@@ -393,7 +393,7 @@ anything that links. `solve` inverts the question: one revision, one stdenv,
 internally consistent.
 
 ```console
-$ mv solve python3@3.8 nodejs@14
+$ mvs solve python3@3.8 nodejs@14
 110 revisions · 2020-11-21 .. 2021-07-18
 newest: 967d40bec14b (2021-07-18)
 
@@ -408,7 +408,7 @@ When nothing satisfies the constraints it says which two never overlapped, and
 exits non-zero:
 
 ```console
-$ mv solve python3@3.6 ripgrep@14
+$ mvs solve python3@3.6 ripgrep@14
 no revision ever had both
 WANTED         FROM        TO          REVS
 python3 3.6.x  2017-05-29  2018-11-17  162
@@ -420,15 +420,15 @@ A version is a prefix, matched component by component: `python3@3.8` accepts
 3.8.9 and refuses 3.81, and `python3@3.1` means 3.1.x rather than 3.10 through
 3.13.
 
-### Per-package pins — `mv lock`
+### Per-package pins — `mvs lock`
 
 ```
-mv lock add <attr>[@ver]        mv lock update [<attr> | --all]
-mv lock rm <attr>               mv lock status
-mv lock list
+mvs lock add <attr>[@ver]        mvs lock update [<attr> | --all]
+mvs lock rm <attr>               mvs lock status
+mvs lock list
 ```
 
-`mv lock update helix` finds the newest indexed revision providing helix and
+`mvs lock update helix` finds the newest indexed revision providing helix and
 rewrites **only** that entry. Every other pin stays exactly where it was, which
 is the difference from a single flake input that moves everything at once.
 
@@ -446,13 +446,13 @@ is the difference from a single flake input that moves everything at once.
 }
 ```
 
-`mv lock status` is where the history index earns its place — how far behind a
+`mvs lock status` is where the history index earns its place — how far behind a
 pin has fallen, with nothing fetched and no clock consulted. Both numbers are
 measured against the newest revision the index knows, so the answer is
 reproducible and moves only when the index does:
 
 ```console
-$ mv lock status
+$ mvs lock status
 ATTR   PINNED   LATEST   BEHIND
 helix  25.01.1  25.07.1  2 versions, 72 days
 ```
@@ -463,7 +463,7 @@ honestly so:
 
 ```console
 $ nix flake update multiverse    # learn about newer revisions
-$ mv lock update helix           # move this one package
+$ mvs lock update helix           # move this one package
 ```
 
 The Nix side reads the same file. `readLock` resolves it lazily, so twenty pins
@@ -479,22 +479,22 @@ multiverse.lib.readLock {
 
 or, in the module, `multiverse.lock = ./multiverse.lock;`.
 
-### Running a version — `mv run`, `mv shell`
+### Running a version — `mvs run`, `mvs shell`
 
 Thin wrappers over `nix run` and `nix shell` that take `attr@version` and
 resolve it through the index. `--dry-run` prints the command line instead,
 which is how to see what a constraint resolved to before fetching it.
 
 ```console
-$ mv run ripgrep@13.0.0 -- --version
+$ mvs run ripgrep@13.0.0 -- --version
 ripgrep 13.0.0 from 2023-11-29-7c6e3666e204
 ripgrep 13.0.0
 
-$ mv shell ripgrep@13.0.0 fd@8.7.0 --dry-run
+$ mvs shell ripgrep@13.0.0 fd@8.7.0 --dry-run
 nix shell github:NixOS/nixpkgs/7c6e3666e204…#ripgrep github:NixOS/nixpkgs/7c9cc5a6e5d3…#fd
 ```
 
-`mv shell` composes across revisions, which is right for standalone binaries
+`mvs shell` composes across revisions, which is right for standalone binaries
 and wrong for a development environment — for that, `solve` gives one coherent
 revision.
 
@@ -532,8 +532,8 @@ $ sqlite3 result 'SELECT count(*) FROM runs'
       ripgrep = "13.0.0";
     };
 
-    # The same idea, maintained by `mv lock` instead of by hand: a set of
-    # commits, each moved on its own by `mv lock update <attr>`.
+    # The same idea, maintained by `mvs lock` instead of by hand: a set of
+    # commits, each moved on its own by `mvs lock update <attr>`.
     lock = ./multiverse.lock;
   };
 }

@@ -705,12 +705,12 @@ rec {
     else
       instances.${toString i}.${attr};
 
-  # A lock file written by `mv lock`, resolved to derivations:
+  # A lock file written by `mvs lock`, resolved to derivations:
   #
   #   readLock ./multiverse.lock  =>  { helix = <derivation>; ripgrep = <derivation>; }
   #
   # Each pin names one revision by commit and is resolved on its own, which is
-  # the property a flake input cannot have: `mv lock update helix` moves exactly
+  # the property a flake input cannot have: `mvs lock update helix` moves exactly
   # that entry and leaves every other pin where it was.
   #
   # `mapAttrs` is lazy in its values, so a lock with twenty pins materialises
@@ -721,7 +721,7 @@ rec {
       lock = builtins.fromJSON (builtins.readFile file);
 
       # A pin is only ever a commit plus decoration. `label`, `version` and
-      # `date` are there for the reader and for `mv lock status`; `rev` is the
+      # `date` are there for the reader and for `mvs lock status`; `rev` is the
       # only field that decides which tree comes back, so a hand-edited version
       # string cannot quietly change what gets built.
       resolvePin =
@@ -748,7 +748,7 @@ rec {
     else
       builtins.mapAttrs resolvePin (lock.pins or { });
 
-  # The lock format `readLock` accepts and `mv lock` writes. Bumped only for a
+  # The lock format `readLock` accepts and `mvs lock` writes. Bumped only for a
   # change an older reader would misinterpret; a new optional field is not one.
   lockVersion = 1;
 

@@ -115,18 +115,18 @@ in
       default = null;
       example = lib.literalExpression "./multiverse.lock";
       description = ''
-        A `multiverse.lock` written by `mv lock`, installed alongside `pins`.
+        A `multiverse.lock` written by `mvs lock`, installed alongside `pins`.
 
         The difference from `pins` is who maintains it. A pin here is a version
         string somebody typed and has to keep typing; a lock file is a set of
-        commits `mv lock update <attr>` moves one at a time, so updating one
+        commits `mvs lock update <attr>` moves one at a time, so updating one
         package cannot drag the others along — which is what a single flake
         input does and why people stop updating at all.
 
         A lock can never name a revision newer than the multiverse input knows,
         because materialising one needs its narHash. Moving a pin forward is
         therefore two steps, and honestly so: `nix flake update multiverse`,
-        then `mv lock update <attr>`.
+        then `mvs lock update <attr>`.
       '';
     };
 

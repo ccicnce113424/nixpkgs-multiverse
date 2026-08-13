@@ -1,14 +1,14 @@
-//! `mv run` and `mv shell` — thin wrappers over `nix run` and `nix shell`.
+//! `mvs run` and `mvs shell` — thin wrappers over `nix run` and `nix shell`.
 //!
-//! `mv` resolves `attr@version` to the commit that shipped it and hands the
+//! `mvs` resolves `attr@version` to the commit that shipped it and hands the
 //! rest to Nix. It stays offline itself: the index says which revision, and
 //! fetching that revision is Nix's job, subject to Nix's own substituters and
 //! caches.
 //!
-//! Deliberately scoped to leaf tools. `mv shell ripgrep@13.0.0 fd@8.7.0`
+//! Deliberately scoped to leaf tools. `mvs shell ripgrep@13.0.0 fd@8.7.0`
 //! composes across revisions, which is right for standalone binaries and wrong
 //! for a development environment: two revisions mean two libcs and two
-//! opensslls in one closure. For an environment, `mv solve` gives one coherent
+//! opensslls in one closure. For an environment, `mvs solve` gives one coherent
 //! revision instead.
 
 use std::process::Command;
@@ -40,7 +40,7 @@ fn installable(index: &Index, spec: &str) -> Result<(String, String, String)> {
     let spans = spans_for(index, &constraint)?;
     if spans.is_empty() {
         return Err(anyhow!(
-            "no revision ever had {}. `mv query versions {}` lists what there is.",
+            "no revision ever had {}. `mvs query versions {}` lists what there is.",
             constraint.describe(),
             constraint.attr
         ));
@@ -62,7 +62,7 @@ fn installable(index: &Index, spec: &str) -> Result<(String, String, String)> {
     ))
 }
 
-/// Report what each spec resolved to, on stderr so that `mv run`'s own output
+/// Report what each spec resolved to, on stderr so that `mvs run`'s own output
 /// stays whatever the program printed.
 fn report(attr: &str, version: &str, label: &str) {
     anstream::eprintln!(
@@ -71,7 +71,7 @@ fn report(attr: &str, version: &str, label: &str) {
     );
 }
 
-/// `mv run <attr>[@ver] [-- args...]`
+/// `mvs run <attr>[@ver] [-- args...]`
 pub fn run(index: &Index, spec: &str, args: &[String], execute: Execute) -> Result<()> {
     let (installable, version, label) = installable(index, spec)?;
     let attr = spec.split('@').next().unwrap_or(spec);
@@ -86,7 +86,7 @@ pub fn run(index: &Index, spec: &str, args: &[String], execute: Execute) -> Resu
     exec(argv, execute)
 }
 
-/// `mv shell <attr>[@ver]... [-- command args...]`
+/// `mvs shell <attr>[@ver]... [-- command args...]`
 pub fn shell(index: &Index, specs: &[String], args: &[String], execute: Execute) -> Result<()> {
     let mut argv = vec!["shell".to_string()];
     for spec in specs {
@@ -108,7 +108,7 @@ pub fn shell(index: &Index, specs: &[String], args: &[String], execute: Execute)
 /// Hand over to `nix`, or print the command line under `--dry-run`.
 ///
 /// Replaces this process rather than waiting on a child, so signals, the exit
-/// status and the terminal all belong to the program being run — `mv run` is
+/// status and the terminal all belong to the program being run — `mvs run` is
 /// meant to be invisible once it has resolved the revision.
 fn exec(argv: Vec<String>, execute: Execute) -> Result<()> {
     if execute == Execute::No {
@@ -120,7 +120,7 @@ fn exec(argv: Vec<String>, execute: Execute) -> Result<()> {
     let error = Command::new("nix").args(&argv).exec();
 
     Err(anyhow!(
-        "could not run nix: {error}.\n`mv run` and `mv shell` are wrappers around \
+        "could not run nix: {error}.\n`mvs run` and `mvs shell` are wrappers around \
          `nix run` and `nix shell`, so nix has to be on PATH."
     ))
 }

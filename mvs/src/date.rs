@@ -3,7 +3,7 @@
 //! Hand-rolled rather than a date crate, for the same reason `multiverse.nix`
 //! spells it out in Nix: the only operation anything here needs is "how many
 //! days between these two dates", the dates are already normalised strings, and
-//! there is no clock involved — `mv` never asks what today is, so that
+//! there is no clock involved — `mvs` never asks what today is, so that
 //! everything it reports is reproducible from the index alone.
 
 /// Days from 1970-01-01, or `None` if the string is not a date.

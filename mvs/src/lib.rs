@@ -1,4 +1,4 @@
-//! The multiverse index, read from the database baked into `mv`'s own store
+//! The multiverse index, read from the database baked into `mvs`'s own store
 //! path at build time. Read-only, offline: everything answered here comes out
 //! of that file and nothing is fetched.
 //!

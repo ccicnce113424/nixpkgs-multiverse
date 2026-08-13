@@ -1,5 +1,5 @@
 [package]
-name = "mv"
+name = "mvs"
 version = "0.1.0"
 edition = "2021"
 description = "Read the nixpkgs multiverse index: versions, lifetimes, revisions, pins"

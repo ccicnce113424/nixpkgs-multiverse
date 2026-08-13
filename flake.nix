@@ -86,7 +86,7 @@
           '';
         };
 
-      # The database `mv` reads: revisions.json, releases.json and
+      # The database `mvs` reads: revisions.json, releases.json and
       # index/history.json projected into SQLite, one row per run.
       #
       # Derived at build time and never committed. It is binary, it would change
@@ -109,7 +109,7 @@
 
             # Names the checkout the data came from, so a database found on its
             # own can be traced back. A dirty tree has nothing honest to say.
-            MV_BUILT_FROM = self.rev or "";
+            MVS_BUILT_FROM = self.rev or "";
           }
           ''
             # build-db.py takes a checkout root; the store paths are individual
@@ -120,12 +120,12 @@
             cp ${./releases.json} "$root/releases.json"
             cp ${./index/history.json} "$root/index/history.json"
 
-            python3 ${./mv/build-db.py} "$root" $out
+            python3 ${./mvs/build-db.py} "$root" $out
           '';
 
-      # `mv`, the consumer tool: read the index without materialising anything.
+      # `mvs`, the consumer tool: read the index without materialising anything.
       #
-      # The binary is wrapped with MV_DB pointing at the database built above,
+      # The binary is wrapped with MVS_DB pointing at the database built above,
       # which is what makes the data version *be* the flake version. There is
       # no download path and no cache directory on purpose — a second source of
       # truth would drift from the pinned input, and two people running the same
@@ -133,34 +133,34 @@
       #
       # Built from `pkgsFor system` — itself a multiverse revision — so
       # `inputs = { }` stays intact.
-      mvFor =
+      mvsFor =
         system:
         let
           pkgs = pkgsFor system;
 
           unwrapped = pkgs.rustPlatform.buildRustPackage {
-            pname = "mv";
+            pname = "mvs";
             version = "0.1.0";
-            src = ./mv;
-            cargoLock.lockFile = ./mv/Cargo.lock;
+            src = ./mvs;
+            cargoLock.lockFile = ./mvs/Cargo.lock;
 
             # The unit tests run here. The differential test against
             # builtins.compareVersions cannot: it needs a `nix` to ask, and
             # there is none inside the sandbox, so it skips and CI runs it.
             meta = {
               description = "Read the nixpkgs multiverse index";
-              mainProgram = "mv";
+              mainProgram = "mvs";
             };
           };
         in
-        pkgs.runCommand "mv"
+        pkgs.runCommand "mvs"
           {
             nativeBuildInputs = [ pkgs.makeWrapper ];
             inherit (unwrapped) meta;
           }
           ''
             mkdir -p $out/bin
-            makeWrapper ${unwrapped}/bin/mv $out/bin/mv --set MV_DB ${indexDbFor system}
+            makeWrapper ${unwrapped}/bin/mvs $out/bin/mvs --set MVS_DB ${indexDbFor system}
           '';
 
       # The deployable site: the static files from site/ plus the three data
@@ -263,7 +263,7 @@
         # `mkMultiverse` for callers who need to pass config/overlays through.
         mkMultiverse = args: import ./multiverse.nix args;
 
-        # A `multiverse.lock` written by `mv lock`, resolved to derivations:
+        # A `multiverse.lock` written by `mvs lock`, resolved to derivations:
         #
         #   multiverse.lib.readLock { system = "x86_64-linux"; file = ./multiverse.lock; }
         #   => { helix = <derivation>; ripgrep = <derivation>; }
@@ -326,7 +326,7 @@
       # deploys; `nix run .#serve` (below, in apps) serves it for testing.
       packages = forAllSystems (system: rec {
         site = siteFor system;
-        mv = mvFor system;
+        mvs = mvsFor system;
         index-db = indexDbFor system;
         default = site;
       });
@@ -395,7 +395,7 @@
             pkgs.rustfmt
           ];
           settings = {
-            # mv/ is Rust, and holding it to `nix fmt` too means CI's one
+            # mvs/ is Rust, and holding it to `nix fmt` too means CI's one
             # formatting step covers every language in the tree.
             formatter.rustfmt = {
               command = "rustfmt";
@@ -442,21 +442,21 @@
         {
           default = pkgs.mkShellNoCC { packages = toolDeps pkgs; };
 
-          # `nix develop .#mv -c cargo test` — the crate's own toolchain, with
-          # MV_DB already pointing at a built database so the tests have an
+          # `nix develop .#mvs -c cargo test` — the crate's own toolchain, with
+          # MVS_DB already pointing at a built database so the tests have an
           # index to read without one being wired up by hand.
           #
           # The differential test against builtins.compareVersions runs from
           # here rather than from `nix flake check`: it needs a `nix` to ask,
           # and the build sandbox has none, so it skips there and CI runs it.
-          mv = pkgs.mkShell {
+          mvs = pkgs.mkShell {
             packages = [
               pkgs.cargo
               pkgs.rustc
               pkgs.rustfmt
               pkgs.clippy
             ];
-            MV_DB = indexDbFor system;
+            MVS_DB = indexDbFor system;
           };
         }
       );
@@ -474,10 +474,10 @@
           meta = { inherit description; };
         }) tools
         // {
-          # `nix run .#mv -- query versions python3`
-          mv = {
+          # `nix run .#mvs -- query versions python3`
+          mvs = {
             type = "app";
-            program = "${mvFor system}/bin/mv";
+            program = "${mvsFor system}/bin/mvs";
             meta.description = "Read the nixpkgs multiverse index";
           };
 

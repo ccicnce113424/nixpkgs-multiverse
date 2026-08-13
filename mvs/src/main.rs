@@ -1,4 +1,4 @@
-//! `mv` — read the multiverse index.
+//! `mvs` — read the multiverse index.
 //!
 //! Offline and read-only: every answer comes from the database baked into this
 //! binary's own store path at build time. Growing the index is `tools/*.sh`'s
@@ -11,22 +11,22 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use mv::db::Index;
-use mv::lock;
-use mv::query::{self, Format};
-use mv::run::{self, Execute};
-use mv::solve;
+use mvs::db::Index;
+use mvs::lock;
+use mvs::query::{self, Format};
+use mvs::run::{self, Execute};
+use mvs::solve;
 
 #[derive(Parser)]
 #[command(
-    name = "mv",
+    name = "mvs",
     about = "Read the nixpkgs multiverse index",
     long_about = "Read the nixpkgs multiverse index: versions, lifetimes, revision selection \
                   and constraint solving, offline and without materialising a revision.",
     version
 )]
 struct Cli {
-    /// Index database to read. Defaults to $MV_DB, which the Nix wrapper sets.
+    /// Index database to read. Defaults to $MVS_DB, which the Nix wrapper sets.
     #[arg(long, global = true, value_name = "PATH")]
     db: Option<PathBuf>,
 
@@ -60,7 +60,7 @@ enum Command {
 
     /// Run a package straight out of the revision that shipped it
     ///
-    /// A wrapper around `nix run`: `mv run ripgrep@13.0.0 -- --version`.
+    /// A wrapper around `nix run`: `mvs run ripgrep@13.0.0 -- --version`.
     Run {
         #[arg(value_name = "ATTR[@VERSION]")]
         spec: String,
@@ -78,7 +78,7 @@ enum Command {
     ///
     /// A wrapper around `nix shell`. Composing across revisions is right for
     /// standalone tools and wrong for a development environment — for that,
-    /// `mv solve` gives one coherent revision.
+    /// `mvs solve` gives one coherent revision.
     Shell {
         #[arg(value_name = "ATTR[@VERSION]", required = true)]
         specs: Vec<String>,
@@ -96,7 +96,7 @@ enum Command {
     ///
     /// A pin can never point past what the index knows, so moving one is two
     /// steps: `nix flake update multiverse` to learn about newer revisions,
-    /// then `mv lock update <attr>` to move that one package.
+    /// then `mvs lock update <attr>` to move that one package.
     #[command(subcommand)]
     Lock(Lock),
 }
@@ -176,7 +176,7 @@ fn main() {
     // one of them is a sentence about the index or the selector, and the
     // caller is a person at a terminal.
     if let Err(err) = run() {
-        anstream::eprintln!("mv: {err:#}");
+        anstream::eprintln!("mvs: {err:#}");
         std::process::exit(1);
     }
 }

@@ -1,4 +1,4 @@
-//! `mv solve` — one revision that satisfies several constraints at once.
+//! `mvs solve` — one revision that satisfies several constraints at once.
 //!
 //! This is the answer to multiverse's one real weakness. Composing versions
 //! from *different* revisions gives a closure with two libcs and two opensslls

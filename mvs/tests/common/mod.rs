@@ -15,15 +15,15 @@ pub fn nix_available() -> bool {
 pub fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .expect("mv/ has a parent")
+        .expect("mvs/ has a parent")
         .to_path_buf()
 }
 
-/// The database to test against: `$MV_DB` if the caller has one built,
+/// The database to test against: `$MVS_DB` if the caller has one built,
 /// otherwise built out of the flake. Both are the same file; the environment
 /// variable only saves the round trip.
 pub fn index_db() -> PathBuf {
-    if let Some(db) = std::env::var_os("MV_DB") {
+    if let Some(db) = std::env::var_os("MVS_DB") {
         return PathBuf::from(db);
     }
 

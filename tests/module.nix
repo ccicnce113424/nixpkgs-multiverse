@@ -90,7 +90,7 @@ let
     };
   };
 
-  # A lock file as `mv lock` writes one, pinning the same ripgrep by commit
+  # A lock file as `mvs lock` writes one, pinning the same ripgrep by commit
   # rather than by version. Built here rather than committed so it never has to
   # be rewritten as the index grows; tests/lock.nix covers readLock itself.
   lockFile = builtins.toFile "multiverse.lock" (

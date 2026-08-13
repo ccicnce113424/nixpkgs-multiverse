@@ -1,4 +1,4 @@
-//! Differential test: `mv`'s version ordering against `builtins.compareVersions`.
+//! Differential test: `mvs`'s version ordering against `builtins.compareVersions`.
 //!
 //! Every command that orders or ranges over versions is downstream of this one
 //! function, and a version scheme that only shows up in 300 of the index's
@@ -17,7 +17,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
 
-use mv::version;
+use mvs::version;
 
 /// How many pairs to check. One `nix eval` handles the whole batch, so the cost
 /// is a fixed few seconds rather than per-pair.
@@ -61,7 +61,7 @@ fn distinct_versions(db: &PathBuf) -> Vec<String> {
 /// expression: version strings contain `$`, backslashes and quotes, and every
 /// one of those means something inside a Nix string literal.
 fn nix_verdicts(pairs: &[(String, String)]) -> Vec<i64> {
-    let dir = std::env::temp_dir().join(format!("mv-version-diff-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("mvs-version-diff-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("create temp dir");
     let path = dir.join("pairs.json");
     std::fs::write(&path, serde_json::to_vec(pairs).expect("encode pairs")).expect("write pairs");
@@ -86,7 +86,7 @@ fn nix_verdicts(pairs: &[(String, String)]) -> Vec<i64> {
     verdicts
 }
 
-/// Compares `mv`'s ordering against Nix's over 4000 real pairs drawn from the
+/// Compares `mvs`'s ordering against Nix's over 4000 real pairs drawn from the
 /// index, half of them related (same attribute, so the same versioning scheme)
 /// and half of them arbitrary.
 #[test]
@@ -128,7 +128,7 @@ fn matches_builtins_compare_versions() {
             std::cmp::Ordering::Greater => 1,
         };
         if ours != *nix {
-            mismatches.push(format!("{a:?} vs {b:?}: nix says {nix}, mv says {ours}"));
+            mismatches.push(format!("{a:?} vs {b:?}: nix says {nix}, mvs says {ours}"));
         }
     }
 
