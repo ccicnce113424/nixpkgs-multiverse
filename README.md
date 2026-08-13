@@ -15,7 +15,7 @@ and pin commands, plus the full revision and release tables.
 **Jump to:** [Usage](#usage) ·
 [Version history](#version-history) ·
 [Unfree packages](#unfree-packages-and-nixpkgs-config) ·
-[The `mvs` CLI](#the-mv-cli) ·
+[The `mvs` CLI](#the-mvs-cli) ·
 [NixOS / home-manager module](#the-nixos-and-home-manager-module) ·
 [Replacing nixpkgs inputs](#replacing-several-nixpkgs-inputs) ·
 [Building the index](#building-the-index)
@@ -80,7 +80,7 @@ $ nix eval --json --apply 'f: f "python3"' \
 ```
 
 The same question, and every other one below, is a subcommand of
-[`mvs`](#the-mv-cli) — `mvs query versions python3` — which answers it out of a
+[`mvs`](#the-mvs-cli) — `mvs query versions python3` — which answers it out of a
 baked database rather than an evaluation.
 
 Create a specific complete revision of Nixpkgs using the `at` function.
@@ -326,7 +326,7 @@ program — offline, in milliseconds, out of a SQLite database baked into its ow
 store path at build time.
 
 ```console
-$ nix run github:fzakaria/nixpkgs-multiverse#mv -- query versions python3
+$ nix run github:fzakaria/nixpkgs-multiverse#mvs -- query versions python3
 python3 · 62 versions · 2013-10-31 .. 2026-08-10
 VERSION  FIRST       LAST        REVS
 3.3.2    2013-10-31  2013-10-31  1
