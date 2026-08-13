@@ -11,6 +11,8 @@
 //! verdicts. Absent nix — inside the build sandbox, say — it skips, because a
 //! test that cannot reach the oracle has nothing to say.
 
+mod common;
+
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::Command;
@@ -36,42 +38,6 @@ impl Lcg {
         // The high bits of an LCG are the well-distributed ones.
         ((self.0 >> 33) as usize) % bound
     }
-}
-
-fn nix_available() -> bool {
-    Command::new("nix")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("mv/ has a parent")
-        .to_path_buf()
-}
-
-/// The database to sample versions from: `$MV_DB` if the caller has one built,
-/// otherwise built out of the flake. Both are the same file; the environment
-/// variable only saves the round trip.
-fn index_db() -> PathBuf {
-    if let Some(db) = std::env::var_os("MV_DB") {
-        return PathBuf::from(db);
-    }
-
-    let out = Command::new("nix")
-        .args(["build", "--no-link", "--print-out-paths", ".#index-db"])
-        .current_dir(repo_root())
-        .output()
-        .expect("nix build .#index-db");
-    assert!(
-        out.status.success(),
-        "nix build .#index-db failed:\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    PathBuf::from(String::from_utf8(out.stdout).unwrap().trim())
 }
 
 /// Every distinct version string in the index, in a stable order so the sample
@@ -125,12 +91,12 @@ fn nix_verdicts(pairs: &[(String, String)]) -> Vec<i64> {
 /// and half of them arbitrary.
 #[test]
 fn matches_builtins_compare_versions() {
-    if !nix_available() {
+    if !common::nix_available() {
         eprintln!("skipping: no nix on PATH, so there is no oracle to compare against");
         return;
     }
 
-    let db = index_db();
+    let db = common::index_db();
     let versions = distinct_versions(&db);
     assert!(
         versions.len() > 1000,

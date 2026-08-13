@@ -10,6 +10,7 @@ pub mod db;
 pub mod lock;
 pub mod output;
 pub mod query;
+pub mod run;
 pub mod select;
 pub mod solve;
 pub mod version;

@@ -14,6 +14,7 @@ use clap::{Parser, Subcommand};
 use mv::db::Index;
 use mv::lock;
 use mv::query::{self, Format};
+use mv::run::{self, Execute};
 use mv::solve;
 
 #[derive(Parser)]
@@ -55,6 +56,40 @@ enum Command {
     Solve {
         #[arg(value_name = "ATTR[@VERSION]", required = true)]
         constraints: Vec<String>,
+    },
+
+    /// Run a package straight out of the revision that shipped it
+    ///
+    /// A wrapper around `nix run`: `mv run ripgrep@13.0.0 -- --version`.
+    Run {
+        #[arg(value_name = "ATTR[@VERSION]")]
+        spec: String,
+
+        /// Arguments for the program itself
+        #[arg(last = true)]
+        args: Vec<String>,
+
+        /// Print the nix command line instead of running it
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// A shell with packages from the revisions that shipped them
+    ///
+    /// A wrapper around `nix shell`. Composing across revisions is right for
+    /// standalone tools and wrong for a development environment — for that,
+    /// `mv solve` gives one coherent revision.
+    Shell {
+        #[arg(value_name = "ATTR[@VERSION]", required = true)]
+        specs: Vec<String>,
+
+        /// Command to run in the shell, instead of an interactive one
+        #[arg(last = true)]
+        args: Vec<String>,
+
+        /// Print the nix command line instead of running it
+        #[arg(long)]
+        dry_run: bool,
     },
 
     /// Per-package pins in multiverse.lock
@@ -146,6 +181,16 @@ fn main() {
     }
 }
 
+/// `--dry-run` as the enum the wrappers take, so a call site reads as what it
+/// means rather than as a bare boolean.
+fn execute(dry_run: bool) -> Execute {
+    if dry_run {
+        Execute::No
+    } else {
+        Execute::Yes
+    }
+}
+
 fn run() -> Result<()> {
     let cli = Cli::parse();
     let index = Index::open(cli.db.as_deref())?;
@@ -167,6 +212,16 @@ fn run() -> Result<()> {
             Query::Stats => query::stats(&index, format),
         },
         Command::Solve { constraints } => solve::solve(&index, constraints, format),
+        Command::Run {
+            spec,
+            args,
+            dry_run,
+        } => run::run(&index, spec, args, execute(*dry_run)),
+        Command::Shell {
+            specs,
+            args,
+            dry_run,
+        } => run::shell(&index, specs, args, execute(*dry_run)),
         Command::Lock(l) => {
             let path = lock::lock_path(cli.file.as_deref());
             match l {
