@@ -46,7 +46,7 @@ impl Constraint {
         })
     }
 
-    fn describe(&self) -> String {
+    pub fn describe(&self) -> String {
         match &self.version {
             Some(v) => format!("{} {}.x", self.attr, v),
             None => self.attr.clone(),
@@ -60,7 +60,7 @@ impl Constraint {
 /// difference between `python3@3.1` meaning "3.1.x" and it also matching 3.10,
 /// 3.11, 3.12 and 3.13. A GLOB in SQL cannot express this, so the filter is
 /// applied in Rust after the query.
-fn matches(version: &str, prefix: &str) -> bool {
+pub fn matches(version: &str, prefix: &str) -> bool {
     let mut wanted = version::components(prefix);
     let mut have = version::components(version);
 
@@ -77,11 +77,11 @@ fn matches(version: &str, prefix: &str) -> bool {
 }
 
 /// A closed range of offsets in which one constraint holds throughout.
-type Span = (i64, i64);
+pub type Span = (i64, i64);
 
 /// Every stretch of revisions in which one constraint is satisfied, merged and
 /// in offset order.
-fn spans_for(index: &Index, constraint: &Constraint) -> Result<Vec<Span>> {
+pub fn spans_for(index: &Index, constraint: &Constraint) -> Result<Vec<Span>> {
     let runs = index.runs_of(&constraint.attr)?;
     if runs.is_empty() {
         return Err(anyhow!(
@@ -134,6 +134,21 @@ fn intersect(a: &[Span], b: &[Span]) -> Vec<Span> {
         }
     }
     out
+}
+
+/// The newest offset in `spans` that a pin can name: newest first, walking
+/// back over any revision that has no narHash and so cannot be fetched.
+pub fn newest_pinnable(index: &Index, spans: &[Span]) -> Result<i64> {
+    for (first, last) in spans.iter().rev() {
+        if let Some(off) = index.newest_materialisable_in(*first, *last)? {
+            return Ok(off);
+        }
+    }
+
+    Err(anyhow!(
+        "every revision satisfying this has no narHash yet, so none of them can be \
+         fetched. Run tools/add-narhashes.sh, or wait for the next index build."
+    ))
 }
 
 fn count(spans: &[Span]) -> i64 {

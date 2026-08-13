@@ -263,6 +263,23 @@
         # `mkMultiverse` for callers who need to pass config/overlays through.
         mkMultiverse = args: import ./multiverse.nix args;
 
+        # A `multiverse.lock` written by `mv lock`, resolved to derivations:
+        #
+        #   multiverse.lib.readLock { system = "x86_64-linux"; file = ./multiverse.lock; }
+        #   => { helix = <derivation>; ripgrep = <derivation>; }
+        #
+        # The same function `multiverse.<system>.readLock` exposes, taking the
+        # system as an argument for callers who are outside a per-system scope
+        # — a home-manager module reading a lock beside its flake, typically.
+        readLock =
+          {
+            system,
+            file,
+            config ? { },
+            overlays ? [ ],
+          }:
+          (import ./multiverse.nix { inherit system config overlays; }).readLock file;
+
         # An overlay that rewrites `pkgs.<attr>` to a pinned version, for the
         # cases the modules deliberately do not cover: making every *other*
         # module see the pin, so that `programs.<name>.package` and friends pick
@@ -358,6 +375,7 @@
           installables = evalTest "test-installables" ./tests/installables.nix;
           module = evalTest "test-module" ./tests/module.nix;
           history = evalTest "test-history" ./tests/history.nix;
+          lock = evalTest "test-lock" ./tests/lock.nix;
           compose = (import ./tests/compose.nix { inherit system; }).env;
         }
       );

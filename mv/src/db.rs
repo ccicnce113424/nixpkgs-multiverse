@@ -180,6 +180,19 @@ impl Index {
             .context("no revision has a narHash; run tools/build-index.sh")
     }
 
+    /// Newest offset in `first ..= last` that can actually be materialised.
+    ///
+    /// A revision appended by fetch-unstable-revisions.sh has no narHash until
+    /// build-index.sh reaches it, and a pin naming one would resolve to a
+    /// revision Nix cannot fetch.
+    pub fn newest_materialisable_in(&self, first: i64, last: i64) -> Result<Option<i64>> {
+        Ok(self.conn.query_row(
+            "SELECT max(off) FROM revisions WHERE narhash IS NOT NULL AND off BETWEEN ?1 AND ?2",
+            [first, last],
+            |r| r.get::<_, Option<i64>>(0),
+        )?)
+    }
+
     pub fn release(&self, name: &str) -> Result<Option<Release>> {
         Ok(self
             .conn

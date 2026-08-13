@@ -705,6 +705,53 @@ rec {
     else
       instances.${toString i}.${attr};
 
+  # A lock file written by `mv lock`, resolved to derivations:
+  #
+  #   readLock ./multiverse.lock  =>  { helix = <derivation>; ripgrep = <derivation>; }
+  #
+  # Each pin names one revision by commit and is resolved on its own, which is
+  # the property a flake input cannot have: `mv lock update helix` moves exactly
+  # that entry and leaves every other pin where it was.
+  #
+  # `mapAttrs` is lazy in its values, so a lock with twenty pins materialises
+  # only the revisions behind the packages actually built.
+  readLock =
+    file:
+    let
+      lock = builtins.fromJSON (builtins.readFile file);
+
+      # A pin is only ever a commit plus decoration. `label`, `version` and
+      # `date` are there for the reader and for `mv lock status`; `rev` is the
+      # only field that decides which tree comes back, so a hand-edited version
+      # string cannot quietly change what gets built.
+      resolvePin =
+        attr: pin:
+        let
+          pkgs = at pin.rev;
+        in
+        if !(pin ? rev) then
+          throw "multiverse: the pin for ${attr} in ${toString file} has no `rev`"
+        else if !(pkgs ? ${attr}) then
+          throw ''
+            multiverse: ${attr} is pinned to ${pin.rev} but that revision has no such
+            attribute. Only top-level attributes can be pinned — nested sets like
+            python3Packages.* are not in the index and cannot be named in a lock file.
+          ''
+        else
+          pkgs.${attr};
+    in
+    if (lock.version or null) != lockVersion then
+      throw ''
+        multiverse: ${toString file} is lock format version ${toString (lock.version or 0)},
+        and this multiverse reads version ${toString lockVersion}.
+      ''
+    else
+      builtins.mapAttrs resolvePin (lock.pins or { });
+
+  # The lock format `readLock` accepts and `mv lock` writes. Bumped only for a
+  # change an older reader would misinterpret; a new optional field is not one.
+  lockVersion = 1;
+
   # Materialised {attr -> {version -> derivation}}, so plain flake installable
   # syntax works — `nix shell .#versions.python3."3.8.9"` — which the function
   # API above cannot express, because a flake attribute path takes no arguments.

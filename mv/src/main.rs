@@ -12,6 +12,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use mv::db::Index;
+use mv::lock;
 use mv::query::{self, Format};
 use mv::solve;
 
@@ -32,6 +33,10 @@ struct Cli {
     #[arg(long, global = true)]
     json: bool,
 
+    /// Lock file to read and write. Defaults to ./multiverse.lock.
+    #[arg(long, global = true, value_name = "PATH")]
+    file: Option<PathBuf>,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -51,6 +56,41 @@ enum Command {
         #[arg(value_name = "ATTR[@VERSION]", required = true)]
         constraints: Vec<String>,
     },
+
+    /// Per-package pins in multiverse.lock
+    ///
+    /// A pin can never point past what the index knows, so moving one is two
+    /// steps: `nix flake update multiverse` to learn about newer revisions,
+    /// then `mv lock update <attr>` to move that one package.
+    #[command(subcommand)]
+    Lock(Lock),
+}
+
+#[derive(Subcommand)]
+enum Lock {
+    /// Pin a package to the newest indexed revision providing it
+    Add {
+        #[arg(value_name = "ATTR[@VERSION]")]
+        spec: String,
+    },
+
+    /// Remove a pin
+    Rm { attr: String },
+
+    /// Move one pin — or every pin — to the newest indexed revision
+    Update {
+        attr: Option<String>,
+
+        /// Move every pin
+        #[arg(long)]
+        all: bool,
+    },
+
+    /// Show the pins
+    List,
+
+    /// How far behind each pin has fallen
+    Status,
 }
 
 /// A *selector* names a revision: `tip`, a release (`26.05`), a date
@@ -127,5 +167,17 @@ fn run() -> Result<()> {
             Query::Stats => query::stats(&index, format),
         },
         Command::Solve { constraints } => solve::solve(&index, constraints, format),
+        Command::Lock(l) => {
+            let path = lock::lock_path(cli.file.as_deref());
+            match l {
+                Lock::Add { spec } => lock::add(&index, &path, spec, format),
+                Lock::Rm { attr } => lock::remove(&path, attr, format),
+                Lock::Update { attr, all } => {
+                    lock::update(&index, &path, attr.as_deref(), *all, format)
+                }
+                Lock::List => lock::list(&path, format),
+                Lock::Status => lock::status(&index, &path, format),
+            }
+        }
     }
 }

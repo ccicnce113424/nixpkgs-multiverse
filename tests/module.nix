@@ -90,6 +90,32 @@ let
     };
   };
 
+  # A lock file as `mv lock` writes one, pinning the same ripgrep by commit
+  # rather than by version. Built here rather than committed so it never has to
+  # be rewritten as the index grows; tests/lock.nix covers readLock itself.
+  lockFile = builtins.toFile "multiverse.lock" (
+    builtins.toJSON {
+      version = 1;
+      pins.ripgrep = {
+        rev = builtins.substring 11 12 (mv.revOf "ripgrep" pinnedVersion);
+        version = pinnedVersion;
+      };
+    }
+  );
+
+  locked = eval ../modules/nixos.nix {
+    enable = true;
+    lock = lockFile;
+  };
+
+  # The same attribute claimed by a version pin and by the lock file, which
+  # collides exactly the way `pins` and `cooldown.packages` do.
+  contestedLock = eval ../modules/nixos.nix {
+    enable = true;
+    pins.ripgrep = pinnedVersion;
+    lock = lockFile;
+  };
+
   failing = cfg: builtins.filter (a: !a.assertion) cfg.assertions;
 in
 
@@ -117,6 +143,20 @@ assert builtins.length pinOnly.warnings == 1;
 # configuration instead of the build.
 assert builtins.length (failing contested) == 1;
 assert failing nixos == [ ];
+
+# A lock file installs its pins the same way `pins` does, and lands in the same
+# package list.
+assert builtins.attrNames locked.multiverse.locked == [ "ripgrep" ];
+assert locked.multiverse.locked.ripgrep.version == pinnedVersion;
+assert locked.environment.systemPackages == builtins.attrValues locked.multiverse.locked;
+
+# A lock file is not set by default, and setting none resolves to no packages
+# rather than to an error.
+assert nixos.multiverse.locked == { };
+
+# An attribute claimed by both a version pin and the lock file collides in the
+# same way, and is caught in the same place.
+assert builtins.length (failing contestedLock) == 1;
 
 # The multiverse itself rides along for everything the options do not cover.
 assert nixos.multiverse.instance ? at;

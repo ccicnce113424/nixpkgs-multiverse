@@ -43,11 +43,17 @@ let
     merge = lib.mergeOneOption;
   };
 
-  # Attributes claimed by both `pins` and `cooldown.packages`. Each side resolves
-  # to a different derivation exporting the same binaries, so leaving this to
-  # build time turns a plain configuration mistake into a file-collision error
-  # out of buildEnv.
-  contested = lib.intersectLists (builtins.attrNames cfg.pins) cfg.cooldown.packages;
+  # Attributes claimed by more than one of `pins`, `lock` and
+  # `cooldown.packages`. Each side resolves to a different derivation exporting
+  # the same binaries, so leaving this to build time turns a plain configuration
+  # mistake into a file-collision error out of buildEnv.
+  pinNames = builtins.attrNames cfg.pins;
+  lockNames = builtins.attrNames cfg.locked;
+  contested = lib.unique (
+    lib.intersectLists pinNames cfg.cooldown.packages
+    ++ lib.intersectLists pinNames lockNames
+    ++ lib.intersectLists lockNames cfg.cooldown.packages
+  );
 in
 {
   options.multiverse = {
@@ -101,6 +107,26 @@ in
 
         Only top-level attributes work. Nested sets — `python3Packages.*`,
         `nodePackages.*` — are not in the index and cannot be named here.
+      '';
+    };
+
+    lock = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = null;
+      example = lib.literalExpression "./multiverse.lock";
+      description = ''
+        A `multiverse.lock` written by `mv lock`, installed alongside `pins`.
+
+        The difference from `pins` is who maintains it. A pin here is a version
+        string somebody typed and has to keep typing; a lock file is a set of
+        commits `mv lock update <attr>` moves one at a time, so updating one
+        package cannot drag the others along — which is what a single flake
+        input does and why people stop updating at all.
+
+        A lock can never name a revision newer than the multiverse input knows,
+        because materialising one needs its narHash. Moving a pin forward is
+        therefore two steps, and honestly so: `nix flake update multiverse`,
+        then `mv lock update <attr>`.
       '';
     };
 
@@ -203,15 +229,29 @@ in
       '';
     };
 
+    locked = lib.mkOption {
+      type = lib.types.raw;
+      readOnly = true;
+      default = if cfg.lock == null then { } else mv.readLock cfg.lock;
+      defaultText = lib.literalExpression "{ <name> = <derivation>; }";
+      description = ''
+        `lock` resolved to derivations, keyed by attribute — the lock file's
+        counterpart to `pinned`. Empty when no lock file is set.
+      '';
+    };
+
     packages = lib.mkOption {
       type = lib.types.raw;
       readOnly = true;
-      default = builtins.attrValues cfg.pinned ++ builtins.attrValues cfg.cooldown.resolved;
+      default =
+        builtins.attrValues cfg.pinned
+        ++ builtins.attrValues cfg.locked
+        ++ builtins.attrValues cfg.cooldown.resolved;
       defaultText = lib.literalExpression "[ <derivation> ... ]";
       description = ''
-        Everything this module installs: every pin, plus every soaked package
-        when `cooldown.enable` is set. The NixOS and home-manager wrappers each
-        append this to their own package list.
+        Everything this module installs: every pin, every locked package, plus
+        every soaked package when `cooldown.enable` is set. The NixOS and
+        home-manager wrappers each append this to their own package list.
       '';
     };
   };
@@ -221,10 +261,11 @@ in
       {
         assertion = contested == [ ];
         message = ''
-          multiverse: ${lib.concatStringsSep ", " contested} appears in both
-          `multiverse.pins` and `multiverse.cooldown.packages`. Each would
-          resolve to a different derivation of the same package, and the two
-          would collide in the same package list. Pick one.
+          multiverse: ${lib.concatStringsSep ", " contested} is claimed by more than
+          one of `multiverse.pins`, `multiverse.lock` and
+          `multiverse.cooldown.packages`. Each would resolve to a different
+          derivation of the same package, and they would collide in the same
+          package list. Pick one.
         '';
       }
     ];
