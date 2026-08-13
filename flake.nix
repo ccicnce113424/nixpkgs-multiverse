@@ -123,6 +123,46 @@
             python3 ${./mv/build-db.py} "$root" $out
           '';
 
+      # `mv`, the consumer tool: read the index without materialising anything.
+      #
+      # The binary is wrapped with MV_DB pointing at the database built above,
+      # which is what makes the data version *be* the flake version. There is
+      # no download path and no cache directory on purpose — a second source of
+      # truth would drift from the pinned input, and two people running the same
+      # `nix run` would get different answers.
+      #
+      # Built from `pkgsFor system` — itself a multiverse revision — so
+      # `inputs = { }` stays intact.
+      mvFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+
+          unwrapped = pkgs.rustPlatform.buildRustPackage {
+            pname = "mv";
+            version = "0.1.0";
+            src = ./mv;
+            cargoLock.lockFile = ./mv/Cargo.lock;
+
+            # The unit tests run here. The differential test against
+            # builtins.compareVersions cannot: it needs a `nix` to ask, and
+            # there is none inside the sandbox, so it skips and CI runs it.
+            meta = {
+              description = "Read the nixpkgs multiverse index";
+              mainProgram = "mv";
+            };
+          };
+        in
+        pkgs.runCommand "mv"
+          {
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+            inherit (unwrapped) meta;
+          }
+          ''
+            mkdir -p $out/bin
+            makeWrapper ${unwrapped}/bin/mv $out/bin/mv --set MV_DB ${indexDbFor system}
+          '';
+
       # The deployable site: the static files from site/ plus the three data
       # files the page fetches at runtime. The data is copied in rather than
       # fetched from raw.githubusercontent.com so that versions.json and
@@ -269,6 +309,7 @@
       # deploys; `nix run .#serve` (below, in apps) serves it for testing.
       packages = forAllSystems (system: rec {
         site = siteFor system;
+        mv = mvFor system;
         index-db = indexDbFor system;
         default = site;
       });
@@ -379,6 +420,13 @@
           meta = { inherit description; };
         }) tools
         // {
+          # `nix run .#mv -- query versions python3`
+          mv = {
+            type = "app";
+            program = "${mvFor system}/bin/mv";
+            meta.description = "Read the nixpkgs multiverse index";
+          };
+
           # `nix run .#serve [port]` — the built site on a local port.
           #
           # Not a bare `python -m http.server`: every file in a store output

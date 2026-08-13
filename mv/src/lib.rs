@@ -5,4 +5,8 @@
 //! A library as well as a binary so the differential test in `tests/` can hold
 //! the version comparator against a running `nix`.
 
+pub mod db;
+pub mod output;
+pub mod query;
+pub mod select;
 pub mod version;

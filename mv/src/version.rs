@@ -140,7 +140,10 @@ mod tests {
         }
 
         assert_eq!(split("2.3.1"), ["2", "3", "1"]);
-        assert_eq!(split("0-unstable-2026-06-17"), ["0", "unstable", "2026", "06", "17"]);
+        assert_eq!(
+            split("0-unstable-2026-06-17"),
+            ["0", "unstable", "2026", "06", "17"]
+        );
         assert_eq!(split("1.12-nightly"), ["1", "12", "nightly"]);
         assert_eq!(split("2.3pre1"), ["2", "3", "pre", "1"]);
         assert_eq!(split("...--"), Vec::<&str>::new());
@@ -174,7 +177,10 @@ mod tests {
         assert_eq!(compare("2.7.18.12", "2.7.18.8"), Greater);
         assert_eq!(compare("202502", "202411"), Greater);
         assert_eq!(compare("20250512.1", "20250512"), Greater);
-        assert_eq!(compare("0-unstable-2026-06-17", "0-unstable-2026-06-16"), Greater);
+        assert_eq!(
+            compare("0-unstable-2026-06-17", "0-unstable-2026-06-16"),
+            Greater
+        );
     }
 
     /// The i32 rule: a digit run too wide for a C `int` stops being a number to
