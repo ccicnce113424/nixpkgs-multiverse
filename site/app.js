@@ -491,10 +491,15 @@ function SearchResults({ q, navigate }) {
     <div id="results">
       ${hits.map(
         (a) => html`
-          <div class="pkg" onClick=${() => navigate({ pkg: a, ver: "" })}>
+          <${Link}
+            class="pkg"
+            to=${{ pkg: a, ver: "" }}
+            navigate=${navigate}
+            key=${a}
+          >
             ${a}
             <span class="muted">· ${names[a]} versions</span>
-          </div>
+          <//>
         `,
       )}
     </div>
@@ -1726,12 +1731,14 @@ function App() {
     <nav>
       ${VIEWS.map(
         (v) => html`
-          <button
+          <${Link}
             class=${route.view === v ? "active" : ""}
-            onClick=${() => navigate({ view: v })}
+            to=${{ ...route, view: v }}
+            navigate=${navigate}
+            key=${v}
           >
             ${v[0].toUpperCase() + v.slice(1)}
-          </button>
+          <//>
         `,
       )}
     </nav>

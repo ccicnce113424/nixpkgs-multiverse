@@ -52,16 +52,20 @@ nav {
   margin: 1rem 0;
   border-bottom: 1px solid var(--line);
 }
-nav button {
-  background: none;
-  border: none;
+/* The tabs are anchors rather than buttons so that each one is a crawlable
+   link to the view it opens, and so middle-click and copy-link work on them.
+   These rules undo the anchor's own colour and underline and restore the tab
+   strip the buttons drew. */
+nav a {
+  display: inline-block;
   border-bottom: 2px solid transparent;
   padding: 0.4rem 0.8rem;
   font: inherit;
   color: var(--muted);
+  text-decoration: none;
   cursor: pointer;
 }
-nav button.active {
+nav a.active {
   color: var(--fg);
   border-bottom-color: var(--accent);
 }
@@ -218,7 +222,14 @@ code {
   grid-template-columns: 1.4rem 5rem 7rem 9rem 1fr;
 }
 
+/* A search hit is an anchor, so that a crawler following the search page has
+   a way into the 31,798 package pages and a reader can open one in a new tab.
+   It keeps the plain-text look it had as a div: accent colour on hover only,
+   never underlined. */
 .pkg {
+  display: block;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
   padding: 0.15rem 0;
 }
