@@ -5,7 +5,10 @@
 # app.js. See siteFor in flake.nix.
 #
 # update-index.yml commits hourly when the channel moves, so the site tracks
-# the index at the same cadence.
+# the index at the same cadence — but only through the workflow_run trigger
+# below. Its commits are pushed with the default GITHUB_TOKEN, and GitHub
+# refuses to start a workflow from an event that token created, so the push
+# trigger never sees them however well they match its paths.
 #
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions".
 name: pages
@@ -21,6 +24,13 @@ on:
       - revisions.json
       - releases.json
       - .github/workflows/pages.yml
+  # Every hour after the indexer, whether or not it committed anything. A run
+  # that finds nothing new rebuilds an identical tree, which is a couple of
+  # minutes of cached evaluation and a no-op deploy.
+  workflow_run:
+    workflows: [update-index]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -35,13 +45,22 @@ concurrency:
 
 jobs:
   deploy:
+    # A failed indexing run leaves the tree it would have published unwritten,
+    # so there is nothing to deploy.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Pinned to the branch, not to github.sha. Under workflow_run that sha is
+      # the commit the indexer checked out, which is the one *before* the commit
+      # it then pushed — checking it out would republish the stale index this
+      # trigger exists to publish past.
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - uses: cachix/install-nix-action@v31
         with:
