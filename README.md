@@ -28,8 +28,8 @@ Also published at <https://nixmultiverse.com/docs/>.
 ![ci workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/ci.yml/badge.svg?branch=main)
 
 <!-- BEGIN index-status -->
-- **304,758 package versions** across **31,798 attributes**, from **1,538 revisions**
-- 2013-10-31 → 2026-08-10, newest [`2fcb964de67f`](https://github.com/NixOS/nixpkgs/commit/2fcb964de67fcf60b43471c55d5d99e61a9ccb5a) · [`nixos-26.11pre1051473`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1051473.2fcb964de67f/)
+- **305,059 package versions** across **31,812 attributes**, from **1,539 revisions**
+- 2013-10-31 → 2026-08-12, newest [`867dcbc30baf`](https://github.com/NixOS/nixpkgs/commit/867dcbc30bafe3c862ef88620f2e7a109d7d3be5) · [`nixos-26.11pre1052672`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1052672.867dcbc30baf/)
 <!-- END index-status -->
 
 ## Quickstart
