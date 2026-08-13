@@ -183,6 +183,44 @@
           # hidden.
           commit = self.rev or self.dirtyRev or "__COMMIT__";
 
+          # Both index files leave whatever is current at the newest revision
+          # they cover open-ended — a null offset in versions.json, a run ending
+          # in null in history.json — so that appending a revision does not
+          # rewrite every entry that did not change. See "the open tip" in
+          # docs/design.md.
+          #
+          # The browser is never told about that. This runs first and everything
+          # downstream — the shards, the sitemap, the whole-file copy — reads
+          # what it writes, so the encoding is known in exactly one place on
+          # this side and app.js only ever sees plain offsets.
+          closeTip = pkgs.writeText "close-tip.py" ''
+            import json, sys
+
+            src, dest = sys.argv[1:3]
+            data = json.load(open(src))
+
+            # Against the file's own count, never len(revisions): between an
+            # append and the indexing run that catches up to it, the newest
+            # revision is one this file has never looked at.
+            tip = data["revisionCount"] - 1
+
+            def close(value):
+                if value is None:                       # versions.json offset
+                    return tip
+                if isinstance(value, list):             # history.json run(s)
+                    if value and isinstance(value[0], list):
+                        return [close(run) for run in value]
+                    first, last = value
+                    return [first, tip if last is None else last]
+                return value
+
+            data["attrs"] = {
+                attr: {v: close(value) for v, value in vers.items()}
+                for attr, vers in data["attrs"].items()
+            }
+            json.dump(data, open(dest, "w"), separators=(",", ":"), sort_keys=True)
+          '';
+
           # An {"attrs": {...}} file split by the first two characters of the
           # attribute name, so a package page fetches only the shard holding
           # the one attribute it is about. history.json and versions.json have
@@ -366,9 +404,16 @@
             cp ${./revisions.json} $out/revisions.json
             cp ${./releases.json} $out/releases.json
             cp ${./index/stats.json} $out/stats.json
-            python3 ${shardByAttr} ${./index/history.json} $out/history
-            python3 ${shardByAttr} ${./index/versions.json} $out/versions
-            python3 ${attrNames} ${./index/versions.json} $out/names.json
+
+            # The open tip closed once, before anything below reads either
+            # file — see closeTip. Everything downstream takes these, not the
+            # committed originals.
+            python3 ${closeTip} ${./index/versions.json} versions.json
+            python3 ${closeTip} ${./index/history.json} history.json
+
+            python3 ${shardByAttr} history.json $out/history
+            python3 ${shardByAttr} versions.json $out/versions
+            python3 ${attrNames} versions.json $out/names.json
 
             # docs/*.md rendered to /docs/*.html. The same markdown is what
             # GitHub shows in the repository, so the two never disagree.
@@ -379,7 +424,7 @@
             # site/robots.txt, copied in above, points a crawler at this. Runs
             # after the docs are rendered: it lists what was actually written
             # to $out/docs rather than a second copy of the page list.
-            python3 ${sitemap} ${siteOrigin} ${./index/versions.json} \
+            python3 ${sitemap} ${siteOrigin} versions.json \
               ${./revisions.json} ${./releases.json} $out/docs $out/sitemap.xml \
               ${toString sitemapPackages}
 
@@ -387,7 +432,7 @@
             # pinned at this revision" is a question about every attribute at
             # once, and no shard can answer it. Fetched when a revision row is
             # opened, never at boot.
-            cp ${./index/versions.json} $out/versions.json
+            cp versions.json $out/versions.json
 
             # The social-card image the og:/twitter: meta tags point at.
             cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg

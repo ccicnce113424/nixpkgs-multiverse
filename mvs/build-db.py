@@ -65,15 +65,18 @@ CREATE TABLE runs(
 """
 
 
-def runs_of(value):
+def runs_of(value, tip):
     """Normalise a history entry to a list of [first, last] runs.
 
     build-history.sh writes the common single-run case as a bare [first, last]
-    pair and only nests when a version came back after leaving.
+    pair and only nests when a version came back after leaving. A run still open
+    at the newest revision the file covers ends in null rather than in that
+    offset, which is what keeps an append from rewriting every unchanged version
+    — see docs/design.md. It is closed here, so the `last INTEGER NOT NULL`
+    column and everything reading it are unaffected.
     """
-    if value and isinstance(value[0], int):
-        return [value]
-    return value
+    runs = [value] if value and isinstance(value[0], int) else value
+    return [[first, tip if last is None else last] for first, last in runs]
 
 
 def main():
@@ -131,11 +134,16 @@ def main():
         ((i, name) for name, i in attr_ids.items()),
     )
 
+    # Against history's own revisionCount, not len(revisions): a revision
+    # appended since the last indexing run is one the history has never looked
+    # at, so no run of it can be open there.
+    tip = history["revisionCount"] - 1
+
     def all_runs():
         for attr, versions in history["attrs"].items():
             attr_id = attr_ids[attr]
             for version, value in versions.items():
-                for first, last in runs_of(value):
+                for first, last in runs_of(value, tip):
                     yield (attr_id, version, first, last)
 
     db.executemany("INSERT INTO runs(attr_id, version, first, last) VALUES (?,?,?,?)", all_runs())

@@ -98,12 +98,16 @@ revision that shipped it:
 
 ```json
 {
-  "revisionCount": 1538,
+  "revisionCount": 1540,
   "attrs": {
-    "hello": { "2.8": 0, "2.12.2": 1494, "2.12.3": 1537 }
+    "hello": { "2.8": 0, "2.12.2": 1494, "2.12.3": null }
   }
 }
 ```
+
+`null` is not "unknown" — it is the newest revision the file covers,
+`revisionCount - 1`, and it is how the file says a version is *still current*.
+See [the open tip](#the-open-tip) for why it is not written out.
 
 Storing one integer rather than every revision a version appeared in is what
 keeps the file flat as revisions accumulate; otherwise a package that never
@@ -129,8 +133,40 @@ each version's lifetime as runs of revision offsets, nesting only when a version
 left and came back:
 
 ```json
-{ "hello": { "2.12.3": [1495, 1537], "2.10": [[1, 723], [728, 728]] } }
+{ "hello": { "2.12.3": [1495, null], "2.10": [[1, 723], [728, 728]] } }
 ```
+
+A run that is still open ends in `null`, the same claim `versions.json` makes
+with a null offset: this version is current as of `revisionCount - 1`.
+
+### The open tip
+
+Both files are appended to hourly, and both are in git, so what matters is not
+only how large they are but how much of them a single revision *changes*.
+
+Closing those runs literally — writing `[1495, 1539]` and bumping it to
+`[1495, 1540]` next hour — makes an append rewrite the entry of every version
+that did not change. On a typical revision that is 24,854 of 31,819 attributes:
+about 3 KB of real news, scattered as thousands of four-byte edits across a
+5.4 MB file. Git stores that as a ~140 KB delta per file per revision, roughly
+50× the size of the change, and it accumulates in the history forever.
+
+Leaving the tip open costs a subtraction at read time and takes the two files
+from ~284 KB of pack per indexed revision to ~6 KB:
+
+| | pack growth per revision |
+|---|---|
+| `versions.json`, tip written out | 141 KiB |
+| `versions.json`, tip left open | **3 KiB** |
+| `history.json`, tip written out | 143 KiB |
+| `history.json`, tip left open | **3 KiB** |
+
+Readers resolve a null against the `revisionCount` of the file that carries it,
+never against `length revisions`. The two disagree in the ordinary window
+between `fetch-unstable-revisions.sh` appending a revision and `build-index.sh`
+indexing it, and in that window the newly appended revision is one the index has
+never evaluated — resolving to it would claim a version was current in a tree
+nobody looked at.
 
 `releases.json` is separate and indexed by nothing: 25 release channels, each
 holding the current tip of its branch. Releases move as backports are applied, so a release is a channel, not a snapshot, and it lives outside the revision array for that reason. See [releases move, revisions do not](./nix-api.md#releases-move-revisions-do-not).

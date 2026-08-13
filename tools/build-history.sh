@@ -58,11 +58,23 @@ revs = json.load(open(revfile))
 # On disk a version with one unbroken run is [first, last]; one with gaps is a
 # list of those pairs. 91.6% of pairs are single-run, so collapsing the common
 # case is worth the one isinstance check it costs a reader.
-def pack(runs):
-    return runs[0] if len(runs) == 1 else runs
+#
+# A run still open at the newest revision covered is written [first, null]
+# rather than [first, tip], because that tip moves on every run: closing those
+# runs literally means an append rewrites the end offset of every version that
+# did *not* change — 24,854 of 31,819 attributes on a typical revision — which
+# git stores as ~140 KB of scattered edits rather than the ~3 KB that actually
+# changed. Readers substitute revisionCount - 1; see docs/design.md.
+def pack(runs, tip):
+    ended = [[first, None] if last == tip else [first, last] for first, last in runs]
+    return ended[0] if len(ended) == 1 else ended
 
-def unpack(v):
-    return [v] if v and not isinstance(v[0], list) else v
+# The inverse, and the reason `tip` is threaded through rather than taken from
+# len(revs): a null resolves against the count of the file that wrote it, so an
+# index sitting behind revisions.json still ends where it says it ends.
+def unpack(v, tip):
+    runs = [v] if v and not isinstance(v[0], list) else v
+    return [[first, tip if last is None else last] for first, last in runs]
 
 covered = 0
 skipped = []
@@ -73,7 +85,10 @@ if incremental and os.path.exists(out):
         sys.exit(f"build-history: history covers {prior['revisionCount']} revisions "
                  f"but revisions.json has {len(revs)}; revisions.json was reordered")
     covered, skipped = prior['revisionCount'], prior['skipped']
-    attrs = {a: {v: unpack(r) for v, r in vs.items()} for a, vs in prior['attrs'].items()}
+    attrs = {
+        a: {v: unpack(r, covered - 1) for v, r in vs.items()}
+        for a, vs in prior['attrs'].items()
+    }
 
 # The last offset actually folded in, which is what decides whether the next one
 # extends a run or starts a new one. Not `off - 1`: a skipped revision must not
@@ -133,7 +148,7 @@ for off in range(covered, len(revs)):
 # was actually folded in, so a skip past the last extraction leaves it alone.
 skipped = sorted(set(s for s in skipped if s < covered))
 
-packed = {a: {v: pack(r) for v, r in vs.items()} for a, vs in attrs.items()}
+packed = {a: {v: pack(r, covered - 1) for v, r in vs.items()} for a, vs in attrs.items()}
 json.dump({"revisionCount": covered, "skipped": skipped, "attrs": packed},
           open(out, 'w'), sort_keys=True)
 

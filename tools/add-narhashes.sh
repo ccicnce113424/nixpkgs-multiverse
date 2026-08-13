@@ -32,7 +32,14 @@ if $ALL:
     targets = range(len(revs))
 else:
     idx = json.load(open('$MT/index/versions.json'))
-    targets = sorted(set(v for vs in idx['attrs'].values() for v in vs.values()))
+    # A null offset is the newest revision the index covers, left open so that
+    # appending one does not rewrite every version still current; see
+    # docs/design.md. It is a revision like any other here — and the one every
+    # current package resolves to, so it needs a narHash more than most.
+    tip = idx['revisionCount'] - 1
+    targets = sorted(set(
+        tip if v is None else v for vs in idx['attrs'].values() for v in vs.values()
+    ))
 for i in targets:
     if 'narHash' not in revs[i]:
         print(i, revs[i]['rev'])

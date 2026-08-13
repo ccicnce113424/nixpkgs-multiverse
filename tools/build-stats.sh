@@ -40,8 +40,13 @@ revs = json.load(open(revfile))
 hist = json.load(open(histfile))
 N = hist['revisionCount']
 
+# A run still open at the newest revision covered ends in null rather than in
+# N - 1, so that appending a revision does not rewrite every version that is
+# still current; see docs/design.md. Closed here, so everything below counts
+# plain offsets.
 def unpack(v):
-    return [v] if v and not isinstance(v[0], list) else v
+    runs = [v] if v and not isinstance(v[0], list) else v
+    return [[first, N - 1 if last is None else last] for first, last in runs]
 
 # --- attribute presence over time -------------------------------------------
 #

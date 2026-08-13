@@ -202,6 +202,15 @@ attrs = {}
 if incremental and os.path.exists(out):
     prior = json.load(open(out))
     covered, attrs = prior['revisionCount'], prior['attrs']
+    # A version still current at the newest revision covered is stored with a
+    # null offset — see the dump below. Resolve it against the count the file
+    # carries, which is the one that wrote those nulls, not len(revs): a
+    # revision appended since is a revision this index has not looked at.
+    tip = covered - 1
+    for versions in attrs.values():
+        for version, off in versions.items():
+            if off is None:
+                versions[version] = tip
 
 indexed = 0
 for off in range(covered, len(revs)):          # oldest first: later writes win
@@ -224,7 +233,18 @@ for off in range(covered, len(revs)):          # oldest first: later writes win
 if not incremental:
     covered = len(revs)
 
-json.dump({"revisionCount": covered, "attrs": attrs}, open(out, 'w'), sort_keys=True)
+# A version still shipping in the newest revision covered is written as null
+# rather than as that offset, because that offset moves every single run.
+# Recording it literally means an append rewrites the entry of every version
+# that did *not* change — 24,854 of 31,819 attributes on a typical revision —
+# and git stores that as ~140 KB of scattered edits rather than the ~3 KB that
+# actually changed. Readers substitute revisionCount - 1; see docs/design.md.
+tip = covered - 1
+open_ended = {
+    attr: {version: (None if off == tip else off) for version, off in versions.items()}
+    for attr, versions in attrs.items()
+}
+json.dump({"revisionCount": covered, "attrs": open_ended}, open(out, 'w'), sort_keys=True)
 pairs = sum(len(v) for v in attrs.values())
 merged = f"{indexed} new" if incremental else f"{indexed}/{len(revs)}"
 print(f"index: {merged} revisions merged, covering {covered}/{len(revs)}, "

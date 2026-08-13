@@ -51,6 +51,12 @@ let
 
   # { revisionCount, attrs = { attr = { version = <offset into revisions>; }; } }
   #
+  # An offset of `null` means the newest revision the file covers, which is
+  # revisionCount - 1. Writing that offset out literally would move it on every
+  # version still current whenever a revision is appended, rewriting most of the
+  # file to say nothing changed; see docs/design.md. `versionsFor` resolves it,
+  # and nothing above that sees a null.
+  #
   # Only the NEWEST revision shipping each version is recorded. Keeping the full
   # list is what makes an index grow with revision count rather than with
   # content: a package that never changes version would otherwise accumulate one
@@ -428,7 +434,18 @@ let
     ) offsets
   );
 
-  versionsFor = attr: attrIndex.${attr} or { };
+  # Every version of an attribute with the offset it resolves to, the open-ended
+  # tip encoding closed. Against the index's own revisionCount rather than
+  # nRevs: a revision appended since the last indexing run is one this file has
+  # never looked at, and resolving to it would claim a version was current in a
+  # tree nobody evaluated.
+  #
+  # `mapAttrs` is lazy in its values, so an attribute whose versions are only
+  # counted or named costs nothing here.
+  versionsFor =
+    attr: builtins.mapAttrs (_: off: if off == null then indexTip else off) (attrIndex.${attr} or { });
+
+  indexTip = checkedIndex.revisionCount - 1;
 
   # `builtins.attrNames` sorts lexicographically, which puts 3.12.10 before
   # 3.12.7. Sort with the version-aware comparator instead. Deliberately uses
@@ -457,6 +474,23 @@ let
   # On disk a version with one unbroken run is stored as [first, last] and one
   # with gaps as a list of those pairs — 91.6% of pairs are single-run, so the
   # collapse is most of a megabyte. Everything below works on the expanded form.
+  #
+  # A run still open at the newest revision covered ends in `null` rather than
+  # in that offset, for the same reason the index stores a null offset — see
+  # docs/design.md. `closeRun` is where it stops being null, so every reader
+  # below still sees two plain offsets.
+  historyTip = checkedHistory.revisionCount - 1;
+
+  closeRun =
+    r:
+    if builtins.elemAt r 1 == null then
+      [
+        (builtins.elemAt r 0)
+        historyTip
+      ]
+    else
+      r;
+
   runsOf =
     attr: ver:
     let
@@ -465,18 +499,41 @@ let
     if raw == null then
       null
     else if builtins.isList (builtins.head raw) then
-      raw
+      map closeRun raw
     else
-      [ raw ];
+      [ (closeRun raw) ];
 
   # Revisions inside the covered prefix that were never extracted, so a gap in a
   # run can be told apart from a revision nobody ever looked at.
   skipped = checkedHistory.skipped;
 in
 rec {
-  # `history` is the raw file; forcing it is what parses it, so naming it here
-  # costs nothing until something reads it.
-  inherit revisions index history;
+  inherit revisions;
+
+  # The two index files, as parsed — except that the open-ended tip encoding is
+  # closed on the way out, so a consumer reading them directly gets the plain
+  # offsets it has always got and never has to know a null can appear on disk.
+  # Forcing one of these is what parses the file, so naming them here costs
+  # nothing until something reads them, and `mapAttrs` is lazy in its values, so
+  # reading one attribute resolves one attribute.
+  index = checkedIndex // {
+    attrs = builtins.mapAttrs (attr: _: versionsFor attr) attrIndex;
+  };
+
+  history = checkedHistory // {
+    attrs = builtins.mapAttrs (
+      attr: vers:
+      builtins.mapAttrs (
+        ver: _:
+        let
+          rs = runsOf attr ver;
+        in
+        # Re-collapsed the way the file stores it: a single run is the pair
+        # itself, not a list holding it.
+        if builtins.length rs == 1 then builtins.head rs else rs
+      ) vers
+    ) checkedHistory.attrs;
+  };
 
   # Human handles for every revision, oldest first.
   revs = map labelOf offsets;
