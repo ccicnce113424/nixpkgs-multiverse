@@ -155,6 +155,62 @@ multiverse.lib.readLock {
 
 or, in the module, `multiverse.lock = ./multiverse.lock;`.
 
+### Using the lock file without the module
+
+`readLock` is a function from a lock file to an attrset of ordinary
+derivations, so nothing about it needs NixOS or home-manager. Read it once and
+every pin is a package you can put wherever a package goes:
+
+```nix
+let
+  pinned = multiverse.lib.readLock {
+    system = "x86_64-linux";
+    file = ./multiverse.lock;
+  };
+in
+{
+  environment.systemPackages = [
+    pinned.helix
+    pinned.typst
+    pinned.tinymist
+  ];
+}
+```
+
+Because the result is a plain attrset, the usual attrset tricks apply. To
+install everything the lock names, without listing them a second time:
+
+```nix
+home.packages = builtins.attrValues pinned;
+```
+
+A single pin works as an option value, for the options that take a package
+rather than installing one:
+
+```nix
+programs.helix.package = pinned.helix;
+```
+
+`readLock` takes the same `config` and `overlays` as everything else, which is
+what an unfree pin needs:
+
+```nix
+multiverse.lib.readLock {
+  inherit system;
+  file = ./multiverse.lock;
+  config.allowUnfree = true;
+}
+```
+
+One thing to know before hand-editing: only `rev` decides what gets built.
+`label`, `version` and `date` are decoration for you and for
+`mvs lock status`, so changing a version string there changes what the table
+reports and not what you get. Use `mvs lock update <attr>` to move a pin.
+
+
+Please see [the module documentation](./modules.md) for how to
+use it in your system configuration.
+
 ## Running a version
 
 Thin wrappers over `nix run` and `nix shell` that take `attr@version` and

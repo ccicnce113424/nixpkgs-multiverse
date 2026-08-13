@@ -182,6 +182,8 @@ mv.revOf "python3" "3.8.9"
 mv.daysBehind "tip" 7
 # a revision as the flake attrset `inputs.nixpkgs` would have been
 mv.flakeAt "26.05"
+# a `mvs lock` file, as {attr -> derivation}
+mv.readLock ./multiverse.lock
 # where a package set came from
 (mv.at "26.05").multiverse
 # every release channel tracked, oldest first
