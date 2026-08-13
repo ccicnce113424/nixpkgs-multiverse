@@ -267,11 +267,13 @@
           # of the site that reads as bulk near-duplicate pages rather than as
           # something a person searched for.
           sitemap = pkgs.writeText "sitemap.py" ''
-            import json, sys
+            import json, os, sys
             from urllib.parse import quote
             from xml.sax.saxutils import escape
 
-            origin, versions_src, revisions_src, releases_src, dest, limit = sys.argv[1:7]
+            (
+                origin, versions_src, revisions_src, releases_src, docs_dir, dest, limit
+            ) = sys.argv[1:8]
             limit = int(limit)
 
             versions = json.load(open(versions_src))["attrs"]
@@ -285,6 +287,21 @@
             urls = [("/", newest)]
             for view in ("revisions", "releases", "stats"):
                 urls.append((f"/?view={view}", newest))
+
+            # The documentation. Worth listing ahead of any package page: it is
+            # the only prerendered prose on the site — every other URL here is
+            # an empty shell that JavaScript fills in from JSON — so it is the
+            # one part a crawler can read without choosing to run anything.
+            #
+            # No lastmod, deliberately. Nothing in this build knows when a docs
+            # page last changed; `newest` is the wrong answer, because the docs
+            # do not move when the channel does, and a lastmod that lies every
+            # hour is worse than none at all.
+            docs = sorted(f for f in os.listdir(docs_dir) if f.endswith(".html"))
+            urls.append(("/docs/", None))
+            for page in docs:
+                if page != "index.html":
+                    urls.append((f"/docs/{page}", None))
 
             for name, r in releases.items():
                 urls.append(
@@ -318,47 +335,70 @@
                 )
                 for path, lastmod in urls:
                     loc = escape(origin + path)
-                    out.write(f"<url><loc>{loc}</loc><lastmod>{lastmod}</lastmod></url>\n")
+                    mod = f"<lastmod>{lastmod}</lastmod>" if lastmod else ""
+                    out.write(f"<url><loc>{loc}</loc>{mod}</url>\n")
                 out.write("</urlset>\n")
 
-            print(f"sitemap: {len(urls)} urls ({len(ranked) - limit} packages left out)")
+            print(
+                f"sitemap: {len(urls)} urls "
+                f"({len(docs)} docs, {len(ranked) - limit} packages left out)"
+            )
           '';
         in
-        pkgs.runCommand "nixpkgs-multiverse-site" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-          mkdir -p $out
-          cp ${./site}/* $out/
-          cp ${./revisions.json} $out/revisions.json
-          cp ${./releases.json} $out/releases.json
-          cp ${./index/stats.json} $out/stats.json
-          python3 ${shardByAttr} ${./index/history.json} $out/history
-          python3 ${shardByAttr} ${./index/versions.json} $out/versions
-          python3 ${attrNames} ${./index/versions.json} $out/names.json
+        pkgs.runCommand "nixpkgs-multiverse-site"
+          {
+            nativeBuildInputs = [
+              # pygments highlights the docs' code blocks at build time, which
+              # is what keeps a highlighter and its CDN out of the pages
+              # themselves. The other scripts here need plain python3, and one
+              # interpreter serves both.
+              (pkgs.python3.withPackages (ps: [ ps.pygments ]))
+              pkgs.cmark-gfm
+            ];
+          }
+          ''
+            mkdir -p $out
+            cp ${./site}/* $out/
+            cp ${./revisions.json} $out/revisions.json
+            cp ${./releases.json} $out/releases.json
+            cp ${./index/stats.json} $out/stats.json
+            python3 ${shardByAttr} ${./index/history.json} $out/history
+            python3 ${shardByAttr} ${./index/versions.json} $out/versions
+            python3 ${attrNames} ${./index/versions.json} $out/names.json
 
-          # site/robots.txt, copied in above, points a crawler at this.
-          python3 ${sitemap} ${siteOrigin} ${./index/versions.json} \
-            ${./revisions.json} ${./releases.json} $out/sitemap.xml \
-            ${toString sitemapPackages}
+            # docs/*.md rendered to /docs/*.html. The same markdown is what
+            # GitHub shows in the repository, so the two never disagree.
+            python3 ${./tools/render-docs.py} \
+              ${pkgs.cmark-gfm}/bin/cmark-gfm ${./docs} $out/docs \
+              ${siteOrigin} "${commit}" "$out"
 
-          # The whole index, which only the revisions tab needs: "what is
-          # pinned at this revision" is a question about every attribute at
-          # once, and no shard can answer it. Fetched when a revision row is
-          # opened, never at boot.
-          cp ${./index/versions.json} $out/versions.json
+            # site/robots.txt, copied in above, points a crawler at this. Runs
+            # after the docs are rendered: it lists what was actually written
+            # to $out/docs rather than a second copy of the page list.
+            python3 ${sitemap} ${siteOrigin} ${./index/versions.json} \
+              ${./revisions.json} ${./releases.json} $out/docs $out/sitemap.xml \
+              ${toString sitemapPackages}
 
-          # The social-card image the og:/twitter: meta tags point at.
-          cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg
+            # The whole index, which only the revisions tab needs: "what is
+            # pinned at this revision" is a question about every attribute at
+            # once, and no shard can answer it. Fetched when a revision row is
+            # opened, never at boot.
+            cp ${./index/versions.json} $out/versions.json
 
-          chmod -R u+w $out
-          substituteInPlace $out/app.js --replace-quiet "__COMMIT__" "${commit}"
+            # The social-card image the og:/twitter: meta tags point at.
+            cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg
 
-          # The output path is known before building, so the page can name
-          # the very store path it is served out of (a benign self-reference).
-          substituteInPlace $out/app.js --replace-fail "__STORE_PATH__" "$out"
+            chmod -R u+w $out
+            substituteInPlace $out/app.js --replace-quiet "__COMMIT__" "${commit}"
 
-          hash=$(sha256sum $out/app.js | cut -c1-12)
-          mv $out/app.js "$out/app.$hash.js"
-          substituteInPlace $out/index.html --replace-fail "app.js" "app.$hash.js"
-        '';
+            # The output path is known before building, so the page can name
+            # the very store path it is served out of (a benign self-reference).
+            substituteInPlace $out/app.js --replace-fail "__STORE_PATH__" "$out"
+
+            hash=$(sha256sum $out/app.js | cut -c1-12)
+            mv $out/app.js "$out/app.$hash.js"
+            substituteInPlace $out/index.html --replace-fail "app.js" "app.$hash.js"
+          '';
 
       # The scripts behind `nix run .#<tool>`, each with the description its
       # app surfaces through `nix flake show` and `nix flake check`.
@@ -494,6 +534,23 @@
           history = evalTest "test-history" ./tests/history.nix;
           lock = evalTest "test-lock" ./tests/lock.nix;
           compose = (import ./tests/compose.nix { inherit system; }).env;
+
+          # Every in-repository markdown link, against the headings that
+          # actually exist. Both renderers — GitHub and tools/render-docs.py —
+          # derive anchors from heading text, so renaming a heading breaks
+          # links in both and neither says so: the browser just scrolls to the
+          # top. The tree is reassembled here because the checker resolves
+          # `../` links relative to the file holding them.
+          docs-links = pkgs.runCommand "check-docs-links" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+            mkdir -p repo/docs repo/.github/workflows
+            cp ${./README.md} repo/README.md
+            cp ${./LICENSE} repo/LICENSE
+            cp ${./multiverse_lotr.jpg} repo/multiverse_lotr.jpg
+            cp ${./docs}/*.md repo/docs/
+            cp ${./.github/workflows}/*.yml repo/.github/workflows/
+            cd repo
+            python3 ${./tools/check-links.py} README.md docs/*.md | tee $out
+          '';
         }
       );
 

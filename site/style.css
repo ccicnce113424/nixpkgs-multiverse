@@ -38,6 +38,42 @@ h1 a {
   color: inherit;
   text-decoration: none;
 }
+
+/* The site header: the title on the left, the top-level destinations on the
+   right. Deliberately borderless — on the index the SPA's own view tabs draw
+   a rule immediately below it, and two rules stacked read as a boxed-in
+   header. Wraps to two lines on a narrow phone rather than shrinking. */
+header.site {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.3rem 1rem;
+  margin: 0.2rem 0 0.6rem;
+}
+/* These links are site-level navigation, not the view tabs `nav a` styles,
+   so the tab strip's padding and underline are undone here. */
+nav.site {
+  margin: 0;
+  border: 0;
+  display: flex;
+  gap: 1rem;
+  font-size: 14px;
+}
+nav.site a {
+  display: inline;
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  text-decoration: none;
+}
+nav.site a:hover {
+  text-decoration: underline;
+}
+nav.site a.active {
+  color: var(--fg);
+  font-weight: 600;
+}
 h2 {
   font-size: 1.1rem;
   margin: 1rem 0 0.3rem;
