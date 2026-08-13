@@ -15,6 +15,7 @@ and pin commands, plus the full revision and release tables.
 **Jump to:** [Usage](#usage) ·
 [Version history](#version-history) ·
 [Unfree packages](#unfree-packages-and-nixpkgs-config) ·
+[The `mv` CLI](#the-mv-cli) ·
 [NixOS / home-manager module](#the-nixos-and-home-manager-module) ·
 [Replacing nixpkgs inputs](#replacing-several-nixpkgs-inputs) ·
 [Building the index](#building-the-index)
@@ -77,6 +78,10 @@ $ nix eval --json --apply 'f: f "python3"' \
   "3.14.6"
 ]
 ```
+
+The same question, and every other one below, is a subcommand of
+[`mv`](#the-mv-cli) — `mv query versions python3` — which answers it out of a
+baked database rather than an evaluation.
 
 Create a specific complete revision of Nixpkgs using the `at` function.
 
@@ -314,6 +319,200 @@ through to every revision it hands out:
 `mv.tip`, `mv.at`, `mv.version`, `mv.versions` and `mv.latest` all carry that
 config.
 
+## The `mv` CLI
+
+Everything above is an evaluation. `mv` answers the same questions as a
+program — offline, in milliseconds, out of a SQLite database baked into its own
+store path at build time.
+
+```console
+$ nix run github:fzakaria/nixpkgs-multiverse#mv -- query versions python3
+python3 · 62 versions · 2013-10-31 .. 2026-08-10
+VERSION  FIRST       LAST        REVS
+3.3.2    2013-10-31  2013-10-31  1
+3.4.3    2015-09-30  2015-09-30  1
+…
+3.13.13  2026-05-21  2026-07-05  12
+3.14.6   2026-07-08  current     17
+```
+
+The data version *is* the flake version. A newer index arrives through
+`nix flake update multiverse`, which rebuilds the database derivation and
+rewraps the binary — there is no download path, no cache directory, and nothing
+that can drift from the pinned input. Two people running the same `nix run` get
+the same answers.
+
+`--json` works on every subcommand.
+
+### Reading the index — `mv query`
+
+| command | answers |
+|---|---|
+| `mv query versions <attr>` | every version, oldest first, with its lifetime |
+| `mv query when <attr> <ver>` | first and last sighting, every run, the gaps |
+| `mv query at <sel> <attr>` | the version that revision shipped |
+| `mv query gone <attr>` | last sighting, or still current |
+| `mv query rev <sel>` | resolve any selector to commit, date and label |
+| `mv query search <pattern>` | attribute search |
+| `mv query diff <a> <b>` | added / removed / upgraded / downgraded |
+| `mv query stats` | headline numbers |
+
+A *selector* is the same vocabulary `at` takes: `tip`, a release (`26.05`), a
+date (`2022-03-15`), a commit prefix, or a revision label.
+
+`query at` is the one that cannot be done any other way. It says what nixpkgs
+had on a date without materialising anything, where reading
+`(mv.at "2022-03-15").python3.version` fetches the whole ~378 MB revision to
+look at one string:
+
+```console
+$ mv query at 2022-03-15 python3
+3.9.10
+  2022-03-14-73ad5f9e147c (2022-03-14)
+```
+
+A version is not always present the whole time, and `when` says so rather than
+flattening it into a range:
+
+```console
+$ mv query when emacs 25.1
+emacs 25.1 · 60 revisions · 2016-09-24 .. 2017-04-27
+RUN  FIRST                    LAST                     REVS
+1    2016-09-24-adfcc2d9531e  2016-09-24-adfcc2d9531e  1
+2    2016-10-13-09e4b78b48fa  2017-04-24-c90998d5cf8b  58
+3    2017-04-27-e89343dc08ca  2017-04-27-e89343dc08ca  1
+  gap: 1 revision between 2016-10-01 and 2016-10-01
+  gap: 1 revision between 2017-04-27 and 2017-04-27
+```
+
+### One revision for several packages — `mv solve`
+
+Composing versions from *different* revisions gives a closure with two libcs
+and two opensslls. That is fine for a leaf command-line tool and wrong for
+anything that links. `solve` inverts the question: one revision, one stdenv,
+internally consistent.
+
+```console
+$ mv solve python3@3.8 nodejs@14
+110 revisions · 2020-11-21 .. 2021-07-18
+newest: 967d40bec14b (2021-07-18)
+
+ATTR     VERSION
+python3  3.8.9
+nodejs   14.17.3
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/967d40bec14be87262b21ab901dbace23b7365db";
+```
+
+When nothing satisfies the constraints it says which two never overlapped, and
+exits non-zero:
+
+```console
+$ mv solve python3@3.6 ripgrep@14
+no revision ever had both
+WANTED         FROM        TO          REVS
+python3 3.6.x  2017-05-29  2018-11-17  162
+ripgrep 14.x   2023-11-26  2025-10-15  288
+  python3 3.6.x and ripgrep 14.x never overlapped
+```
+
+A version is a prefix, matched component by component: `python3@3.8` accepts
+3.8.9 and refuses 3.81, and `python3@3.1` means 3.1.x rather than 3.10 through
+3.13.
+
+### Per-package pins — `mv lock`
+
+```
+mv lock add <attr>[@ver]        mv lock update [<attr> | --all]
+mv lock rm <attr>               mv lock status
+mv lock list
+```
+
+`mv lock update helix` finds the newest indexed revision providing helix and
+rewrites **only** that entry. Every other pin stays exactly where it was, which
+is the difference from a single flake input that moves everything at once.
+
+```json
+{
+  "version": 1,
+  "pins": {
+    "helix": {
+      "rev": "2fcb964de67fcf60b43471c55d5d99e61a9ccb5a",
+      "label": "2026-08-10-2fcb964de67f",
+      "version": "25.07.1",
+      "date": "2026-08-10"
+    }
+  }
+}
+```
+
+`mv lock status` is where the history index earns its place — how far behind a
+pin has fallen, with nothing fetched and no clock consulted. Both numbers are
+measured against the newest revision the index knows, so the answer is
+reproducible and moves only when the index does:
+
+```console
+$ mv lock status
+ATTR   PINNED   LATEST   BEHIND
+helix  25.01.1  25.07.1  2 versions, 72 days
+```
+
+A pin can never point past what the index knows, because materialising a
+revision needs its narHash. Moving one forward is therefore two steps, and
+honestly so:
+
+```console
+$ nix flake update multiverse    # learn about newer revisions
+$ mv lock update helix           # move this one package
+```
+
+The Nix side reads the same file. `readLock` resolves it lazily, so twenty pins
+materialise only the revisions behind the packages actually built:
+
+```nix
+multiverse.lib.readLock {
+  system = "x86_64-linux";
+  file = ./multiverse.lock;
+}
+# => { helix = <derivation>; ripgrep = <derivation>; }
+```
+
+or, in the module, `multiverse.lock = ./multiverse.lock;`.
+
+### Running a version — `mv run`, `mv shell`
+
+Thin wrappers over `nix run` and `nix shell` that take `attr@version` and
+resolve it through the index. `--dry-run` prints the command line instead,
+which is how to see what a constraint resolved to before fetching it.
+
+```console
+$ mv run ripgrep@13.0.0 -- --version
+ripgrep 13.0.0 from 2023-11-29-7c6e3666e204
+ripgrep 13.0.0
+
+$ mv shell ripgrep@13.0.0 fd@8.7.0 --dry-run
+nix shell github:NixOS/nixpkgs/7c6e3666e204…#ripgrep github:NixOS/nixpkgs/7c9cc5a6e5d3…#fd
+```
+
+`mv shell` composes across revisions, which is right for standalone binaries
+and wrong for a development environment — for that, `solve` gives one coherent
+revision.
+
+### The database
+
+`multiverse.db` is derived at build time and never committed: it is binary, it
+would change every time the hourly job lands a revision, and a committed copy
+could sit beside JSON it no longer matches. The JSON files stay canonical.
+
+The same derivation doubles as the artifact for anyone who wants to run SQL
+over 13 years of nixpkgs — 8.4 MB, one row per *run*:
+
+```console
+$ nix build github:fzakaria/nixpkgs-multiverse#index-db
+$ sqlite3 result 'SELECT count(*) FROM runs'
+331307
+```
+
 ## The NixOS and home-manager module
 
 `nixosModules.default` and `homeManagerModules.default` share every option below:
@@ -332,6 +531,10 @@ config.
       vscode = "1.107.0";
       ripgrep = "13.0.0";
     };
+
+    # The same idea, maintained by `mv lock` instead of by hand: a set of
+    # commits, each moved on its own by `mv lock update <attr>`.
+    lock = ./multiverse.lock;
   };
 }
 ```
@@ -341,7 +544,13 @@ than installing one:
 
 ```nix
 programs.vscode.package = config.multiverse.pinned.vscode;
+# and, for a lock file, config.multiverse.locked.vscode
 ```
+
+An attribute claimed by more than one of `pins`, `lock` and
+`cooldown.packages` is a configuration error rather than a file collision out
+of `buildEnv`: each side would resolve to a different derivation of the same
+package.
 
 **Note**: Only top-level attributes work. Nested sets such as `python3Packages.*`,
 or `nodePackages.*` are not in the index and cannot be used.
