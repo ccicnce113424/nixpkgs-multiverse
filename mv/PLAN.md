@@ -259,13 +259,38 @@ Steps 1–2 are a useful tool on their own; every step after ships independently
 
 ## Open questions
 
-- **Database size.** Unmeasured. Do this first; it decides whether the
-  normalised-rows schema survives.
-- **`GLOB` versus explicit range constraints.** `python3@3.8` is a prefix match
-  today. Whether `>=`/`<` constraints are worth supporting depends on whether
-  prefix matching turns out to be limiting in practice — worth deferring until
-  `solve` has real use.
-- **Sorting in SQL or in Rust.** SQLite cannot sort by Nix version ordering, so
-  anything version-ordered must be sorted in Rust after the query. Fine at these
-  sizes (62 versions for `python3`), but it rules out `ORDER BY version` and
-  `LIMIT` pushdown.
+Answered while building it. Two of the three changed the design above, so the
+answers are recorded here rather than only in the code.
+
+- **Database size.** The normalised-rows schema survives, at 8.4 MB against
+  13.9 MB of JSON — but only as a `WITHOUT ROWID` table keyed on
+  `(attr_id, version, first)` with **no** secondary index. The schema sketched
+  above measures 16.1 MB: `runs_attr` is a second copy of an ordering the
+  primary key already provides, and `runs_span` costs 4.6 MB to halve a 35 ms
+  scan that only `diff` performs. Measurements are in `mv/build-db.py`.
+- **`GLOB` versus explicit range constraints.** The `GLOB` in the `solve` sketch
+  is simply wrong: `python3@3.1` would be satisfied by 3.10 through 3.13.
+  Prefixes are matched component by component in Rust instead, which is what
+  `3.8` meaning "3.8.x" requires and what no SQL pattern can express. Whether
+  `>=`/`<` are worth supporting is still open, and still worth deferring.
+- **Sorting in SQL or in Rust.** As stated: everything version-ordered is sorted
+  in Rust after the query, and `ORDER BY version` never appears.
+
+## What shipped
+
+All five phases, plus what they turned out to need:
+
+- The version comparator's numeric parse is `i32`, not a wider type, because
+  Nix parses components with `string2Int<int>` — a digit run that overflows a C
+  `int` stops being a number to Nix and falls through to the string rules.
+  `v2ray-domain-list-community` tags releases `20230106031328`, so this is
+  reachable, and the differential test catches an `i64` comparator on 32 of its
+  4000 sampled pairs.
+- A pin stores the version prefix it was added with. Without it,
+  `mv lock update` on a pin added as `python3@3.8` walks to 3.14 — the opposite
+  of what pinning to 3.8 meant.
+- `mv run`/`mv shell` resolve to `github:NixOS/nixpkgs/<rev>#<attr>` and hand
+  over to Nix, so `mv` itself stays offline and nothing needs a flake
+  self-reference.
+- The differential test runs from `devShells.mv` in CI, not from
+  `nix flake check`: it needs a `nix` to ask, and the build sandbox has none.
