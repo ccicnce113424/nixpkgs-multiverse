@@ -63,8 +63,8 @@ RUN  FIRST                    LAST                     REVS
 
 ## One revision for several packages
 
-Composing versions from *different* revisions gives a closure with two libcs
-and two opensslls. That is fine for a leaf command-line tool and wrong for
+Composing versions from *different* revisions gives complete closure down to
+the `libc`. That is fine for a leaf command-line tool and wrong for
 anything that links. `solve` inverts the question: one revision, one stdenv,
 internally consistent.
 
