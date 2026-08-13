@@ -48,3 +48,11 @@ jobs:
 
       - name: Tests
         run: nix flake check -L
+
+      # `mv`'s own suite, which flake check cannot run in full: the differential
+      # test holds the version comparator against `builtins.compareVersions`
+      # over 4000 real pairs from the index, and that needs a `nix` to ask —
+      # inside the build sandbox there is none, so it skips there. Everything
+      # downstream of that comparator is only as trustworthy as this step.
+      - name: mv
+        run: nix develop .#mv -c cargo test --manifest-path mv/Cargo.toml

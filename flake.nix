@@ -390,8 +390,21 @@
           pkgs = pkgsFor system;
         in
         pkgs.nixfmt-tree.override {
-          runtimeInputs = [ pkgs.prettier ];
+          runtimeInputs = [
+            pkgs.prettier
+            pkgs.rustfmt
+          ];
           settings = {
+            # mv/ is Rust, and holding it to `nix fmt` too means CI's one
+            # formatting step covers every language in the tree.
+            formatter.rustfmt = {
+              command = "rustfmt";
+              options = [
+                "--edition"
+                "2021"
+              ];
+              includes = [ "*.rs" ];
+            };
             formatter.prettier = {
               command = "prettier";
               options = [ "--write" ];
@@ -421,9 +434,32 @@
 
       # Everything tools/*.sh needs, so `tools/build-index.sh` runs the same way
       # on any host — including the bash 4+ the scripts assume.
-      devShells = forAllSystems (system: {
-        default = (pkgsFor system).mkShellNoCC { packages = toolDeps (pkgsFor system); };
-      });
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        {
+          default = pkgs.mkShellNoCC { packages = toolDeps pkgs; };
+
+          # `nix develop .#mv -c cargo test` — the crate's own toolchain, with
+          # MV_DB already pointing at a built database so the tests have an
+          # index to read without one being wired up by hand.
+          #
+          # The differential test against builtins.compareVersions runs from
+          # here rather than from `nix flake check`: it needs a `nix` to ask,
+          # and the build sandbox has none, so it skips there and CI runs it.
+          mv = pkgs.mkShell {
+            packages = [
+              pkgs.cargo
+              pkgs.rustc
+              pkgs.rustfmt
+              pkgs.clippy
+            ];
+            MV_DB = indexDbFor system;
+          };
+        }
+      );
 
       # The same tools without entering a shell first:
       #   nix run .#build-index -- -n 30
