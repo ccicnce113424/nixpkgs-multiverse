@@ -11,6 +11,7 @@ and pin commands, plus the full revision and release tables.
 
 
 ![lotr meme "One flake to rule them all"](./multiverse_lotr.jpg)
+
 **Documentation:** [Design](./docs/design.md) ·
 [Selectors](./docs/selectors.md) ·
 [The Nix API](./docs/nix-api.md) ·
