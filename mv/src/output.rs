@@ -6,7 +6,15 @@
 //! afterwards — is the part a table crate would not do for us anyway, since
 //! the cells carry their own styles.
 
+use anyhow::Result;
 use owo_colors::{OwoColorize, Style};
+
+/// Emit a `--json` answer. Pretty-printed: the caller who wanted machine
+/// output usually reads it first, and `jq` does not care either way.
+pub fn print_json(value: serde_json::Value) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(&value)?);
+    Ok(())
+}
 
 /// The gap between columns. Two spaces reads as a column boundary without a
 /// separator character, which keeps output pasteable.

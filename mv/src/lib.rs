@@ -9,4 +9,5 @@ pub mod db;
 pub mod output;
 pub mod query;
 pub mod select;
+pub mod solve;
 pub mod version;

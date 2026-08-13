@@ -13,6 +13,7 @@ use clap::{Parser, Subcommand};
 
 use mv::db::Index;
 use mv::query::{self, Format};
+use mv::solve;
 
 #[derive(Parser)]
 #[command(
@@ -40,6 +41,16 @@ enum Command {
     /// Read-only questions about the index
     #[command(subcommand)]
     Query(Query),
+
+    /// Find one revision satisfying every constraint at once
+    ///
+    /// Each constraint is `attr` or `attr@version`, where the version is a
+    /// prefix matched component by component: `python3@3.8` accepts 3.8.9 and
+    /// refuses 3.81.
+    Solve {
+        #[arg(value_name = "ATTR[@VERSION]", required = true)]
+        constraints: Vec<String>,
+    },
 }
 
 /// A *selector* names a revision: `tip`, a release (`26.05`), a date
@@ -115,5 +126,6 @@ fn run() -> Result<()> {
             Query::Diff { a, b, limit } => query::diff(&index, a, b, *limit, format),
             Query::Stats => query::stats(&index, format),
         },
+        Command::Solve { constraints } => solve::solve(&index, constraints, format),
     }
 }

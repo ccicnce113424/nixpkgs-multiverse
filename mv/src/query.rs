@@ -30,11 +30,6 @@ pub enum Format {
     Human,
 }
 
-fn print_json(value: serde_json::Value) -> Result<()> {
-    println!("{}", serde_json::to_string_pretty(&value)?);
-    Ok(())
-}
-
 /// One version's lifetime: its runs, and the ends of them.
 #[derive(Serialize)]
 struct Lifetime {
@@ -128,7 +123,7 @@ pub fn versions(index: &Index, attr: &str, format: Format) -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
 
     if format == Format::Json {
-        return print_json(json!({ "attr": attr, "versions": lifetimes }));
+        return output::print_json(json!({ "attr": attr, "versions": lifetimes }));
     }
 
     let oldest = &lifetimes[0];
@@ -216,7 +211,7 @@ pub fn when(index: &Index, attr: &str, ver: &str, format: Format) -> Result<()> 
     }
 
     if format == Format::Json {
-        return print_json(json!({
+        return output::print_json(json!({
             "attr": attr,
             "version": ver,
             "lifetime": life,
@@ -270,7 +265,7 @@ pub fn at(index: &Index, selector: &str, attr: &str, format: Format) -> Result<(
         .map(|r| r.version.clone());
 
     if format == Format::Json {
-        return print_json(json!({
+        return output::print_json(json!({
             "attr": attr,
             "version": found,
             "revision": revision,
@@ -301,7 +296,7 @@ pub fn gone(index: &Index, attr: &str, format: Format) -> Result<()> {
     let is_gone = newest.last < index.covered_tip();
 
     if format == Format::Json {
-        return print_json(json!({
+        return output::print_json(json!({
             "attr": attr,
             "gone": is_gone,
             "version": newest.version,
@@ -336,7 +331,7 @@ pub fn rev(index: &Index, selector: &str, format: Format) -> Result<()> {
     match select::resolve(index, selector, Releases::Allowed)? {
         Target::Revision(r) => {
             if format == Format::Json {
-                return print_json(serde_json::to_value(&r)?);
+                return output::print_json(serde_json::to_value(&r)?);
             }
             anstream::println!("{}", r.rev);
             anstream::println!("  date    {}", r.date);
@@ -358,7 +353,7 @@ pub fn rev(index: &Index, selector: &str, format: Format) -> Result<()> {
         }
         Target::Release(release) => {
             if format == Format::Json {
-                return print_json(serde_json::to_value(&release)?);
+                return output::print_json(serde_json::to_value(&release)?);
             }
             anstream::println!("{}", release.rev);
             anstream::println!("  date    {}", release.date);
@@ -402,7 +397,9 @@ pub fn search(index: &Index, pattern: &str, limit: usize, format: Format) -> Res
     }
 
     if format == Format::Json {
-        return print_json(json!({ "pattern": pattern, "matches": hits, "truncated": truncated }));
+        return output::print_json(
+            json!({ "pattern": pattern, "matches": hits, "truncated": truncated }),
+        );
     }
 
     if hits.is_empty() {
@@ -483,7 +480,7 @@ pub fn diff(index: &Index, a: &str, b: &str, limit: usize, format: Format) -> Re
     }
 
     if format == Format::Json {
-        return print_json(json!({
+        return output::print_json(json!({
             "from": from,
             "to": to,
             "added": added,
@@ -612,7 +609,7 @@ pub fn stats(index: &Index, format: Format) -> Result<()> {
     )?;
 
     if format == Format::Json {
-        return print_json(json!({
+        return output::print_json(json!({
             "revisions": revisions,
             "first": first.date,
             "last": tip.date,

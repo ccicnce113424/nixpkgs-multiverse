@@ -12,9 +12,11 @@
 
 use std::cmp::Ordering;
 
+/// An iterator over a version's components.
+///
 /// A version component: a run of digits, or a run of non-digits, with `.` and
 /// `-` acting only as separators and belonging to neither.
-struct Components<'a> {
+pub struct Components<'a> {
     rest: &'a str,
 }
 
@@ -49,7 +51,7 @@ impl<'a> Iterator for Components<'a> {
     }
 }
 
-fn components(s: &str) -> Components<'_> {
+pub fn components(s: &str) -> Components<'_> {
     Components { rest: s }
 }
 
