@@ -83,6 +83,14 @@ jobs:
       - name: Fold the new revisions into the version history
         run: nix run .#build-history -- --incremental
 
+      # Reads the two committed files and nothing else, so unlike the step above
+      # it does not need the extraction cache — but it runs here anyway, because
+      # index/stats.json is aggregated from index/history.json and tests/index.nix
+      # fails the build if the two disagree about how many revisions they cover.
+      # Every file the commit below touches advances in this job or none does.
+      - name: Re-aggregate the chart data
+        run: nix run .#build-stats
+
       - name: Refresh the README status block
         run: nix run .#update-readme-status
 

@@ -454,6 +454,7 @@
       tools = {
         build-index = "Build index/versions.json (and narHashes) from revisions.json";
         build-history = "Build index/history.json (version lifetimes) from the extraction cache";
+        build-stats = "Build index/stats.json (the aggregates the site's charts draw) from index/history.json";
         fetch-unstable-revisions = "Append new nixos-unstable channel bumps to revisions.json";
         fetch-releases = "Refresh releases.json with the current tip of every release channel";
         add-narhashes = "Fill in narHash for revisions that lack one";
