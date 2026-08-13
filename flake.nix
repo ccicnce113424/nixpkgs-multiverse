@@ -183,26 +183,33 @@
           # hidden.
           commit = self.rev or self.dirtyRev or "__COMMIT__";
 
-          # history.json split by the first two characters of the attribute
-          # name, so a package page fetches only the shard holding it.
+          # An {"attrs": {...}} file split by the first two characters of the
+          # attribute name, so a package page fetches only the shard holding
+          # the one attribute it is about. history.json and versions.json have
+          # the same shape and both go through here.
           #
-          # A timeline needs the history of exactly one attribute; serving the
-          # whole 8 MB file to draw it would cost more than every other request
-          # on the page combined. Two characters puts the median shard at 2 KB
-          # and the 90th percentile at 26 KB.
+          # A timeline needs the history of exactly one attribute, and a
+          # version table needs the versions of exactly one attribute; serving
+          # either whole file to render one package would cost more than every
+          # other request on the page combined. Two characters puts the median
+          # history shard at 2 KB and the median versions shard at 1.4 KB.
           #
-          # A build artifact rather than committed data: the repo keeps the one
-          # file multiverse.nix reads, and the deploy gets the 792 pieces. That
+          # Build artifacts rather than committed data: the repo keeps the two
+          # files multiverse.nix reads, and the deploy gets the pieces. That
           # also means the split can be retuned without a data commit.
-          shardHistory = pkgs.writeText "shard-history.py" ''
+          shardByAttr = pkgs.writeText "shard-by-attr.py" ''
             import json, os, sys
 
             src, dest = sys.argv[1:3]
-            hist = json.load(open(src))
+            data = json.load(open(src))
             os.makedirs(dest, exist_ok=True)
 
+            # Everything that is not the per-attribute map is small and gets
+            # copied into every shard, so a shard stands on its own.
+            common = {k: v for k, v in data.items() if k != "attrs"}
+
             buckets = {}
-            for attr, vers in hist["attrs"].items():
+            for attr, vers in data["attrs"].items():
                 # Anything not alphanumeric folds to _, so the shard name is
                 # always a safe filename and the site can compute it with the
                 # same one-liner.
@@ -211,12 +218,29 @@
 
             for key, attrs in buckets.items():
                 json.dump(
-                    {"revisionCount": hist["revisionCount"], "attrs": attrs},
+                    {**common, "attrs": attrs},
                     open(os.path.join(dest, key + ".json"), "w"),
                     separators=(",", ":"),
                     sort_keys=True,
                 )
-            print(f"sharded {len(hist['attrs'])} attrs into {len(buckets)} files")
+            print(f"sharded {len(data['attrs'])} attrs into {len(buckets)} files")
+          '';
+
+          # Every attribute name and how many versions it has: 486 KB against
+          # versions.json's 5.3 MB, and all the search box ever reads. The
+          # search box is the landing page, so this one loads at boot — the
+          # shards above cover everything after a package is chosen.
+          attrNames = pkgs.writeText "attr-names.py" ''
+            import json, sys
+
+            src, dest = sys.argv[1:3]
+            index = json.load(open(src))
+            json.dump(
+                {"attrs": {a: len(v) for a, v in index["attrs"].items()}},
+                open(dest, "w"),
+                separators=(",", ":"),
+                sort_keys=True,
+            )
           '';
         in
         pkgs.runCommand "nixpkgs-multiverse-site" { nativeBuildInputs = [ pkgs.python3 ]; } ''
@@ -224,9 +248,16 @@
           cp ${./site}/* $out/
           cp ${./revisions.json} $out/revisions.json
           cp ${./releases.json} $out/releases.json
-          cp ${./index/versions.json} $out/versions.json
           cp ${./index/stats.json} $out/stats.json
-          python3 ${shardHistory} ${./index/history.json} $out/history
+          python3 ${shardByAttr} ${./index/history.json} $out/history
+          python3 ${shardByAttr} ${./index/versions.json} $out/versions
+          python3 ${attrNames} ${./index/versions.json} $out/names.json
+
+          # The whole index, which only the revisions tab needs: "what is
+          # pinned at this revision" is a question about every attribute at
+          # once, and no shard can answer it. Fetched when a revision row is
+          # opened, never at boot.
+          cp ${./index/versions.json} $out/versions.json
 
           # The social-card image the og:/twitter: meta tags point at.
           cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg

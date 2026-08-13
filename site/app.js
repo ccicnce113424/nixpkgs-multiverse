@@ -29,6 +29,19 @@ const COPY_FLASH_MS = 1200;
 
 const VIEWS = ["packages", "revisions", "releases", "stats"];
 
+const HTTP_NOT_FOUND = 404;
+
+// What a data fetch resolves to when it fails. A sentinel rather than null,
+// because "still loading" and "will never load" render differently and both
+// have to be distinguishable from data.
+const SHARD_ERROR = "error";
+
+const fetchJson = (f) =>
+  fetch(f).then((r) => {
+    if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`);
+    return r.json();
+  });
+
 // Whether a navigation adds a history entry (clicks) or amends the current
 // one (typing, opening a row) — so Back walks views, not keystrokes.
 const Nav = { PUSH: "push", REPLACE: "replace" };
@@ -437,9 +450,22 @@ function Cmd({ text, caption }) {
 
 /* ---------- packages ---------- */
 
-function SearchResults({ q, index, attrNames, navigate }) {
-  if (!index)
-    return html`<div id="status" class="muted">Loading versions.json…</div>`;
+// Mounted whenever the packages tab is not showing one package, so landing on
+// the bare page starts the name list downloading before anything is typed.
+function SearchResults({ q, navigate }) {
+  const names = useNames();
+  // json.dump wrote the names sorted, but only a sort here says so.
+  const attrNames = useMemo(
+    () => (names && names !== SHARD_ERROR ? Object.keys(names).sort() : null),
+    [names],
+  );
+
+  if (names === SHARD_ERROR)
+    return html`<div id="status" class="muted">
+      Could not load the package list.
+    </div>`;
+  if (!names)
+    return html`<div id="status" class="muted">Loading the package list…</div>`;
 
   const query = q.trim().toLowerCase();
   if (!query) return null;
@@ -467,9 +493,7 @@ function SearchResults({ q, index, attrNames, navigate }) {
         (a) => html`
           <div class="pkg" onClick=${() => navigate({ pkg: a, ver: "" })}>
             ${a}
-            <span class="muted"
-              >· ${Object.keys(index.attrs[a]).length} versions</span
-            >
+            <span class="muted">· ${names[a]} versions</span>
           </div>
         `,
       )}
@@ -569,7 +593,8 @@ function VersionRow({
   `;
 }
 
-function PackageDetail({ attr, route, index, revisions, navigate }) {
+function PackageDetail({ attr, route, revisions, navigate }) {
+  const versions = useVersions(attr);
   const hist = useHistory(attr);
   const [bulk, bulkButton] = useBulk();
   const [openVers, setOpenVers] = useState(() => new Set());
@@ -611,14 +636,25 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
   // An expand-all supersedes every per-version force, otherwise a row touched
   // through the graph would ignore the button from then on.
   useEffect(() => setForce({}), [bulk?.seq]);
-  if (!index)
-    return html`<div id="status" class="muted">Loading versions.json…</div>`;
-  if (!index.attrs[attr])
+  if (!versions)
+    return html`<div id="status" class="muted">Loading versions…</div>`;
+  if (versions === SHARD_ERROR)
+    return html`<div id="status" class="muted">
+      Could not load the versions of <code>${attr}</code>.
+    </div>`;
+  if (!Object.keys(versions).length)
     return html`<div id="status" class="muted">
       No attribute named <code>${attr}</code> in the index.
     </div>`;
+  // The table is a join against revisions.json: every row names the revision
+  // that shipped its version, and the lifetime line below reads dates out of
+  // it by offset. The shard is 11 KB and revisions.json is 342 KB, so the
+  // shard now routinely wins the race that used to be impossible — versions
+  // arrived behind revisions when both came out of one sequential chain.
+  if (!revisions.length)
+    return html`<div id="status" class="muted">Loading revisions…</div>`;
 
-  const vers = Object.entries(index.attrs[attr]).sort((a, b) =>
+  const vers = Object.entries(versions).sort((a, b) =>
     compareVersions(b[0], a[0]),
   ); // newest first
 
@@ -680,7 +716,7 @@ function PackageDetail({ attr, route, index, revisions, navigate }) {
   `;
 }
 
-function Packages({ route, navigate, index, attrNames, revisions }) {
+function Packages({ route, navigate, revisions }) {
   // Focus the search box once on a fresh packages landing, like the old
   // autofocus attribute (which does not fire on framework-inserted nodes).
   const inputRef = useRef(null);
@@ -702,23 +738,20 @@ function Packages({ route, navigate, index, attrNames, revisions }) {
       ? html`<${PackageDetail}
           attr=${route.pkg}
           route=${route}
-          index=${index}
           revisions=${revisions}
           navigate=${navigate}
         />`
-      : html`<${SearchResults}
-          q=${route.q}
-          index=${index}
-          attrNames=${attrNames}
-          navigate=${navigate}
-        />`}
+      : html`<${SearchResults} q=${route.q} navigate=${navigate} />`}
   `;
 }
 
 /* ---------- revisions ---------- */
 
-function RevPins({ off, index, navigate }) {
+function RevPins({ off, navigate }) {
   const [showAll, setShowAll] = useState(false);
+  const index = useFullIndex();
+  if (index === SHARD_ERROR)
+    return html`<div class="muted">could not load the index</div>`;
   if (!index) return html`<div class="muted">index still loading…</div>`;
 
   const pins = pinsFor(index, off);
@@ -750,7 +783,7 @@ function RevPins({ off, index, navigate }) {
 // `churn` is [added, removed] for this revision against the one before it,
 // read straight off stats.json by offset — the revisions table would otherwise
 // have to load the 8 MB history to know it.
-function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
+function RevRow({ r, off, selected, churn, bulk, navigate }) {
   // A revision pins up to MAX_PINS package versions, each one a link. That is
   // fine for a row opened on its own and ruinous for 150 at once, so a mass
   // expand shows the command and puts the pins one click away.
@@ -785,7 +818,7 @@ function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
           caption="run anything out of this revision"
         />
         ${pins
-          ? html`<${RevPins} off=${off} index=${index} navigate=${navigate} />`
+          ? html`<${RevPins} off=${off} navigate=${navigate} />`
           : html`<button class="more" onClick=${() => setPins(true)}>
               show the package versions pinned here
             </button>`}
@@ -812,7 +845,7 @@ function RevRow({ r, off, selected, index, churn, bulk, navigate }) {
   `;
 }
 
-function Revisions({ route, revisions, index, stats, navigate }) {
+function Revisions({ route, revisions, stats, navigate }) {
   const all = revisions.map((r, off) => ({ r, off })).reverse();
   const [shown, setShown] = useState(REV_PAGE);
   const [bulk, bulkButton] = useBulk();
@@ -842,7 +875,6 @@ function Revisions({ route, revisions, index, stats, navigate }) {
           r=${r}
           off=${off}
           selected=${!!route.rev && r.rev.startsWith(route.rev)}
-          index=${index}
           churn=${stats?.churn?.[off]}
           bulk=${bulk}
           navigate=${navigate}
@@ -1339,57 +1371,118 @@ function Stats({ stats }) {
   `;
 }
 
-/* ---------- per-package timeline ----------
+/* ---------- per-attribute shards ----------
  *
- * history.json is 8 MB, and a timeline needs one attribute out of it, so the
- * site build splits it by the first two characters of the attribute name and
- * this fetches the one shard. Median shard is 2 KB.
+ * versions.json is 5.3 MB and history.json is 8 MB, and a package page is
+ * about one attribute out of each, so the site build splits both by the first
+ * two characters of the attribute name and this fetches the one shard of
+ * each. Median shard is 1.4 KB of versions and 2 KB of history.
+ *
+ * That is what makes a package URL cheap enough to be worth indexing: the
+ * whole page used to wait on the 5.3 MB index before it could draw a row.
  *
  * Cached per shard at module scope: opening five packages beginning "py"
  * fetches once.
  */
+const Shard = { VERSIONS: "versions", HISTORY: "history" };
+
 const shardOf = (attr) =>
   [...attr.slice(0, 2).toLowerCase()]
     .map((c) => (/[a-z0-9]/.test(c) ? c : "_"))
     .join("") || "_";
 
 const shardCache = new Map();
-function loadShard(attr) {
-  const key = shardOf(attr);
-  if (!shardCache.has(key))
+function loadShard(dir, attr) {
+  const path = `${dir}/${shardOf(attr)}.json`;
+  if (!shardCache.has(path)) {
     shardCache.set(
-      key,
-      fetch(`history/${key}.json`).then((r) => {
-        if (!r.ok) throw new Error(`history/${key}.json: HTTP ${r.status}`);
+      path,
+      fetch(path).then((r) => {
+        // A missing shard is not a failure: no file for "zz" means no
+        // attribute starts with those two characters, which is the same
+        // answer as a shard that loads and does not hold the attribute.
+        if (r.status === HTTP_NOT_FOUND) return { attrs: {} };
+        if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
         return r.json();
       }),
     );
-  return shardCache.get(key);
+  }
+  return shardCache.get(path);
 }
+
+// One attribute's slice of a sharded file, refetched when the attribute
+// changes.
+//
+// A failed fetch lands as the SHARD_ERROR sentinel rather than as {}. It used
+// to be {}, which the timeline renders as nothing at all — indistinguishable
+// from a package with no history, and the reason the graph looked like it
+// "sometimes" did not appear.
+function useShard(dir, attr) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    loadShard(dir, attr)
+      .then((d) => live && setData(d.attrs[attr] ?? {}))
+      .catch(() => live && setData(SHARD_ERROR));
+    return () => {
+      live = false;
+    };
+  }, [dir, attr]);
+  return data;
+}
+
+// One fetch per package page each. The timeline and every version row read
+// the same two objects, so opening a row costs nothing extra.
+const useHistory = (attr) => useShard(Shard.HISTORY, attr);
+const useVersions = (attr) => useShard(Shard.VERSIONS, attr);
+
+/* ---------- whole files, fetched only by what needs them ----------
+ *
+ * Neither of these belongs in the boot chain. A package page is the URL worth
+ * indexing and the one a search engine renders 30,000 times, so it loads its
+ * two shards and nothing else; the two files below are fetched by the
+ * components that actually read them, the first time one is mounted.
+ */
+
+// Every attribute name and its version count: what the search box matches
+// against, and all it needs.
+const NAMES_FILE = "names.json";
+
+// The whole index. Only the revisions tab reads it, because "what is pinned
+// at this revision" is a question about every attribute at once and no shard
+// can answer it.
+const INDEX_FILE = "versions.json";
+
+const fileCache = new Map();
+function useFile(file) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!fileCache.has(file)) fileCache.set(file, fetchJson(file));
+    fileCache
+      .get(file)
+      .then((d) => live && setData(d))
+      .catch(() => live && setData(SHARD_ERROR));
+    return () => {
+      live = false;
+    };
+  }, [file]);
+  return data;
+}
+
+// The attribute-name map itself, unwrapped, with the error sentinel passed
+// through so a caller can tell "failed" from "still loading".
+function useNames() {
+  const file = useFile(NAMES_FILE);
+  return file && file !== SHARD_ERROR ? file.attrs : file;
+}
+
+const useFullIndex = () => useFile(INDEX_FILE);
 
 // On disk a version with one unbroken run is [first, last]; one with gaps is a
 // list of those pairs. Same collapse multiverse.nix expands in runsOf.
 const runsOf = (v) => (v && !Array.isArray(v[0]) ? [v] : v);
-
-// One fetch per package page. The timeline and every version row read the
-// same object, so opening a row costs nothing extra.
-function useHistory(attr) {
-  const [hist, setHist] = useState(null);
-  useEffect(() => {
-    let live = true;
-    setHist(null);
-    loadShard(attr)
-      .then((d) => live && setHist(d.attrs[attr] ?? {}))
-      // A failed shard used to land here as {}, which Timeline renders as
-      // nothing at all — indistinguishable from a package with no history and
-      // the reason the graph looked like it "sometimes" did not appear.
-      .catch(() => live && setHist("error"));
-    return () => {
-      live = false;
-    };
-  }, [attr]);
-  return hist;
-}
 
 function Timeline({
   attr,
@@ -1403,7 +1496,7 @@ function Timeline({
   const [hover, setHover] = useState(null);
   const [ref, width] = useWidth();
 
-  if (hist === "error")
+  if (hist === SHARD_ERROR)
     return html`<p class="muted">
       Could not load the version history for <code>${attr}</code>.
     </p>`;
@@ -1524,8 +1617,7 @@ function Timeline({
 function App() {
   const [route, setRoute] = useState(readRoute);
   const [small, setSmall] = useState(null); // { revisions, releases } — load fast
-  const [index, setIndex] = useState(null); // versions.json — the big one
-  const [stats, setStats] = useState(null); // stats.json — 13 KB, charts
+  const [stats, setStats] = useState(null); // stats.json — 27 KB, charts
   const [error, setError] = useState(null);
 
   // Navigation writes the URL first, then re-renders from the same route, so
@@ -1559,47 +1651,34 @@ function App() {
     return () => removeEventListener("popstate", onPop);
   }, []);
 
-  // The two small files render their tabs immediately; versions.json is the
-  // big one, so search lights up when it lands.
+  // Everything the first paint needs, and nothing else. stats.json rides with
+  // the two small files: it is 27 KB, it is all the charts need, and it also
+  // carries the totals the summary line used to count out of the whole index.
   useEffect(() => {
-    const json = (f) =>
-      fetch(f).then((r) => {
-        if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`);
-        return r.json();
-      });
-    // stats.json rides with the two small files rather than behind the
-    // index: it is 13 KB and it is all the charts need, so the Stats tab
-    // renders on first paint instead of waiting on 5.5 MB it never reads.
     Promise.all([
-      json("revisions.json"),
-      json("releases.json"),
-      json("stats.json"),
+      fetchJson("revisions.json"),
+      fetchJson("releases.json"),
+      fetchJson("stats.json"),
     ])
       .then(([revisions, releases, s]) => {
         setSmall({ revisions, releases });
         setStats(s);
-        return json("versions.json").then(setIndex);
       })
       .catch((err) => setError(err.message));
   }, []);
 
-  const attrNames = useMemo(
-    () => (index ? Object.keys(index.attrs).sort() : null),
-    [index],
-  );
-
+  // Counting these by walking every attribute meant the line could not appear
+  // until the whole 5.3 MB index had. stats.json states them outright.
   const summary = useMemo(() => {
-    if (!index || !small) return null;
-    let versions = 0;
-    for (const a of attrNames) versions += Object.keys(index.attrs[a]).length;
-    const { revisions } = small;
+    const t = stats?.totals;
+    if (!t) return null;
     return (
-      `${versions.toLocaleString()} package versions across ` +
-      `${attrNames.length.toLocaleString()} attributes, from ` +
-      `${revisions.length.toLocaleString()} revisions · ` +
-      `${revisions[0].date} → ${revisions[revisions.length - 1].date}`
+      `${t.versions.toLocaleString()} package versions across ` +
+      `${t.attrsEverSeen.toLocaleString()} attributes, from ` +
+      `${t.revisions.toLocaleString()} revisions · ` +
+      `${t.firstDate} → ${t.lastDate}`
     );
-  }, [index]);
+  }, [stats]);
 
   // Name the shared thing in the tab title, so pasted links read as what they
   // are — and tell a crawler the same thing, since the query string is the
@@ -1661,8 +1740,6 @@ function App() {
       <${Packages}
         route=${route}
         navigate=${navigate}
-        index=${index}
-        attrNames=${attrNames}
         revisions=${small?.revisions ?? []}
       />
     </section>
@@ -1672,7 +1749,6 @@ function App() {
       html`<${Revisions}
         route=${route}
         revisions=${small.revisions}
-        index=${index}
         stats=${stats}
         navigate=${navigate}
       />`}
