@@ -225,15 +225,34 @@ def highlight_code(body):
 
 
 def rewrite_links(body):
-    """`./cli.md` and `./nix-api.md#a-soak-period` point at pages on GitHub;
-    the same links have to reach the rendered pages here. Absolute URLs are
-    left alone."""
+    """Point the markdown's own links at their rendered equivalents.
+
+    Two kinds need moving. A `./cli.md` link drops its extension, because the
+    published URL is `/docs/cli`. And a link to something else in the
+    repository — a workflow file, say — has no rendered counterpart at all, so
+    it goes to GitHub rather than 404ing under /docs/.
+
+    Every docs page lives directly in /docs/ and every URL resolves with that
+    as its base, so these stay relative and need no notion of depth.
+    """
 
     def replace(match):
         href = match.group(1)
-        if re.match(r"[a-z]+:", href):
+
+        # Absolute URLs and bare anchors are already right.
+        if re.match(r"[a-z]+:", href) or href.startswith("#"):
             return match.group(0)
-        return 'href="' + re.sub(r"\.md(?=$|#)", ".html", href) + '"'
+
+        target, hash_, anchor = href.partition("#")
+
+        # A sibling docs page: ./cli.md#x -> ./cli#x
+        sibling = re.fullmatch(r"\./([A-Za-z0-9._-]+)\.md", target)
+        if sibling:
+            return f'href="./{sibling.group(1)}{hash_}{anchor}"'
+
+        # Anything else relative points into the repository, not the site.
+        repo_path = os.path.normpath(os.path.join("docs", target))
+        return f'href="{REPO}/blob/main/{repo_path}{hash_}{anchor}"'
 
     return re.sub(r'href="([^"]+)"', replace, body)
 
@@ -261,8 +280,8 @@ def sidebar(pages, current):
     out = ['<nav class="doc-nav" aria-label="Documentation">', "<ul>"]
     for name, title, toc in pages:
         active = " class=\"active\"" if name == current else ""
-        href = "index.html" if name == "index" else f"{name}.html"
-        out.append(f'<li><a{active} href="./{href}">{html.escape(title)}</a>')
+        href = "./" if name == "index" else f"./{name}"
+        out.append(f'<li><a{active} href="{href}">{html.escape(title)}</a>')
         if name == current and toc:
             out.append("<ul>")
             for anchor, text in toc:
@@ -296,15 +315,26 @@ def provenance(commit, store_path):
     return "".join(out)
 
 
+def url_of(name):
+    """A page's URL path, without the `.html` a reader would have to type.
+
+    The file on disk is still `<name>.html`; GitHub Pages resolves an
+    extensionless request onto it, and `nix run .#serve` does the same so a
+    local preview and the deploy agree. Because the URL has no trailing
+    slash, its base directory is /docs/ either way, which is why every
+    relative path on the page works unchanged.
+    """
+    return "/docs/" if name == "index" else f"/docs/{name}"
+
+
 def canonical(origin, name):
-    """`/docs/` and `/docs/index.html` are one page reachable two ways, and the
-    sitemap offers the first. Naming the canonical form keeps a crawler from
-    treating them as duplicates. Skipped when no origin is known, which is a
-    local render rather than the deploy."""
+    """A page is reachable both with and without its `index.html`, and the
+    sitemap offers the shorter form. Naming the canonical one keeps a crawler
+    from treating them as duplicates. Skipped when no origin is known, which
+    is a local render rather than the deploy."""
     if not origin:
         return ""
-    path = "/docs/" if name == "index" else f"/docs/{name}.html"
-    return f'\n    <link rel="canonical" href="{origin}{path}" />'
+    return f'\n    <link rel="canonical" href="{origin}{url_of(name)}" />'
 
 
 def shell(title, body, nav, name, commit, store_path, origin):
@@ -405,6 +435,9 @@ def main():
         page = shell(
             title, body, sidebar(pages, name), name, commit, store_path, origin
         )
+        # Flat `<name>.html` on disk, served at `/docs/<name>`. Both GitHub
+        # Pages and `nix run .#serve` resolve the extensionless request onto
+        # this file, so the URL a reader copies never carries `.html`.
         with open(os.path.join(out_dir, f"{name}.html"), "w") as fh:
             fh.write(page)
 

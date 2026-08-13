@@ -297,11 +297,15 @@
             # page last changed; `newest` is the wrong answer, because the docs
             # do not move when the channel does, and a lastmod that lies every
             # hour is worse than none at all.
+            # Offered without the `.html` the file on disk carries, matching
+            # the links the pages use and the URL a reader would type. Listing
+            # what is actually in the directory is what keeps this in step
+            # with whatever render-docs.py produced.
             docs = sorted(f for f in os.listdir(docs_dir) if f.endswith(".html"))
             urls.append(("/docs/", None))
             for page in docs:
                 if page != "index.html":
-                    urls.append((f"/docs/{page}", None))
+                    urls.append((f"/docs/{page[:-5]}", None))
 
             for name, r in releases.items():
                 urls.append(
@@ -676,6 +680,18 @@
                     def send_head(self):
                         del self.headers["If-Modified-Since"]
                         del self.headers["If-None-Match"]
+
+                        # GitHub Pages resolves an extensionless request onto
+                        # <path>.html, which is how /docs/cli serves cli.html.
+                        # Doing the same here is what keeps the docs' own links
+                        # working in a local preview: without it they 404 here
+                        # and succeed once deployed, which is the worst way
+                        # round to find out.
+                        path, sep, query = self.path.partition("?")
+                        local = self.translate_path(path)
+                        if not os.path.exists(local) and os.path.isfile(local + ".html"):
+                            self.path = path + ".html" + sep + query
+
                         return super().send_head()
 
                     def end_headers(self):
