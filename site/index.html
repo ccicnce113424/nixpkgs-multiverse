@@ -35,8 +35,9 @@
     <link rel="stylesheet" href="style.css" />
 
     <!-- Preact + htm in one pinned, integrity-checked file (~13 KB). The
-         import map keeps app.js free of CDN URLs; browsers that support the
-         importmap "integrity" key verify the bundle, older ones ignore it. -->
+         import map keeps the js/ modules free of CDN URLs; browsers that
+         support the importmap "integrity" key verify the bundle, older ones
+         ignore it. -->
     <script type="importmap">
       {
         "imports": {
@@ -84,6 +85,6 @@
       <div id="store" hidden><code id="store-path"></code></div>
     </footer>
 
-    <script type="module" src="app.js"></script>
+    <script type="module" src="./js/app.js"></script>
   </body>
 </html>

@@ -534,13 +534,16 @@
           mkdir -p $out
           cp -r ${siteData}/* $out/
           chmod -R u+w $out
-          cp ${./site}/* $out/
+          # -r because the page is a tree of ES modules under js/, not one
+          # script file.
+          cp -r ${./site}/* $out/
+          chmod -R u+w $out
 
-          substituteInPlace $out/app.js --replace-quiet "__COMMIT__" "${commit}"
+          substituteInPlace $out/js/app.js --replace-quiet "__COMMIT__" "${commit}"
 
           # The output path is known before building, so the page can name
           # the very store path it is served out of (a benign self-reference).
-          substituteInPlace $out/app.js --replace-fail "__STORE_PATH__" "$out"
+          substituteInPlace $out/js/app.js --replace-fail "__STORE_PATH__" "$out"
           if [ -d $out/docs ]; then
             for f in $out/docs/*.html; do
               substituteInPlace "$f" --replace-quiet "__COMMIT__" "${commit}"
@@ -548,9 +551,17 @@
             done
           fi
 
-          hash=$(sha256sum $out/app.js | cut -c1-12)
-          mv $out/app.js "$out/app.$hash.js"
-          substituteInPlace $out/index.html --replace-fail "app.js" "app.$hash.js"
+          # The whole module tree is hashed as one unit and the directory
+          # renamed js.<hash>, which is the multi-file form of the old
+          # app.<hash>.js: the served HTML and every module it pulls in can
+          # never be a mismatched pair across deploys, and the tree could be
+          # cached immutably. Hashing runs after the substitutions above, so
+          # the name covers exactly the bytes served. Modules import each
+          # other by relative path, so renaming the directory breaks nothing.
+          hash=$(find $out/js -type f -name '*.js' | LC_ALL=C sort |
+            xargs sha256sum | sha256sum | cut -c1-12)
+          mv $out/js "$out/js.$hash"
+          substituteInPlace $out/index.html --replace-fail "./js/app.js" "./js.$hash/app.js"
         '';
 
       # The scripts behind `nix run .#<tool>`, each with the description its
