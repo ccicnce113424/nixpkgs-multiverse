@@ -2162,8 +2162,12 @@ function ChurnChart({ rows }) {
 }
 
 // A plain top-N table in the charts' visual register.
-function Leaderboard({ title, sub, cols, rows, navigate }) {
+function Leaderboard({ title, sub, cols, rows, navigate, initial = 15, page = 150 }) {
   if (!rows?.length) return null;
+  const [limit, setLimit] = useState(initial);
+  const visible = rows.slice(0, limit);
+  const remaining = rows.length - limit;
+
   return html`
     <div class="chart">
       <h3>${title}</h3>
@@ -2176,7 +2180,7 @@ function Leaderboard({ title, sub, cols, rows, navigate }) {
             </tr>
           </thead>
           <tbody>
-            ${rows.map(
+            ${visible.map(
               (r, i) => html`
                 <tr key=${i}>
                   <td>
@@ -2193,6 +2197,14 @@ function Leaderboard({ title, sub, cols, rows, navigate }) {
             )}
           </tbody>
         </table>
+        ${remaining > 0 &&
+        html`<button
+          class="more"
+          onClick=${() => setLimit(limit + page)}
+          style="margin-top:0.4rem"
+        >
+          ${`show ${Math.min(page, remaining)} more · ${remaining.toLocaleString()} remaining →`}
+        </button>`}
       </div>
     </div>
   `;
@@ -2473,7 +2485,7 @@ function CacheHealth({ navigate }) {
   return html`
     <h2>The cache census</h2>
     <p class="muted">
-      Every matched store path was asked for, by name, at
+      Every matched store path was asked for, by name, at${" "}
       <a href="https://cache.nixos.org">cache.nixos.org</a
       >${" on "}${census.at}.
     </p>
@@ -2482,10 +2494,12 @@ function CacheHealth({ navigate }) {
         <div class="v">${t.matched.toLocaleString()}</div>
         <div class="l">
           versions with a known store
-          path${t.universe
-            ? ` (${Math.round((100 * t.matched) / t.universe)}% of
-               ${t.universe.toLocaleString()})`
-            : ""}
+          path${t.universe &&
+          html`${" "}<span
+              title="The unmatched remainder is a limit of name matching, not evidence of deletion: unfree and broken packages were never built by Hydra at all, and some derivation names drifted from their attribute."
+              style="cursor:help; border-bottom:1px dotted currentColor"
+              >(${Math.round((100 * t.matched) / t.universe)}% of ${t.universe.toLocaleString()})</span
+            >`}
         </div>
       </div>
       <div class="kpi">
@@ -2501,13 +2515,6 @@ function CacheHealth({ navigate }) {
         <div class="l">matched versions gone from the cache</div>
       </div>
     </div>
-    <p class="muted">
-      <i>
-        The unmatched remainder is a limit of name matching, not evidence of
-        deletion: unfree and broken packages were never built by Hydra at all,
-        and some derivation names drifted from their attribute.
-      </i>
-    </p>
 
     <${LineChart}
       title="Survival by vintage"

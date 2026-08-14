@@ -42,7 +42,7 @@ OUTPUT_SUFFIXES = {
 REVDEP_CAP = 200
 
 # How many rows each census leaderboard keeps.
-LEADERBOARD_ROWS = 20
+LEADERBOARD_ROWS = 200
 
 DIGEST_LEN = 32
 

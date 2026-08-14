@@ -812,4 +812,38 @@ footer {
     overflow-wrap: anywhere;
     overflow-x: visible;
   }
+
+  /* Stats and chart tables on narrow screens: drop rigid <table> grid
+     and collapse into flexible rows matching the rest of the site. */
+  .chart .tableview thead {
+    display: none;
+  }
+  .chart .tableview tbody {
+    display: block;
+  }
+  .chart .tableview tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--line);
+    gap: 0.1rem 0.6rem;
+  }
+  .chart .tableview th,
+  .chart .tableview td {
+    display: block;
+    padding: 0;
+    border: none;
+    text-align: left;
+  }
+  .chart .tableview td:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .chart .tableview td:last-child {
+    margin-left: auto;
+    text-align: right;
+    font-weight: 500;
+  }
 }

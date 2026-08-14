@@ -197,16 +197,68 @@
           )}
         '';
 
-      siteFor =
+      # docs/*.md rendered to /docs/*.html. The same markdown is what
+      # GitHub shows in the repository, so the two never disagree.
+      docsFor =
         system:
         let
           pkgs = pkgsFor system;
+          siteOrigin = "https://nixmultiverse.com";
+        in
+        pkgs.runCommand "nixpkgs-multiverse-docs"
+          {
+            nativeBuildInputs = [
+              # pygments highlights the docs' code blocks at build time, which
+              # is what keeps a highlighter and its CDN out of the pages
+              # themselves. The other scripts here need plain python3, and one
+              # interpreter serves both.
+              (pkgs.python3.withPackages (ps: [ ps.pygments ]))
+              pkgs.cmark-gfm
+            ];
+          }
+          ''
+            mkdir -p $out
+            python3 ${./tools/render-docs.py} \
+              ${pkgs.cmark-gfm}/bin/cmark-gfm ${./docs} $out \
+              ${siteOrigin} "__COMMIT__" "__STORE_PATH__"
+          '';
 
-          # The commit stamped into the footer. From a clean checkout self.rev
-          # names exactly the tree the data files came from; a dirty tree gets
-          # dirtyRev; anything else keeps the placeholder and the footer stays
-          # hidden.
-          commit = self.rev or self.dirtyRev or "__COMMIT__";
+      # The store-data products: meta/revdeps/identify shards,
+      # census.json, universe.bin. Built from the pinned artifacts, so
+      # the site's store views and the fast evaluation path always
+      # describe the same data cut. The script reads the committed
+      # index files itself (it closes the open tip on its own), so it
+      # gets an assembled checkout root like mvs' build-db.py does.
+      storeDataFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.runCommand "nixpkgs-multiverse-store-data"
+          {
+            nativeBuildInputs = [ pkgs.python3 ];
+          }
+          ''
+            mkdir -p $out
+            root=$(mktemp -d)
+            mkdir -p "$root/index"
+            cp ${./revisions.json} "$root/revisions.json"
+            cp ${./index/versions.json} "$root/index/versions.json"
+            cp ${./index/history.json} "$root/index/history.json"
+            python3 ${./tools/build-site-data.py} "$root" ${dataArtifactsFor system} $out
+          '';
+
+      # The data products for the deployable site: history/versions shards,
+      # sitemap, census, docs, universe.bin, etc. Heavy data processing that
+      # depends only on index data, revisions, releases, and docs — isolated
+      # from the frontend asset directory (site/) and dirty git state so editing
+      # html/css/js does not trigger recalculating and re-sharding all datasets.
+      siteDataFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+          docs = docsFor system;
+          storeData = storeDataFor system;
 
           # Both index files leave whatever is current at the newest revision
           # they cover open-ended — a null offset in versions.json, a run ending
@@ -364,9 +416,9 @@
             # the links the pages use and the URL a reader would type. Listing
             # what is actually in the directory is what keeps this in step
             # with whatever render-docs.py produced.
-            docs = sorted(f for f in os.listdir(docs_dir) if f.endswith(".html"))
+            docs_files = sorted(f for f in os.listdir(docs_dir) if f.endswith(".html"))
             urls.append(("/docs/", None))
-            for page in docs:
+            for page in docs_files:
                 if page != "index.html":
                     urls.append((f"/docs/{page[:-5]}", None))
 
@@ -408,24 +460,16 @@
 
             print(
                 f"sitemap: {len(urls)} urls "
-                f"({len(docs)} docs, {len(ranked) - limit} packages left out)"
+                f"({len(docs_files)} docs, {len(ranked) - limit} packages left out)"
             )
           '';
         in
-        pkgs.runCommand "nixpkgs-multiverse-site"
+        pkgs.runCommand "nixpkgs-multiverse-site-data"
           {
-            nativeBuildInputs = [
-              # pygments highlights the docs' code blocks at build time, which
-              # is what keeps a highlighter and its CDN out of the pages
-              # themselves. The other scripts here need plain python3, and one
-              # interpreter serves both.
-              (pkgs.python3.withPackages (ps: [ ps.pygments ]))
-              pkgs.cmark-gfm
-            ];
+            nativeBuildInputs = [ pkgs.python3 ];
           }
           ''
             mkdir -p $out
-            cp ${./site}/* $out/
             cp ${./revisions.json} $out/revisions.json
             cp ${./releases.json} $out/releases.json
             cp ${./index/stats.json} $out/stats.json
@@ -440,15 +484,11 @@
             python3 ${shardByAttr} versions.json $out/versions
             python3 ${attrNames} versions.json $out/names.json
 
-            # docs/*.md rendered to /docs/*.html. The same markdown is what
-            # GitHub shows in the repository, so the two never disagree.
-            python3 ${./tools/render-docs.py} \
-              ${pkgs.cmark-gfm}/bin/cmark-gfm ${./docs} $out/docs \
-              ${siteOrigin} "${commit}" "$out"
+            # Copy pre-rendered documentation from docsFor
+            mkdir -p $out/docs
+            cp -r ${docs}/* $out/docs/
 
-            # site/robots.txt, copied in above, points a crawler at this. Runs
-            # after the docs are rendered: it lists what was actually written
-            # to $out/docs rather than a second copy of the page list.
+            # site/robots.txt points a crawler at this.
             python3 ${sitemap} ${siteOrigin} versions.json \
               ${./revisions.json} ${./releases.json} $out/docs $out/sitemap.xml \
               ${toString sitemapPackages}
@@ -459,33 +499,51 @@
             # opened, never at boot.
             cp versions.json $out/versions.json
 
-            # The store-data products: meta/revdeps/identify shards,
-            # census.json, universe.bin. Built from the pinned artifacts, so
-            # the site's store views and the fast evaluation path always
-            # describe the same data cut. The script reads the committed
-            # index files itself (it closes the open tip on its own), so it
-            # gets an assembled checkout root like mvs' build-db.py does.
-            root=$(mktemp -d)
-            mkdir -p "$root/index"
-            cp ${./revisions.json} "$root/revisions.json"
-            cp ${./index/versions.json} "$root/index/versions.json"
-            cp ${./index/history.json} "$root/index/history.json"
-            python3 ${./tools/build-site-data.py} "$root" ${dataArtifactsFor system} $out
+            # Copy pre-rendered store data products from storeDataFor
+            cp -r ${storeData}/* $out/
 
             # The social-card image the og:/twitter: meta tags point at.
             cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg
-
-            chmod -R u+w $out
-            substituteInPlace $out/app.js --replace-quiet "__COMMIT__" "${commit}"
-
-            # The output path is known before building, so the page can name
-            # the very store path it is served out of (a benign self-reference).
-            substituteInPlace $out/app.js --replace-fail "__STORE_PATH__" "$out"
-
-            hash=$(sha256sum $out/app.js | cut -c1-12)
-            mv $out/app.js "$out/app.$hash.js"
-            substituteInPlace $out/index.html --replace-fail "app.js" "app.$hash.js"
           '';
+
+      # The deployable site: combining static site/ assets with siteDataFor.
+      #
+      # app.js is renamed to app.<content-hash>.js and index.html rewritten to
+      # match, so the served HTML and script can never be a mismatched pair
+      # across deploys, and the script could be cached immutably.
+      siteFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+          # The commit stamped into the footer. From a clean checkout self.rev
+          # names exactly the tree the data files came from; a dirty tree gets
+          # dirtyRev; anything else keeps the placeholder and the footer stays
+          # hidden.
+          commit = self.rev or self.dirtyRev or "__COMMIT__";
+          siteData = siteDataFor system;
+        in
+        pkgs.runCommand "nixpkgs-multiverse-site" { } ''
+          mkdir -p $out
+          cp -r ${siteData}/* $out/
+          chmod -R u+w $out
+          cp ${./site}/* $out/
+
+          substituteInPlace $out/app.js --replace-quiet "__COMMIT__" "${commit}"
+
+          # The output path is known before building, so the page can name
+          # the very store path it is served out of (a benign self-reference).
+          substituteInPlace $out/app.js --replace-fail "__STORE_PATH__" "$out"
+          if [ -d $out/docs ]; then
+            for f in $out/docs/*.html; do
+              substituteInPlace "$f" --replace-quiet "__COMMIT__" "${commit}"
+              substituteInPlace "$f" --replace-fail "__STORE_PATH__" "$out"
+            done
+          fi
+
+          hash=$(sha256sum $out/app.js | cut -c1-12)
+          mv $out/app.js "$out/app.$hash.js"
+          substituteInPlace $out/index.html --replace-fail "app.js" "app.$hash.js"
+        '';
 
       # The scripts behind `nix run .#<tool>`, each with the description its
       # app surfaces through `nix flake show` and `nix flake check`.
