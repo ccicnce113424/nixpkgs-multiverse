@@ -99,8 +99,8 @@ serves them meanwhile.
 ## The pipeline
 
 The hourly [update-index workflow](../.github/workflows/update-index.yml)
-appends a data pass after the index update, all of it incremental (see
-[tools/](../tools): `update-outpaths.sh` orchestrates):
+appends a data pass after the index update, all of it incremental (the
+scripts live in `tools/`, and `update-outpaths.sh` orchestrates them):
 
 1. fetch the new bump's listing (`fetch-store-paths.py`);
 2. extract `{attr → drv name}` at the tip (`extract-names.nix`), the pname
