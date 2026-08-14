@@ -13,8 +13,8 @@ line tool.
    history, provenance, and how releases differ from revisions.
 4. [The `mvs` CLI](./cli.md) allows querying the index offline, solving one revision for
    several packages, write per-package pins, run a version.
-5. [The NixOS and home-manager module](./modules.md) allows pinning individual packages
-   from your system configuration.
+5. [The NixOS, nix-darwin, and home-manager module](./modules.md) allows pinning
+   individual packages from your system configuration.
 6. [Replacing several nixpkgs inputs](./flake-inputs.md) allows using the multiverse
    as the `nixpkgs` other flakes see.
 7. [Building the index](./building-the-index.md) explains how the data is extracted

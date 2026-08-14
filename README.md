@@ -16,7 +16,7 @@ and pin commands, plus the full revision and release tables.
 [Selectors](./docs/selectors.md) ·
 [The Nix API](./docs/nix-api.md) ·
 [The `mvs` CLI](./docs/cli.md) ·
-[NixOS / home-manager module](./docs/modules.md) ·
+[NixOS / nix-darwin / home-manager module](./docs/modules.md) ·
 [Replacing nixpkgs inputs](./docs/flake-inputs.md) ·
 [Building the index](./docs/building-the-index.md) ·
 [The store-path index](./docs/store-paths.md)
@@ -77,10 +77,12 @@ VERSION  FIRST       LAST        REVS
 3.14.6   2026-07-08  current     17
 ```
 
-Pin a package from a NixOS or home-manager configuration:
+Pin a package from a NixOS, nix-darwin, or home-manager configuration:
 
 ```nix
 {
+  # Use darwinModules.default on nix-darwin or homeManagerModules.default in
+  # home-manager.
   imports = [ inputs.multiverse.nixosModules.default ];
 
   multiverse.enable = true;

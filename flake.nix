@@ -633,11 +633,20 @@
           builtins.mapAttrs (attr: version: mv.version attr version) pins;
       };
 
-      # One shared core, two entry points. The wrappers differ only in which
-      # package list they append to; see modules/multiverse.nix for why neither
-      # of them goes anywhere near `nixpkgs.overlays`.
+      # One shared core, three entry points over two placements. A wrapper adds
+      # exactly one line: the package list its own module system understands.
+      # NixOS and nix-darwin both spell that list `environment.systemPackages`,
+      # so those two wrappers are identical, and stay separate files only so
+      # each flake output names the module system it belongs to. See
+      # modules/multiverse.nix for why no wrapper goes anywhere near
+      # `nixpkgs.overlays`.
       nixosModules = rec {
         multiverse = ./modules/nixos.nix;
+        default = multiverse;
+      };
+
+      darwinModules = rec {
+        multiverse = ./modules/darwin.nix;
         default = multiverse;
       };
 
