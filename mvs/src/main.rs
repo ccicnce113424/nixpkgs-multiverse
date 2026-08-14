@@ -16,6 +16,7 @@ use mvs::lock;
 use mvs::query::{self, Format};
 use mvs::run::{self, Execute};
 use mvs::solve;
+use mvs::store;
 
 #[derive(Parser)]
 #[command(
@@ -90,6 +91,56 @@ enum Command {
         /// Print the nix command line instead of running it
         #[arg(long)]
         dry_run: bool,
+    },
+
+    /// Print the /nix/store path of a version
+    ///
+    /// The digest comes straight out of the index, so nothing is evaluated or
+    /// fetched: `nix-store --realise $(mvs path hello@2.12.2)` materialises
+    /// the path from the binary cache with zero evaluation. When several
+    /// versions match, the one current at the tip wins, then the newest.
+    /// Needs a database built with store-path data (--data-dir).
+    Path {
+        #[arg(value_name = "ATTR[@VERSION]")]
+        spec: String,
+    },
+
+    /// NAR, download and closure sizes of a version
+    ///
+    /// Also lists the sibling outputs of a multi-output package. Needs a
+    /// database built with store-path data.
+    Size {
+        #[arg(value_name = "ATTR[@VERSION]")]
+        spec: String,
+    },
+
+    /// Direct references of a version's store path
+    ///
+    /// Each reference is tied back to an indexed package where possible — by
+    /// digest when the exact path is some pair's, by store name when the same
+    /// package came out of another revision. Needs a database built with
+    /// store-path data.
+    Deps {
+        #[arg(value_name = "ATTR[@VERSION]")]
+        spec: String,
+    },
+
+    /// Indexed packages whose store paths reference this version
+    ///
+    /// The reverse of deps, matched by digest and by store name. Needs a
+    /// database built with store-path data.
+    Rdeps {
+        #[arg(value_name = "ATTR[@VERSION]")]
+        spec: String,
+    },
+
+    /// Which package a store path belongs to
+    ///
+    /// Accepts a full /nix/store path, a basename, or a bare 32-character
+    /// digest. Needs a database built with store-path data.
+    Identify {
+        #[arg(value_name = "STORE-PATH|DIGEST")]
+        target: String,
     },
 
     /// Per-package pins in multiverse.lock
@@ -222,6 +273,11 @@ fn run() -> Result<()> {
             args,
             dry_run,
         } => run::shell(&index, specs, args, execute(*dry_run)),
+        Command::Path { spec } => store::path(&index, spec, format),
+        Command::Size { spec } => store::size(&index, spec, format),
+        Command::Deps { spec } => store::deps(&index, spec, format),
+        Command::Rdeps { spec } => store::rdeps(&index, spec, format),
+        Command::Identify { target } => store::identify(&index, target, format),
         Command::Lock(l) => {
             let path = lock::lock_path(cli.file.as_deref());
             match l {

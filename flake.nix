@@ -119,8 +119,16 @@
             cp ${./revisions.json} "$root/revisions.json"
             cp ${./releases.json} "$root/releases.json"
             cp ${./index/history.json} "$root/index/history.json"
+            cp ${./index/versions.json} "$root/index/versions.json"
 
-            python3 ${./mvs/build-db.py} "$root" $out
+            # The store-path artifacts ride in the same way the site build
+            # takes them: fetched per-file against data-pins.json, so the
+            # binary's answers and the site's views describe one data cut.
+            # --data-dir is what turns on `mvs path`/`size`/`deps`/`rdeps`/
+            # `identify`; without it the same script builds the index-only
+            # database those subcommands then decline to answer from.
+            python3 ${./mvs/build-db.py} "$root" $out \
+              --data-dir ${dataArtifactsFor system}
           '';
 
       # `mvs`, the consumer tool: read the index without materialising anything.
