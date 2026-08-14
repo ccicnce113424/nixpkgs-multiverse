@@ -117,10 +117,18 @@ def load_seeds(seed_files):
 
 
 def load_graph(path):
-    """Digests already crawled, split into all-seen and currently-dead."""
-    seen, dead = set(), set()
+    """Digests already in the graph: natively crawled ones, currently-dead
+    ones, and stubs.
+
+    A stub (written by tools/restore-outpaths-state.sh when no rolling graph
+    exists) marks a digest whose published artifacts are already truth: it is
+    never re-crawled as a root, but it does NOT satisfy a closure walk — the
+    first time a new root's BFS reaches one it is crawled natively, which is
+    what keeps closures complete without a cold runner re-crawling thirteen
+    years of paths up front."""
+    native, dead, stubs = set(), set(), set()
     if not os.path.exists(path):
-        return seen, dead
+        return native, dead, stubs
     with gzip.open(path, "rt") as f:
         for line in f:
             try:
@@ -128,12 +136,16 @@ def load_graph(path):
             except Exception:
                 continue
             d = rec["d"]
-            seen.add(d)
+            if rec.get("stub"):
+                stubs.add(d)
+                continue
+            native.add(d)
+            stubs.discard(d)
             if rec.get("ok"):
                 dead.discard(d)
             else:
                 dead.add(d)
-    return seen, dead
+    return native, dead, stubs
 
 
 def crawl_wave(digests, threads, stats_label):
@@ -174,29 +186,36 @@ def main():
     )
     args = ap.parse_args()
 
-    seen, dead = load_graph(args.graph)
-    print(f"{len(seen)} already in graph ({len(dead)} dead)", flush=True)
+    native, dead, stubs = load_graph(args.graph)
+    print(
+        f"{len(native)} natively crawled, {len(stubs)} stubs, {len(dead)} dead",
+        flush=True,
+    )
 
+    # Roots: seed digests neither crawled nor covered by published truth.
     seeds = load_seeds(args.seeds)
-    frontier = seeds - seen
+    frontier = seeds - native - stubs
     if args.recheck_dead:
         frontier |= seeds & dead
 
-    total = len(seen)
+    crawled = set(native)
+    total = len(native)
     wave = 0
     while frontier and total < args.max_total:
         batch = sorted(frontier)[: args.max_total - total]
         print(f"wave {wave}: {len(batch)} to crawl", flush=True)
         results = crawl_wave(batch, args.threads, f"wave {wave}")
         append_graph(args.graph, results)
-        seen.update(batch)
+        crawled.update(batch)
         total += len(batch)
 
-        # next frontier: every reference this wave surfaced, not yet crawled
+        # Next frontier: every reference this wave surfaced that has never
+        # been crawled natively. A stub qualifies — reaching one through a
+        # closure walk is exactly when it earns a real record.
         frontier = set()
         for rec in results:
             for r in rec.get("refs") or []:
-                if r not in seen:
+                if r not in crawled:
                     frontier.add(r)
         wave += 1
 

@@ -41,6 +41,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--seeds", nargs="+", required=True, help="outpaths json files")
     ap.add_argument("--graph", required=True, help="crawl state, jsonl.gz")
+    ap.add_argument(
+        "--prev",
+        help="previously published outs-indexed.json.gz — the baseline an "
+        "incremental runner's delta-only graph is merged over",
+    )
     ap.add_argument("--out", required=True, help="outs-indexed.json.gz")
     ap.add_argument("--plain", help="also write the eval-facing outs.json here")
     args = ap.parse_args()
@@ -53,7 +58,15 @@ def main():
                 names.add(entry[1] if len(entry) > 1 else f"{attr}-{ver}")
     print(f"{len(names)} indexed drv names", flush=True)
 
+    # The previously published outputs are the baseline: an incremental
+    # runner's graph holds only its own delta, and without the baseline the
+    # emitted file would shrink to that delta.
     outs = {}
+    if args.prev and os.path.exists(args.prev):
+        prev = json.load(gzip.open(args.prev, "rt"))
+        outs = {base: lst for base, lst in prev.items() if base in names}
+        print(f"baseline: {len(outs)} drv names from {args.prev}", flush=True)
+
     seen_digests = set()
     with gzip.open(args.graph, "rt") as f:
         for line in f:

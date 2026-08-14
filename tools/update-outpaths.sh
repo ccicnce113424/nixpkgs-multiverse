@@ -41,10 +41,22 @@ while [ $# -gt 0 ]; do
 done
 mkdir -p "$PATHS" "$DATA"
 
-# 1. Channel listings for every named revision not fetched yet. An up-to-date
-#    state directory makes this a stat per revision.
+# 1. Channel listings not fetched yet. A full run wants all of them; an
+#    incremental run only consults listings at or past the previous
+#    artifacts' coverage, so everything older is skipped — a fresh runner
+#    fetches the new bumps, not thirteen years of listings.
+MINOFF=0
+if [ "$MODE" = incremental ] && [ -s "$DATA/outpaths.json" ]; then
+  # One revision back from the previous coverage, so the listing the last
+  # tip was matched against is on disk for the moved-from-tip entries.
+  MINOFF=$(python3 -c '
+import json
+count = json.load(open("'"$DATA"'/outpaths.json"))["revisionCount"]
+print(max(0, count - 1))
+')
+fi
 python3 "$HERE/fetch-store-paths.py" \
-  --revisions "$MT/revisions.json" --outdir "$PATHS"
+  --revisions "$MT/revisions.json" --outdir "$PATHS" --min-offset "$MINOFF"
 
 # 2. {attr -> drv name} at the index tip, cached per revision. The matcher
 #    needs it to try pname-shaped candidates (python3 -> python3-3.12.4).
@@ -110,9 +122,16 @@ python3 "$HERE/consolidate-outpaths.py" \
   --graph "$GRAPH" $EXTRA --out-dir "$DATA"
 
 # 6. Sibling outputs, plus the plain outs.json the fast eval path reads.
+#    The previous published copy is the baseline for the same reason as the
+#    consolidation fallback above.
+PREV_OUTS=""
+if [ -s "$DATA/prev-shards/outs-indexed.json.gz" ]; then
+  PREV_OUTS="--prev $DATA/prev-shards/outs-indexed.json.gz"
+fi
+# shellcheck disable=SC2086
 python3 "$HERE/extract-outputs.py" \
   --seeds "$DATA/outpaths.json" "$DATA/tip-outpaths.json" \
-  --graph "$GRAPH" --out "$DATA/outs-indexed.json.gz" --plain "$DATA/outs.json"
+  --graph "$GRAPH" $PREV_OUTS --out "$DATA/outs-indexed.json.gz" --plain "$DATA/outs.json"
 
 # 7. Period shards, only when a release cut is about to upload them.
 if [ "$SHARD" -eq 1 ]; then

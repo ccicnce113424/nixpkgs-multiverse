@@ -76,6 +76,11 @@ def main():
             except Exception:
                 continue
             d = rec["d"]
+            # A stub only exists to pace the crawler; the published prev
+            # artifacts are the truth for its digest, so it must not count
+            # as crawled here.
+            if rec.get("stub"):
+                continue
             crawled.add(d)
             if not rec.get("ok"):
                 # A later dead record supersedes an earlier alive one: the
@@ -158,17 +163,20 @@ def main():
     # The local graph is authoritative for whatever it crawled — a fresh
     # dead verdict must not be papered over — but a digest it never looked
     # at (and no manifest resurrected) keeps its previously published entry.
+    # A fresh death keeps the previous sizes and name: the path's history is
+    # still true, only its liveness changed.
     info = {}
     for d in idx:
         if d not in crawled and d not in refs and d in prev_info:
             info[d] = prev_info[d]
             continue
+        prev = prev_info.get(d) or [0, None, None, None, None]
         info[d] = [
             1 if d in alive else 0,
-            ns_of.get(d),
-            fs_of.get(d),
-            name_of.get(d),
-            url_of.get(d),
+            ns_of.get(d) or prev[1],
+            fs_of.get(d) or prev[2],
+            name_of.get(d) or prev[3],
+            url_of.get(d) or prev[4],
         ]
 
     refs_indexed = {}

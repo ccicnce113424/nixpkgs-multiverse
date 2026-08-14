@@ -129,6 +129,14 @@ def main():
     ap.add_argument("--outdir", required=True, help="per-offset pickle directory")
     ap.add_argument("--threads", type=int, default=16)
     ap.add_argument(
+        "--min-offset",
+        type=int,
+        default=0,
+        help="skip revisions below this offset — the hourly job passes the "
+        "previous artifacts' coverage so a fresh runner fetches only the new "
+        "bumps, not thirteen years of listings",
+    )
+    ap.add_argument(
         "--limit", type=int, default=0, help="fetch at most this many (smoke test)"
     )
     args = ap.parse_args()
@@ -138,7 +146,11 @@ def main():
 
     # Only revisions with a channel name have a listing to fetch; the cached
     # ones cost a stat each, so an up-to-date run is effectively free.
-    jobs = [(i, r) for i, r in enumerate(revs) if r.get("name")]
+    jobs = [
+        (i, r)
+        for i, r in enumerate(revs)
+        if r.get("name") and i >= args.min_offset
+    ]
     jobs = [j for j in jobs if not os.path.exists(f"{args.outdir}/{j[0]}.pkl")]
     if args.limit:
         jobs = jobs[: args.limit]
