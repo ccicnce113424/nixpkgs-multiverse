@@ -457,6 +457,7 @@
         build-stats = "Build index/stats.json (the aggregates the site's charts draw) from index/history.json";
         fetch-unstable-revisions = "Append new nixos-unstable channel bumps to revisions.json";
         update-outpaths = "Update the store-path artifacts: fetch listings, match digests, crawl the cache";
+        bump-data-pin = "Repoint data-pins.json at a dated release cut's assets";
         fetch-releases = "Refresh releases.json with the current tip of every release channel";
         add-narhashes = "Fill in narHash for revisions that lack one";
         update-readme-status = "Rewrite the status block at the top of README.md";
