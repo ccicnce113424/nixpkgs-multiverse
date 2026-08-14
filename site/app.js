@@ -740,7 +740,8 @@ function ClosureLive({ entry }) {
       closure, measured live:
       <b>${state.count} paths · ${fmtBytes(state.total)}</b>
       ${state.dead ? ` · ${state.dead} paths gone from the cache` : ""}
-      ${state.complete ? "" : ` · stopped at ${WALK_CAP} paths`}
+      ${state.complete ? "" : ` · stopped at ${WALK_CAP} paths`} · heaviest
+      ${state.top.length} paths:
     </div>
     <div class="chips">
       ${state.top.map(
@@ -853,7 +854,7 @@ function GraphExplorer({ attr, v, entry, navigate }) {
   if (!entry.d) return null;
   if (!state)
     return html`<button class="more" onClick=${run}>
-      draw the full dependency graph — live from cache.nixos.org →
+      draw full dependency graph live from cache.nixos.org →
     </button>`;
   if (state.walking != null)
     return html`<div class="capt">
@@ -922,8 +923,7 @@ function GraphExplorer({ attr, v, entry, navigate }) {
         ${nodes.map((nd) => {
           const [x, y] = nd.pos;
           const isRoot = nd.depth === 0;
-          const jump = () =>
-            nd.link && navigate({ pkg: nd.link, ver: nd.ver });
+          const jump = () => nd.link && navigate({ pkg: nd.link, ver: nd.ver });
           return html`
             <g key=${`n${nd.d}`}>
               <circle
@@ -956,12 +956,10 @@ function GraphExplorer({ attr, v, entry, navigate }) {
         })}
       </svg>
       <div class="capt">
-        the complete runtime closure, fetched live from cache.nixos.org:
+        the complete runtime closure, fetched live from
+        <a href="https://cache.nixos.org">cache.nixos.org</a>:
         <b>${nodes.length} paths · ${fmtBytes(total)}</b>
-        ${complete ? "" : ` (stopped at ${WALK_CAP} paths)`} — one ring per
-        dependency depth, node size tracks installed size, tree edges only.
-        Scroll to zoom (labels get readable), drag to pan, click a blue node
-        to jump to its package.
+        ${complete ? "" : ` (stopped at ${WALK_CAP} paths)`}
       </div>
     </div>
   `;
@@ -1022,8 +1020,16 @@ function DependsSearch({ target, navigate }) {
     <div id="results">
       ${rows.slice(0, MAX_RESULTS).map(
         ([a, n]) => html`
-          <${Link} class="pkg" to=${{ pkg: a, ver: "" }} navigate=${navigate} key=${a}>
-            ${a} <span class="muted">· ${n} linked version${n === 1 ? "" : "s"}</span>
+          <${Link}
+            class="pkg"
+            to=${{ pkg: a, ver: "" }}
+            navigate=${navigate}
+            key=${a}
+          >
+            ${a}
+            <span class="muted"
+              >· ${n} linked version${n === 1 ? "" : "s"}</span
+            >
           <//>
         `,
       )}
@@ -1197,16 +1203,16 @@ function VersionRow({
         html`<div class="capt">
           no store path is known for this version — it never appeared in a
           channel's store-paths listing (Hydra does not build unfree or broken
-          packages), or its derivation name has drifted from the attribute
-          name — so cache size, dependency and closure data are unavailable
+          packages), or its derivation name has drifted from the attribute name
+          — so cache size, dependency and closure data are unavailable
         </div>`}
         ${entry &&
         !entry.r &&
         html`<div class="capt">
-          no runtime references were recorded for this build — either the
-          path genuinely references nothing, or this is a multi-output
-          package whose payload lives in sibling outputs (‑lib, ‑bin)
-          the prototype does not index
+          no runtime references were recorded for this build — either the path
+          genuinely references nothing, or this is a multi-output package whose
+          payload lives in sibling outputs (‑lib, ‑bin) the prototype does not
+          index
         </div>`}
         ${entry &&
         (() => {
@@ -1231,12 +1237,15 @@ function VersionRow({
         ${entry?.o?.length &&
         html`<div class="capt">
           multi-output package — sibling outputs seen in consumers' closures:
-          ${" " +
-          entry.o.map(([s, sz]) => `${s} ${fmtBytes(sz)}`).join(" · ")}
+          ${" " + entry.o.map(([s, sz]) => `${s} ${fmtBytes(sz)}`).join(" · ")}
         </div>`}
         ${entry &&
         html`
-          <${Deps} refs=${refsOf(entry)} src=${entry.rsrc} navigate=${navigate} />
+          <${Deps}
+            refs=${refsOf(entry)}
+            src=${entry.rsrc}
+            navigate=${navigate}
+          />
           <${DepDiff} refs=${refsOf(entry)} prevRefs=${refsOf(prevEntry)} />
           <${UsedBy} rd=${rd} navigate=${navigate} />
           ${entry.cs != null &&
@@ -1246,14 +1255,14 @@ function VersionRow({
           </div>`}
           <div class="links">
             <${ClosureLive} entry=${entry} />
+            <${GraphExplorer}
+              attr=${attr}
+              v=${v}
+              entry=${entry}
+              paths=${paths}
+              navigate=${navigate}
+            />
           </div>
-          <${GraphExplorer}
-            attr=${attr}
-            v=${v}
-            entry=${entry}
-            paths=${paths}
-            navigate=${navigate}
-          />
         `}
       `}
     >
@@ -1268,7 +1277,9 @@ function VersionRow({
       </span>
       <span class="rowsize muted">
         ${entry?.ns != null ? fmtBytes(entry.ns) : ""}
-        ${entry && entry.ok === 0 ? html`<span class="badge-dead">○</span>` : ""}
+        ${entry && entry.ok === 0
+          ? html`<span class="badge-dead">○</span>`
+          : ""}
       </span>
       <span class="muted"
         >${archive && html`<a href=${archive}>${r.name}</a>`}</span
@@ -1348,7 +1359,8 @@ function PackageDetail({ attr, route, revisions, navigate }) {
   // shard's intern table for references, and this attr's reverse deps.
   const meta =
     metaFile && metaFile !== SHARD_ERROR ? metaFile.attrs?.[attr] : null;
-  const metaPaths = metaFile && metaFile !== SHARD_ERROR ? metaFile.paths : null;
+  const metaPaths =
+    metaFile && metaFile !== SHARD_ERROR ? metaFile.paths : null;
   const rds = revdeps && revdeps !== SHARD_ERROR ? revdeps : null;
 
   // Something the table does not already say: when this package entered
@@ -1393,8 +1405,7 @@ function PackageDetail({ attr, route, revisions, navigate }) {
       route=${route}
       navigate=${navigate}
     />
-    ${meta &&
-    html`<${WeightChart} attr=${attr} meta=${meta} vers=${vers} />`}
+    ${meta && html`<${WeightChart} attr=${attr} meta=${meta} vers=${vers} />`}
     <div class="head cols-ver">
       <span></span><span>version</span><span>newest revision shipping it</span
       ><span>size</span><span>channel build</span>
@@ -1523,10 +1534,7 @@ function WeightChart({ attr, meta, vers }) {
               >`,
           )}
           ${hasCs &&
-          html`<path
-            class="series series-closure"
-            d=${line((r) => r.e.cs)}
-          />`}
+          html`<path class="series series-closure" d=${line((r) => r.e.cs)} />`}
           <path class="series" d=${line((r) => r.e.ns)} />
           ${i !== null &&
           html`<line
@@ -1562,7 +1570,7 @@ function Packages({ route, navigate, revisions }) {
     <input
       ref=${inputRef}
       type="search"
-      placeholder="Search 30,000+ packages — or paste a /nix/store path, or try depends:openssl"
+      placeholder="Search 30,000+ packages or paste a /nix/store path, or try depends:openssl"
       value=${route.pkg || route.q}
       onInput=${(e) =>
         navigate({ q: e.currentTarget.value, pkg: "", ver: "" }, Nav.REPLACE)}
@@ -2444,14 +2452,11 @@ function Universe({ revisions, navigate }) {
         </span>
       </div>
       <div class="capt">
-        one dot per measured version (${data.n.toLocaleString()}): x is the
-        revision that first shipped it, y its installed size (log scale).
-        Drag the slider to move through thirteen years. Blue dots are what
-        nixpkgs shipped at that moment; gray dots were superseded by a newer
-        version of the same package; red dots belong to packages with no
-        living version at that moment — extinct lineages. A version that left
-        and returned stays lit across its gap. Hover to identify, click to
-        open.
+        ${data.n.toLocaleString()} versions: x is the revision that first
+        shipped it, y its installed size (log scale). Blue dots are what nixpkgs
+        shipped at that moment; gray dots were superseded by a newer version of
+        the same package; red dots belong to packages with no living version at
+        that moment (extinct lineages).
       </div>
     </figure>
   `;
@@ -2468,16 +2473,18 @@ function CacheHealth({ navigate }) {
   return html`
     <h2>The cache census</h2>
     <p class="muted">
-      Every matched store path was asked for, by name, at cache.nixos.org
-      ${" on "}${census.at}. This is not an estimate — it is a roll call.
+      Every matched store path was asked for, by name, at
+      <a href="https://cache.nixos.org">cache.nixos.org</a
+      >${" on "}${census.at}.
     </p>
     <div class="kpis">
       <div class="kpi">
         <div class="v">${t.matched.toLocaleString()}</div>
         <div class="l">
-          versions with a known store path${t.universe
-            ? ` — ${Math.round((100 * t.matched) / t.universe)}% of
-               ${t.universe.toLocaleString()}`
+          versions with a known store
+          path${t.universe
+            ? ` (${Math.round((100 * t.matched) / t.universe)}% of
+               ${t.universe.toLocaleString()})`
             : ""}
         </div>
       </div>
@@ -2495,12 +2502,11 @@ function CacheHealth({ navigate }) {
       </div>
     </div>
     <p class="muted">
-      The unmatched remainder is a limit of the prototype's name matching, not
-      evidence of deletion: unfree and broken packages were never built by
-      Hydra at all, and some derivation names drifted from their attribute.
-      Verified twice over: every narinfo answered, and a follow-up sweep
-      HEAD-checked all 227,146 NAR payload files themselves — zero missing.
-      Thirteen years, nothing lost.
+      <i>
+        The unmatched remainder is a limit of name matching, not evidence of
+        deletion: unfree and broken packages were never built by Hydra at all,
+        and some derivation names drifted from their attribute.
+      </i>
     </p>
 
     <${LineChart}
@@ -2570,7 +2576,11 @@ function CacheHealth({ navigate }) {
       title="Most depended-upon today"
       sub="Current versions, ranked by how many packages link against them at runtime."
       cols=${["package", "dependents"]}
-      rows=${(census.topDeps || []).map(([a, n]) => [a, "", n.toLocaleString()])}
+      rows=${(census.topDeps || []).map(([a, n]) => [
+        a,
+        "",
+        n.toLocaleString(),
+      ])}
       navigate=${navigate}
     />
     <${Leaderboard}

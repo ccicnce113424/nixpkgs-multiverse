@@ -98,16 +98,15 @@ Everything above hands back *real* derivations, which means fetching a
 ~378 MB nixpkgs tree and evaluating it the first time one is forced. The
 `fast` attrset skips both: the [store-path index](./store-paths.md) already
 knows the `/nix/store` path Hydra built for every matched version, so `fast`
-builds a *fake* derivation around that path — after
+builds a *fake* derivation around that path, many thanks to
 [tomberek](https://github.com/tomberek)'s
-[fastpkgs](https://github.com/tomberek/fastpkgs) trick — and Nix substitutes
-it, full closure included, straight from cache.nixos.org. No nixpkgs fetch,
-no evaluation, no experimental features. Measured: `hello` built-and-ran in
-under three seconds; a 2021 `python3` shell in under five.
+[fastpkgs](https://github.com/tomberek/fastpkgs) trick, and Nix substitutes
+it, full closure included, straight from [cache.nixos.org](https://cache.nixos.org).
+**No nixpkgs fetch, no evaluation, no experimental features.**
 
-The selector grammar is the one you already know, with only the terminal
-step swapped. One thing to remember: a fake has no `drvPath`, so the CLI
-needs the *output* — append `.out` (or `.lib`, `.bin`, … for multi-output
+The selector grammar is the same, with only the terminal
+step swapped. One thing to remember: a "fake derivation" has no `drvPath`,
+so the CLI needs the *output*: append `.out` (or `.lib`, `.bin`, … for multi-output
 packages):
 
 ```console
@@ -117,47 +116,46 @@ $ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.ffmpeg.lib'
 ```
 
 ```nix
-mv.fast.version "python3" "3.8.9"     # a specific version, zero-eval
-mv.fast.latest.python3                # newest indexed version, as of the pin
-mv.fast.tip.hello                     # what was current when the pin was cut
-mv.fast.at "2022-03-15"               # a whole revision, as fakes
-mv.fast."967d40bec14b".python3        # exact revision keys work too
+# a specific version, zero-eval
+mv.fast.version "python3" "3.8.9"
+# newest indexed version, as of the pin
+mv.fast.latest.python3
+# what was current when the pin was cut
+mv.fast.tip.hello
+# a whole revision, as fakes
+mv.fast.at "2022-03-15"
+# exact revision keys work too
+mv.fast."967d40bec14b".python3
 ```
 
-Three honesty classes, chosen per selector rather than approximated:
-
-- `fast.versions` / `fast.latest` / `fast.tip` are **bit-exact** as of the
-  data pin: the digest is precisely the build the eval path resolves to.
-- Commit, date and label selectors (`fast.at`) are **version-exact,
-  build-canonical**: the right version for that revision, as the newest
-  build of it — the index keeps one digest per version, not per revision.
-- Release selectors are **eval-only** and refuse: a release branch is not
-  an indexed revision, and faking it from unstable would silently drop
-  backports. `at "25.05"` still serves the real thing.
+`fast.versions` / `fast.latest` / `fast.tip` are **bit-exact** as what you
+would get if you did the evaluation. We just go straight to the substitution
+path. Release selectors are **eval-only** and refuse: a release branch is not
+an indexed revision.
 
 Every fake carries a lazy `.eval` holding the real, revision-exact
-derivation for everything a fake cannot do — `override`, `nix develop`,
+derivation for everything a fake cannot do: `override`, `nix develop`,
 `drvPath`, full `meta`:
 
 ```nix
 (mv.fast.version "python3" "3.8.9").eval.override { ... }
 ```
 
-A version the store-path index has no digest for **throws**, naming the eval
-selector to use — never a surprise 378 MB fetch inside something called
-fast. Two `mkMultiverse` arguments tune this:
+By default, a version the store-path index has no digest for **throws**,
+so there is no surprise fetch, however this can be tuned per `mkMultiverse`: 
 
 ```nix
 mkMultiverse {
   system = "x86_64-linux";
-  fastFallback = "eval";       # unmatched pairs fall back to the real
-                               # derivation silently (default: "throw")
-  dataOverride = ./artifacts;  # vendor the data files, skip the pin
+  # unmatched pairs fall back to the real
+  # derivation silently (default: "throw")
+  fastFallback = "eval";
+  # vendor the data files, skip the pin
+  dataOverride = ./artifacts;
 }
 ```
 
-`fast.at` returns fakes only — no `lib`, no `callPackage` — because there is
-no nixpkgs behind it. The index covers x86_64-linux; other systems throw
+The index covers x86_64-linux; other systems throw
 rather than substitute foreign binaries. Data arrives through
 `data-pins.json` lazily: nothing is fetched until the first `fast.*` value
 is forced.

@@ -291,6 +291,7 @@ code {
   break-inside: avoid;
 }
 button.more {
+  display: block;
   font:
     13px system-ui,
     sans-serif;
@@ -677,13 +678,13 @@ footer {
 }
 .unislider {
   display: flex;
-  align-items: center;
-  gap: 0.8rem;
+  flex-direction: column;
+  gap: 0.35rem;
   margin-top: 0.5rem;
   font-size: 13px;
 }
 .unislider input {
-  flex: 1;
+  width: 100%;
   accent-color: var(--accent);
 }
 

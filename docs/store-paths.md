@@ -1,7 +1,7 @@
 # The store-path index
 
-Every indexed `(attribute, version)` pair, matched to the store path Hydra
-built for it — which is what makes [`fast.*`](./nix-api.md#the-fast-path)
+This is every indexed `(attribute, version)` pair, matched to the store path Hydra
+built for it, which is what makes [`fast.*`](./nix-api.md#the-fast-path)
 possible, and what the site's cache-liveness, dependency and closure views
 draw from.
 
@@ -17,7 +17,7 @@ can still serve.
 A pair is looked up in the listing of the newest revision that shipped it,
 by derivation name. Candidate names, in order:
 
-1. the pname from the tip evaluation plus the version — which is what makes
+1. the pname from the tip evaluation plus the version, which is what makes
    `python3` find `python3-3.12.4`;
 2. `attr-version` verbatim;
 3. `attr` with leading underscores stripped, lowercased, and with
@@ -25,20 +25,19 @@ by derivation name. Candidate names, in order:
 4. the bare pname, for the handful of unversioned derivation names.
 
 A pair missing at its own offset walks backwards through its lifetime (the
-history index's runs) and takes the newest revision whose listing has it —
-Hydra occasionally skips a package for weeks of bumps.
+history index's runs) and takes the newest revision whose listing has it,
+since Hydra occasionally skips a package for weeks of bumps.
 
-About 79% of all pairs match by these heuristics alone; per-revision name
-evaluations push the matched set higher. The unmatched remainder is mostly
-(a) never-built unfree or broken attributes, and (b) derivations absent from
-their era's listing — wrapper packages notoriously so. An unmatched pair
-under `fast.*` throws, naming the eval selector that still serves it.
+Any unmatched remainder is mostly (a) never-built unfree or broken attributes,
+and (b) derivations absent from their era's listing (i.e. wrapper packages).
+An unmatched pair under `fast.*` throws, naming the eval selector that still
+ serves it.
 
 ## The digest is per version, not per revision
 
 The index records **one digest per version**: the newest build of it that
-any listing carried. That is the build-correct choice — the most patched,
-most recently built, most likely to still substitute — and it is why the
+any listing carried. That is the build-correct choice: the most patched,
+most recently built, most likely to still substitute, and it is why the
 `fast.*` honesty classes read the way they do: exact-version selectors are
 bit-exact, while revision selectors are version-exact but build-canonical
 (the right version, as its newest build, which may come from a slightly
