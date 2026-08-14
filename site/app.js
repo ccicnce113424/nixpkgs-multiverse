@@ -2162,7 +2162,15 @@ function ChurnChart({ rows }) {
 }
 
 // A plain top-N table in the charts' visual register.
-function Leaderboard({ title, sub, cols, rows, navigate, initial = 15, page = 150 }) {
+function Leaderboard({
+  title,
+  sub,
+  cols,
+  rows,
+  navigate,
+  initial = 15,
+  page = 150,
+}) {
   if (!rows?.length) return null;
   const [limit, setLimit] = useState(initial);
   const visible = rows.slice(0, limit);
@@ -2498,7 +2506,8 @@ function CacheHealth({ navigate }) {
           html`${" "}<span
               title="The unmatched remainder is a limit of name matching, not evidence of deletion: unfree and broken packages were never built by Hydra at all, and some derivation names drifted from their attribute."
               style="cursor:help; border-bottom:1px dotted currentColor"
-              >(${Math.round((100 * t.matched) / t.universe)}% of ${t.universe.toLocaleString()})</span
+              >(${Math.round((100 * t.matched) / t.universe)}% of
+              ${t.universe.toLocaleString()})</span
             >`}
         </div>
       </div>
