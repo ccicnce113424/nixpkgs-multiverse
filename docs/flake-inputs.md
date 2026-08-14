@@ -69,6 +69,23 @@ home-manager.lib.homeManagerConfiguration {
 }
 ```
 
+nix-darwin takes a `pkgs` the same way, and takes its `lib` from that set:
+
+```nix
+nix-darwin.lib.darwinSystem {
+  # An aarch64-darwin multiverse; 26.05 matches a nix-darwin-26.05 input.
+  pkgs = mv.at "26.05";
+  modules = [ ./configuration.nix ];
+}
+```
+
+That `lib` is also what nix-darwin's release check reads, and unlike
+home-manager's the check is a `throw` rather than a warning: the revision you
+select has to match the nix-darwin branch you are on — exactly, on a release
+branch, or no older, on master. `mv.tip` and date selectors are the ones that
+trip it. To select freely, pass `enableNixpkgsReleaseCheck = false` alongside
+`pkgs`; `darwinSystem` forwards the argument untouched.
+
 NixOS needs one more step: `nixosSystem` lives on the nixpkgs *flake*, a
 package set's `lib` does not have it, so build the system from `flakeAt`:
 
