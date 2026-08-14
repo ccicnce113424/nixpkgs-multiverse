@@ -92,6 +92,76 @@ nix-repl> multiverse.x86_64-linux.releases
 
 **Note**: Enumerating versions fetches nothing as it reads an index file only. A revision is materialised the first time you force a derivation.
 
+## The fast path
+
+Everything above hands back *real* derivations, which means fetching a
+~378 MB nixpkgs tree and evaluating it the first time one is forced. The
+`fast` attrset skips both: the [store-path index](./store-paths.md) already
+knows the `/nix/store` path Hydra built for every matched version, so `fast`
+builds a *fake* derivation around that path — after
+[tomberek](https://github.com/tomberek)'s
+[fastpkgs](https://github.com/tomberek/fastpkgs) trick — and Nix substitutes
+it, full closure included, straight from cache.nixos.org. No nixpkgs fetch,
+no evaluation, no experimental features. Measured: `hello` built-and-ran in
+under three seconds; a 2021 `python3` shell in under five.
+
+The selector grammar is the one you already know, with only the terminal
+step swapped. One thing to remember: a fake has no `drvPath`, so the CLI
+needs the *output* — append `.out` (or `.lib`, `.bin`, … for multi-output
+packages):
+
+```console
+$ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.versions.python3."3.8.9".out'
+$ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
+$ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.ffmpeg.lib'
+```
+
+```nix
+mv.fast.version "python3" "3.8.9"     # a specific version, zero-eval
+mv.fast.latest.python3                # newest indexed version, as of the pin
+mv.fast.tip.hello                     # what was current when the pin was cut
+mv.fast.at "2022-03-15"               # a whole revision, as fakes
+mv.fast."967d40bec14b".python3        # exact revision keys work too
+```
+
+Three honesty classes, chosen per selector rather than approximated:
+
+- `fast.versions` / `fast.latest` / `fast.tip` are **bit-exact** as of the
+  data pin: the digest is precisely the build the eval path resolves to.
+- Commit, date and label selectors (`fast.at`) are **version-exact,
+  build-canonical**: the right version for that revision, as the newest
+  build of it — the index keeps one digest per version, not per revision.
+- Release selectors are **eval-only** and refuse: a release branch is not
+  an indexed revision, and faking it from unstable would silently drop
+  backports. `at "25.05"` still serves the real thing.
+
+Every fake carries a lazy `.eval` holding the real, revision-exact
+derivation for everything a fake cannot do — `override`, `nix develop`,
+`drvPath`, full `meta`:
+
+```nix
+(mv.fast.version "python3" "3.8.9").eval.override { ... }
+```
+
+A version the store-path index has no digest for **throws**, naming the eval
+selector to use — never a surprise 378 MB fetch inside something called
+fast. Two `mkMultiverse` arguments tune this:
+
+```nix
+mkMultiverse {
+  system = "x86_64-linux";
+  fastFallback = "eval";       # unmatched pairs fall back to the real
+                               # derivation silently (default: "throw")
+  dataOverride = ./artifacts;  # vendor the data files, skip the pin
+}
+```
+
+`fast.at` returns fakes only — no `lib`, no `callPackage` — because there is
+no nixpkgs behind it. The index covers x86_64-linux; other systems throw
+rather than substitute foreign binaries. Data arrives through
+`data-pins.json` lazily: nothing is fetched until the first `fast.*` value
+is forced.
+
 ## A soak period
 
 `daysBehind` gives you the whole of nixos-unstable as it stood some number of
