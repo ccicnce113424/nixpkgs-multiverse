@@ -249,7 +249,13 @@ code {
 
 /* First track is the disclosure button. */
 .cols-ver {
-  grid-template-columns: 1.4rem 9rem 17rem 1fr;
+  grid-template-columns: 1.4rem 9rem 15rem 5.5rem 1fr;
+}
+/* The size cell: numbers compare down the column. */
+.rowsize {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 .cols-rev {
   grid-template-columns: 1.4rem 7rem 9rem 7rem 1fr;
@@ -430,6 +436,13 @@ footer {
   align-items: center;
   gap: 0.35rem;
 }
+/* A legend term carrying a definition in its title. The dotted underline is
+   the only affordance a title tooltip gets, so it has to be there. */
+.legend .whatis {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
 .legend i {
   width: 10px;
   height: 10px;
@@ -531,6 +544,147 @@ footer {
 }
 .tl-sel .tl-bg {
   fill: var(--code-bg);
+}
+
+/* ---------- store metadata: badges, dep chips, graph ---------- */
+
+/* Liveness. The symbol (●/○) carries the meaning; color is the second
+   channel. Same green/red discipline as the delta pair below. */
+.cachebadge {
+  font-size: 13px;
+  margin: -0.3rem 0 0.6rem;
+}
+.badge-ok {
+  color: var(--delta-add);
+}
+.badge-dead {
+  color: var(--delta-del);
+}
+
+/* A dependency chip: one path, one small box. Link chips take the accent on
+   hover like everything else. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.3rem 0 0.5rem;
+  font-size: 12px;
+}
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  background: var(--code-bg);
+  color: var(--fg);
+  text-decoration: none;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Dep changes between versions: reuses the delta colors, wraps as chips do. */
+.depdiff {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.7rem;
+  margin: 0.2rem 0 0.5rem;
+  font-size: 12.5px;
+}
+
+/* The identified store path card. */
+.identify {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  margin: 0.5rem 0;
+}
+
+/* The radial dependency graph. The svg is a map viewport: zooming rewrites
+   its viewBox, so content must CLIP at the edge — overflow:visible let a
+   zoomed graph spill across the whole page. The border makes the viewport
+   readable as a thing with an inside. */
+.graphbox {
+  margin: 0.6rem 0;
+}
+.graphbox svg {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.g-edge {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.g-edge2 {
+  opacity: 0.6;
+}
+.g-node {
+  fill: var(--muted);
+}
+.g-node2 {
+  fill: var(--line);
+}
+.g-node-link {
+  fill: var(--chart-series);
+  cursor: pointer;
+}
+.g-center {
+  fill: var(--chart-removed);
+}
+.g-label {
+  fill: var(--fg);
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.g-label2 {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.g-label-link {
+  cursor: pointer;
+}
+.g-label-link:hover {
+  fill: var(--accent);
+}
+.g-center-label {
+  font-weight: 600;
+}
+
+/* The closure series in the weight chart, on the diverging partner hue. */
+.chart .series-closure {
+  stroke: var(--chart-removed);
+}
+
+/* The universe canvas and its time slider. */
+.universe {
+  margin: 0.8rem 0 1.4rem;
+  position: relative;
+}
+.universe canvas {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.unislider {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+  font-size: 13px;
+}
+.unislider input {
+  flex: 1;
+  accent-color: var(--accent);
 }
 
 /* Delta text in the revisions table. The +/− sign carries the meaning and the

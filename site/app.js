@@ -13,6 +13,16 @@ import {
 
 const FLAKE = "github:fzakaria/nixpkgs-multiverse";
 const COMMIT_URL = "https://github.com/NixOS/nixpkgs/commit/";
+// The binary cache every indexed path was built into. Serves narinfos with
+// open CORS, so the page can ask it directly whether a path is still there.
+const CACHE_URL = "https://cache.nixos.org/";
+const STORE_DIR = "/nix/store/";
+// A store digest: 32 chars of nix base-32.
+const DIGEST_RE = /^[0-9abcdfghijklmnpqrsvwxyz]{32}$/;
+// How many narinfos a live closure walk may touch before stopping.
+const WALK_CAP = 1500;
+// How many narinfos the walk fetches at once.
+const WALK_BATCH = 24;
 // The channel archive: releases.nixos.org fronts the nix-releases bucket and
 // renders ?prefix= as a browsable listing (a bare directory URL 404s).
 const ARCHIVE_URL = "https://releases.nixos.org/?prefix=nixos/";
@@ -448,7 +458,578 @@ function Cmd({ text, caption }) {
   `;
 }
 
+/* ---------- store metadata: cache liveness, deps, closures ----------
+ *
+ * Everything here rides on two facts. The meta shards carry each version's
+ * store digest, sizes, liveness at census time and direct references; and
+ * cache.nixos.org serves narinfos with open CORS, so anything deeper — is it
+ * still there right now, what is the full closure — the browser asks the
+ * cache itself. The shards store breadth; the client computes depth.
+ */
+
+function fmtBytes(n) {
+  if (n == null) return "?";
+  if (n < 1024) return `${n} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n;
+  for (const u of units) {
+    v /= 1024;
+    if (v < 1024) return `${v >= 100 ? v.toFixed(0) : v.toFixed(1)} ${u}`;
+  }
+  return `${v.toFixed(1)} PB`;
+}
+
+// The full /nix/store path for a version's meta entry.
+const storePathOf = (attr, v, entry) =>
+  `${STORE_DIR}${entry.d}-${entry.n ?? `${attr}-${v}`}`;
+
+// A narinfo is "Key: value" lines. References holds path basenames; only
+// their digests matter here.
+function parseNarinfo(text) {
+  const out = {};
+  for (const line of text.split("\n")) {
+    const i = line.indexOf(": ");
+    if (i > 0) out[line.slice(0, i)] = line.slice(i + 2);
+  }
+  return {
+    ns: out.NarSize ? Number(out.NarSize) : null,
+    fs: out.FileSize ? Number(out.FileSize) : null,
+    url: out.URL || null,
+    name: out.StorePath ? out.StorePath.slice(44) : null,
+    refs: (out.References || "")
+      .split(" ")
+      .filter(Boolean)
+      .map((b) => b.slice(0, 32)),
+  };
+}
+
+const narinfoCache = new Map();
+function fetchNarinfo(digest) {
+  if (!narinfoCache.has(digest)) {
+    narinfoCache.set(
+      digest,
+      fetch(`${CACHE_URL}${digest}.narinfo`).then((r) => {
+        if (r.status === HTTP_NOT_FOUND) return { dead: true };
+        if (!r.ok) throw new Error(`narinfo: HTTP ${r.status}`);
+        return r.text().then(parseNarinfo);
+      }),
+    );
+  }
+  return narinfoCache.get(digest);
+}
+
+// Asks the cache, live, whether this exact path still substitutes — and what
+// it costs. The census answer from the shard renders immediately; the live
+// answer replaces it when it arrives, so the badge is never stale.
+function CacheBadge({ entry }) {
+  const [live, setLive] = useState(null);
+  useEffect(() => {
+    let on = true;
+    fetchNarinfo(entry.d)
+      .then((i) => on && setLive(i))
+      .catch(() => on && setLive({ err: true }));
+    return () => {
+      on = false;
+    };
+  }, [entry.d]);
+
+  // A failed fetch says nothing about the path — only a definite 404 does.
+  // Anything else falls back to what the census recorded.
+  const verified = live && !live.err;
+  const alive = verified ? !live.dead : entry.ok !== 0;
+  const ns = live?.ns ?? entry.ns;
+  const fs = live?.fs ?? entry.fs;
+
+  return html`
+    <div class="cachebadge">
+      <span class=${alive ? "badge-ok" : "badge-dead"}>
+        ${alive ? "●" : "○"}
+        ${alive
+          ? ` still substitutable${verified ? "" : " (census)"}`
+          : " no longer in the cache"}
+      </span>
+      ${fs != null &&
+      html`<span class="muted">
+        · ${fmtBytes(fs)} download · ${fmtBytes(ns)} installed</span
+      >`}
+      ${alive &&
+      live?.url &&
+      html`<span>
+        · <a href=${CACHE_URL + live.url} rel="nofollow">download the NAR</a>
+      </span>`}
+    </div>
+  `;
+}
+
+// Strip the version off a drv name: "openssl-1.0.1f" -> "openssl". Same rule
+// as Nix's parseDrvName — the version starts at the first dash before a digit.
+const pnameOf = (name) => name.split(/-(?=\d)/)[0];
+
+// The direct dependencies of one version, as recorded in the cache the day it
+// was built. A dep that is itself an indexed package links to its page at the
+// exact version; anything else (multi-output libs, private packages) shows as
+// its store name.
+function Deps({ refs, src, navigate }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!refs?.length) return null;
+  const shown = showAll ? refs : refs.slice(0, 24);
+  return html`
+    <div class="capt">
+      links against ${refs.length} paths directly
+      ${src
+        ? ` (from its ${src} output's narinfo — the default output is a stub)`
+        : " (from its narinfo)"}
+    </div>
+    <div class="chips">
+      ${shown.map((p) =>
+        refAttr(p)
+          ? html`<${Link}
+              class="chip chip-link"
+              to=${{ pkg: refAttr(p), ver: refVer(p) }}
+              navigate=${navigate}
+              key=${refName(p)}
+            >
+              ${refAttr(p)} <span class="muted">${refVer(p)}</span>
+            <//>`
+          : html`<span class="chip" key=${refName(p)} title=${refName(p)}>
+              ${refName(p)}
+            </span>`,
+      )}
+      ${refs.length > shown.length &&
+      html`<button class="more" onClick=${() => setShowAll(true)}>
+        +${refs.length - shown.length} more
+      </button>`}
+    </div>
+  `;
+}
+
+// Who linked against this exact version — the inverted References index.
+function UsedBy({ rd, navigate }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!rd || !rd.c) return null;
+  const shown = showAll ? rd.l : rd.l.slice(0, 24);
+  return html`
+    <div class="capt">
+      used by ${rd.c.toLocaleString()} package version${rd.c === 1 ? "" : "s"}
+      ${rd.c > rd.l.length ? ` (showing ${rd.l.length})` : ""}
+    </div>
+    <div class="chips">
+      ${shown.map(
+        ([a, v]) => html`
+          <${Link}
+            class="chip chip-link"
+            to=${{ pkg: a, ver: v }}
+            navigate=${navigate}
+            key=${`${a}@${v}`}
+          >
+            ${a} <span class="muted">${v}</span>
+          <//>
+        `,
+      )}
+      ${rd.l.length > shown.length &&
+      html`<button class="more" onClick=${() => setShowAll(true)}>
+        +${rd.l.length - shown.length} more
+      </button>`}
+    </div>
+  `;
+}
+
+// What changed structurally against the previous version: dependencies
+// gained, dropped, or re-versioned. Identity is the dep's attribute when
+// resolved, its pname otherwise, so an openssl bump reads as a change to
+// openssl rather than as one dep leaving and an unrelated one arriving.
+const DIFF_SHOWN = 14;
+
+function DepDiff({ refs, prevRefs }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!refs || !prevRefs) return null;
+  const key = (p) => refAttr(p) ?? pnameOf(refName(p));
+  const disp = (p) => refVer(p) ?? refName(p).slice(key(p).length + 1);
+  const cur = new Map(refs.map((p) => [key(p), p]));
+  const prev = new Map(prevRefs.map((p) => [key(p), p]));
+  const items = [
+    ...[...cur.keys()]
+      .filter((k) => !prev.has(k))
+      .map((k) => html`<span class="a" key=${`a${k}`}>+${k}</span>`),
+    ...[...prev.keys()]
+      .filter((k) => !cur.has(k))
+      .map((k) => html`<span class="d" key=${`d${k}`}>−${k}</span>`),
+    ...[...cur.keys()]
+      .filter((k) => prev.has(k) && disp(cur.get(k)) !== disp(prev.get(k)))
+      .map(
+        (k) =>
+          html`<span class="muted" key=${`b${k}`}
+            >${k} ${disp(prev.get(k))}→${disp(cur.get(k))}</span
+          >`,
+      ),
+  ];
+  if (!items.length)
+    return html`<div class="capt">
+      same dependency set as the previous version
+    </div>`;
+  const shown = showAll ? items : items.slice(0, DIFF_SHOWN);
+  return html`
+    <div class="capt">vs the previous version (${items.length} changes)</div>
+    <div class="depdiff delta">
+      ${shown}
+      ${items.length > shown.length &&
+      html`<button class="more" onClick=${() => setShowAll(true)}>
+        +${items.length - shown.length} more
+      </button>`}
+    </div>
+  `;
+}
+
+// Walk the References graph live against cache.nixos.org, narinfo by narinfo,
+// until the closure is complete (or the cap). No index data is involved —
+// this is the browser asking the cache what the closure is, which both
+// verifies the precomputed number and produces the full path list.
+async function walkClosure(digest, onProgress) {
+  const seen = new Map();
+  const queued = new Set([digest]);
+  let frontier = [digest];
+  while (frontier.length && seen.size < WALK_CAP) {
+    const batch = frontier.splice(0, WALK_BATCH);
+    const infos = await Promise.all(
+      batch.map((d) =>
+        fetchNarinfo(d)
+          .then((i) => ({ d, ...i }))
+          .catch(() => ({ d, err: true })),
+      ),
+    );
+    for (const i of infos) {
+      seen.set(i.d, i);
+      for (const r of i.refs || [])
+        if (!queued.has(r)) {
+          queued.add(r);
+          frontier.push(r);
+        }
+    }
+    onProgress(seen.size, frontier.length);
+  }
+  return { seen, complete: !frontier.length };
+}
+
+function ClosureLive({ entry }) {
+  const [state, setState] = useState(null); // {n, left} | {done}
+  const run = async () => {
+    setState({ n: 0, left: 1 });
+    const { seen, complete } = await walkClosure(entry.d, (n, left) =>
+      setState({ n, left }),
+    );
+    const paths = [...seen.values()].filter((i) => !i.dead && !i.err);
+    const dead = [...seen.values()].filter((i) => i.dead).length;
+    const total = paths.reduce((s, i) => s + (i.ns || 0), 0);
+    const top = paths
+      .slice()
+      .sort((a, b) => (b.ns || 0) - (a.ns || 0))
+      .slice(0, 8);
+    setState({ done: true, count: seen.size, dead, total, top, complete });
+  };
+
+  if (!state)
+    return html`<button class="more" onClick=${run}>
+      walk the full closure live from cache.nixos.org →
+    </button>`;
+  if (!state.done)
+    return html`<div class="capt">
+      walking… ${state.n} narinfos fetched, ${state.left} queued
+    </div>`;
+  return html`
+    <div class="capt">
+      closure, measured live:
+      <b>${state.count} paths · ${fmtBytes(state.total)}</b>
+      ${state.dead ? ` · ${state.dead} paths gone from the cache` : ""}
+      ${state.complete ? "" : ` · stopped at ${WALK_CAP} paths`}
+    </div>
+    <div class="chips">
+      ${state.top.map(
+        (i) =>
+          html`<span class="chip" key=${i.d} title=${i.name}
+            >${i.name ?? i.d} <span class="muted">${fmtBytes(i.ns)}</span></span
+          >`,
+      )}
+    </div>
+  `;
+}
+
+/* ---------- dependency graph explorer ----------
+ *
+ * The FULL transitive closure of one version, drawn as concentric rings by
+ * dependency depth — fetched live from cache.nixos.org by the same walk the
+ * closure button uses, so every node is a real narinfo and every edge a real
+ * References entry. Median closure is 16 paths and p99 is ~500, so plain SVG
+ * with viewBox zoom is plenty; the walk cap bounds the 0.03% tail.
+ *
+ * Tree edges only (first-discovery parent), or dense closures become a
+ * hairball. Node area tracks NAR size. Scroll to zoom, drag to pan; labels
+ * are drawn in graph units, so zooming in makes them readable.
+ */
+const GRAPH_RING = 150; // px between depth rings
+const GRAPH_LABELED = 40; // nodes past depth 1 that still get labels
+const ZOOM_STEP = 1.2;
+const ZOOM_MAX_FACTOR = 40;
+
+function GraphExplorer({ attr, v, entry, navigate }) {
+  const [state, setState] = useState(null); // null | {walking} | the graph
+  const [view, setView] = useState(null); // viewBox override while zooming
+  const svgRef = useRef(null);
+  const drag = useRef(null);
+  const names = useNames();
+
+  const run = async () => {
+    setState({ walking: 0 });
+    const { seen, complete } = await walkClosure(entry.d, (n) =>
+      setState({ walking: n }),
+    );
+
+    // BFS depths and a spanning tree (first-discovery parent) over the walk.
+    const depth = new Map([[entry.d, 0]]);
+    const parent = new Map();
+    let frontier = [entry.d];
+    while (frontier.length) {
+      const next = [];
+      for (const d of frontier)
+        for (const r of seen.get(d)?.refs || [])
+          if (seen.has(r) && !depth.has(r)) {
+            depth.set(r, depth.get(d) + 1);
+            parent.set(r, d);
+            next.push(r);
+          }
+      frontier = next;
+    }
+
+    // Concentric rings by depth. Each ring is ordered by its parents' angles
+    // so subtrees stay angularly together and tree edges rarely cross.
+    const rings = [];
+    for (const [d, dep] of depth) (rings[dep] ??= []).push(d);
+    const angle = new Map([[entry.d, -Math.PI / 2]]);
+    const maxDepth = rings.length - 1;
+    const R = Math.max(1, maxDepth) * GRAPH_RING + 80;
+    const posOf = new Map([[entry.d, [R, R]]]);
+    for (let dep = 1; dep < rings.length; dep++) {
+      const ring = rings[dep].slice().sort((a, b) => {
+        const pa = angle.get(parent.get(a)) ?? 0;
+        const pb = angle.get(parent.get(b)) ?? 0;
+        return pa - pb || (a < b ? -1 : 1);
+      });
+      ring.forEach((d, i) => {
+        const a = (i / ring.length) * 2 * Math.PI - Math.PI / 2;
+        angle.set(d, a);
+        posOf.set(d, [
+          R + dep * GRAPH_RING * Math.cos(a),
+          R + dep * GRAPH_RING * Math.sin(a),
+        ]);
+      });
+    }
+
+    // Labels: everything near the root, then only the heaviest of the rest.
+    const labeled = new Set(rings[0].concat(rings[1] || []));
+    [...depth.keys()]
+      .filter((d) => depth.get(d) > 1)
+      .sort((a, b) => (seen.get(b)?.ns || 0) - (seen.get(a)?.ns || 0))
+      .slice(0, GRAPH_LABELED)
+      .forEach((d) => labeled.add(d));
+
+    const nodes = [...depth.keys()].map((d) => {
+      const i = seen.get(d);
+      const name = i?.name ?? d;
+      const pn = pnameOf(name);
+      return {
+        d,
+        name,
+        ns: i?.ns,
+        depth: depth.get(d),
+        pos: posOf.get(d),
+        label: labeled.has(d),
+        link: names && names !== SHARD_ERROR && names[pn] ? pn : null,
+        ver: name.slice(pn.length + 1),
+      };
+    });
+    const total = nodes.reduce((s, nd) => s + (nd.ns || 0), 0);
+    setState({ nodes, parent, posOf, R, complete, total });
+  };
+
+  if (!entry.d) return null;
+  if (!state)
+    return html`<button class="more" onClick=${run}>
+      draw the full dependency graph — live from cache.nixos.org →
+    </button>`;
+  if (state.walking != null)
+    return html`<div class="capt">
+      walking the closure… ${state.walking} narinfos fetched
+    </div>`;
+
+  const { nodes, parent, posOf, R, complete, total } = state;
+  const W = 2 * R;
+  const vb = view ?? { x: 0, y: 0, w: W, h: W };
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    const box = svgRef.current.getBoundingClientRect();
+    const px = vb.x + ((e.clientX - box.left) / box.width) * vb.w;
+    const py = vb.y + ((e.clientY - box.top) / box.height) * vb.h;
+    const k = e.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    const w = Math.min(W * 1.5, Math.max(W / ZOOM_MAX_FACTOR, vb.w * k));
+    setView({
+      x: px - ((px - vb.x) / vb.w) * w,
+      y: py - ((py - vb.y) / vb.h) * w,
+      w,
+      h: w,
+    });
+  };
+  const onDown = (e) => {
+    drag.current = { x: e.clientX, y: e.clientY, vb };
+  };
+  const onMove = (e) => {
+    if (!drag.current) return;
+    const box = svgRef.current.getBoundingClientRect();
+    const d = drag.current;
+    setView({
+      ...d.vb,
+      x: d.vb.x - ((e.clientX - d.x) / box.width) * d.vb.w,
+      y: d.vb.y - ((e.clientY - d.y) / box.height) * d.vb.h,
+    });
+  };
+  const onUp = () => (drag.current = null);
+  const rOf = (ns) => 2.5 + Math.log10((ns || 1) / 1024 + 1) * 1.6;
+
+  return html`
+    <div class="graphbox">
+      <svg
+        ref=${svgRef}
+        viewBox=${`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
+        style="height:480px;touch-action:none;cursor:grab"
+        onWheel=${onWheel}
+        onPointerDown=${onDown}
+        onPointerMove=${onMove}
+        onPointerUp=${onUp}
+        onPointerLeave=${onUp}
+      >
+        ${nodes.map((nd) => {
+          const p = parent.get(nd.d);
+          if (!p) return null;
+          const [px, py] = posOf.get(p);
+          return html`<line
+            class=${`g-edge${nd.depth > 1 ? " g-edge2" : ""}`}
+            key=${`e${nd.d}`}
+            x1=${px}
+            y1=${py}
+            x2=${nd.pos[0]}
+            y2=${nd.pos[1]}
+          />`;
+        })}
+        ${nodes.map((nd) => {
+          const [x, y] = nd.pos;
+          const isRoot = nd.depth === 0;
+          const jump = () =>
+            nd.link && navigate({ pkg: nd.link, ver: nd.ver });
+          return html`
+            <g key=${`n${nd.d}`}>
+              <circle
+                class=${isRoot
+                  ? "g-node g-center"
+                  : `g-node${nd.link ? " g-node-link" : ""}`}
+                cx=${x}
+                cy=${y}
+                r=${isRoot ? 7 : rOf(nd.ns)}
+                onClick=${jump}
+              >
+                <title>${nd.name} · ${fmtBytes(nd.ns)}</title>
+              </circle>
+              ${nd.label &&
+              html`<text
+                class=${isRoot
+                  ? "g-label g-center-label"
+                  : `g-label${nd.depth > 1 ? " g-label2" : ""}${
+                      nd.link ? " g-label-link" : ""
+                    }`}
+                x=${x}
+                y=${y - (isRoot ? 12 : rOf(nd.ns) + 3)}
+                text-anchor="middle"
+                onClick=${jump}
+              >
+                ${nd.name}
+              </text>`}
+            </g>
+          `;
+        })}
+      </svg>
+      <div class="capt">
+        the complete runtime closure, fetched live from cache.nixos.org:
+        <b>${nodes.length} paths · ${fmtBytes(total)}</b>
+        ${complete ? "" : ` (stopped at ${WALK_CAP} paths)`} — one ring per
+        dependency depth, node size tracks installed size, tree edges only.
+        Scroll to zoom (labels get readable), drag to pan, click a blue node
+        to jump to its package.
+      </div>
+    </div>
+  `;
+}
+
 /* ---------- packages ---------- */
+
+/* ---------- identify: a store path pasted into the search box ----------
+ *
+ * The reverse index: digest -> (attr, version). Sharded by the digest's own
+ * first two characters. This answers "what IS this store path" — for any of
+ * the 300,000 outputs the index knows, from any machine's /nix/store or any
+ * closure dump, thirteen years back.
+ */
+function IdentifyCard({ digest, navigate }) {
+  const file = useFile(`identify/${digest.slice(0, 2)}.json`);
+  if (!file)
+    return html`<div id="status" class="muted">Looking up the digest…</div>`;
+  const hit = file !== SHARD_ERROR && file[digest];
+  if (!hit)
+    return html`<div id="status" class="muted">
+      <code>${digest}</code> is not an output the index knows — not a package
+      output of any indexed nixos-unstable revision (it may be a non-default
+      output, or from a private build).
+    </div>`;
+  const [attr, ver] = hit;
+  return html`
+    <div id="status" class="muted">identified:</div>
+    <div class="identify">
+      <${Link} class="pkg" to=${{ pkg: attr, ver }} navigate=${navigate}>
+        <b>${attr}</b> <span class="muted">${ver}</span> — see when it shipped
+        and how to run it →
+      <//>
+    </div>
+  `;
+}
+
+// depends:<attr> — every package that ever linked against any version of
+// <attr>, aggregated out of the reverse-dependency shards.
+function DependsSearch({ target, navigate }) {
+  const rd = useShard(Shard.REVDEPS, target);
+  if (!rd) return html`<div id="status" class="muted">Loading…</div>`;
+  if (rd === SHARD_ERROR || !Object.keys(rd).length)
+    return html`<div id="status" class="muted">
+      Nothing ever recorded a runtime dependency on <code>${target}</code>.
+    </div>`;
+  const counts = new Map();
+  for (const entry of Object.values(rd))
+    for (const [a] of entry.l) counts.set(a, (counts.get(a) || 0) + 1);
+  const rows = [...counts.entries()].sort((x, y) => y[1] - x[1]);
+  const total = Object.values(rd).reduce((s, e) => s + e.c, 0);
+  return html`
+    <div id="status" class="muted">
+      ${rows.length.toLocaleString()} packages linked against
+      <code>${target}</code> across ${total.toLocaleString()} recorded
+      version-edges
+    </div>
+    <div id="results">
+      ${rows.slice(0, MAX_RESULTS).map(
+        ([a, n]) => html`
+          <${Link} class="pkg" to=${{ pkg: a, ver: "" }} navigate=${navigate} key=${a}>
+            ${a} <span class="muted">· ${n} linked version${n === 1 ? "" : "s"}</span>
+          <//>
+        `,
+      )}
+    </div>
+  `;
+}
 
 // Mounted whenever the packages tab is not showing one package, so landing on
 // the bare page starts the name list downloading before anything is typed.
@@ -460,6 +1041,23 @@ function SearchResults({ q, navigate }) {
     [names],
   );
 
+  const raw = q.trim();
+
+  // A pasted store path or bare digest short-circuits the name search: the
+  // question is "what is this", not "what is called this" — and it needs no
+  // name list, so it renders ahead of the loading states below.
+  const pathish = raw.startsWith(STORE_DIR) ? raw.slice(STORE_DIR.length) : raw;
+  const maybeDigest = pathish.split("-")[0];
+  if (DIGEST_RE.test(maybeDigest))
+    return html`<${IdentifyCard} digest=${maybeDigest} navigate=${navigate} />`;
+
+  // depends:openssl — search by edge rather than by name.
+  if (raw.toLowerCase().startsWith("depends:")) {
+    const target = raw.slice("depends:".length).trim();
+    if (target)
+      return html`<${DependsSearch} target=${target} navigate=${navigate} />`;
+  }
+
   if (names === SHARD_ERROR)
     return html`<div id="status" class="muted">
       Could not load the package list.
@@ -467,7 +1065,7 @@ function SearchResults({ q, navigate }) {
   if (!names)
     return html`<div id="status" class="muted">Loading the package list…</div>`;
 
-  const query = q.trim().toLowerCase();
+  const query = raw.toLowerCase();
   if (!query) return null;
 
   // startsWith matches rank ahead of substring matches.
@@ -552,6 +1150,11 @@ function VersionRow({
   bulk,
   onOpenChange,
   navigate,
+  entry,
+  paths,
+  prevEntry,
+  rd,
+  metaReady,
 }) {
   const { open, ref, toggle } = useLinkableRow(
     selected,
@@ -561,6 +1164,7 @@ function VersionRow({
 
   useEffect(() => onOpenChange(v, open), [open]);
 
+  const refsOf = (e) => e?.r && paths && e.r.map((i) => paths[i]);
   const archive = archiveFor("unstable", r.name);
   return html`
     <${Row}
@@ -575,11 +1179,82 @@ function VersionRow({
           text=${`nix run '${FLAKE}#versions.${attr}."${v}"'`}
           caption="run this version"
         />
+        ${entry &&
+        html`
+          <${Cmd}
+            text=${`nix-store --realise ${storePathOf(attr, v, entry)}`}
+            caption="materialize with zero evaluation — substituted straight from cache.nixos.org"
+          />
+          <${CacheBadge} entry=${entry} />
+        `}
         <${Cmd}
           text=${`github:NixOS/nixpkgs/${r.rev}`}
           caption="pin another flake's nixpkgs to it"
         />
         <${Runs} runs=${runs} revisions=${revisions} navigate=${navigate} />
+        ${metaReady &&
+        !entry &&
+        html`<div class="capt">
+          no store path is known for this version — it never appeared in a
+          channel's store-paths listing (Hydra does not build unfree or broken
+          packages), or its derivation name has drifted from the attribute
+          name — so cache size, dependency and closure data are unavailable
+        </div>`}
+        ${entry &&
+        !entry.r &&
+        html`<div class="capt">
+          no runtime references were recorded for this build — either the
+          path genuinely references nothing, or this is a multi-output
+          package whose payload lives in sibling outputs (‑lib, ‑bin)
+          the prototype does not index
+        </div>`}
+        ${entry &&
+        (() => {
+          // A wrapper names its payload in its own references: the same
+          // attribute with -unwrapped. Say so, or the tiny NAR above reads
+          // as an error.
+          const inner = refsOf(entry)?.find(
+            (p) => refAttr(p) === `${attr}-unwrapped`,
+          );
+          return (
+            inner &&
+            html`<div class="capt">
+              this attribute is a wrapper — the application itself is${" "}
+              <${Link}
+                to=${{ pkg: refAttr(inner), ver: refVer(inner) }}
+                navigate=${navigate}
+                >${refAttr(inner)} ${refVer(inner)}<//
+              >; the installed size above is the wrapper's own
+            </div>`
+          );
+        })()}
+        ${entry?.o?.length &&
+        html`<div class="capt">
+          multi-output package — sibling outputs seen in consumers' closures:
+          ${" " +
+          entry.o.map(([s, sz]) => `${s} ${fmtBytes(sz)}`).join(" · ")}
+        </div>`}
+        ${entry &&
+        html`
+          <${Deps} refs=${refsOf(entry)} src=${entry.rsrc} navigate=${navigate} />
+          <${DepDiff} refs=${refsOf(entry)} prevRefs=${refsOf(prevEntry)} />
+          <${UsedBy} rd=${rd} navigate=${navigate} />
+          ${entry.cs != null &&
+          html`<div class="capt">
+            closure at census: <b>${fmtBytes(entry.cs)}</b>
+            ${` across ${entry.cn ?? "?"} paths`}
+          </div>`}
+          <div class="links">
+            <${ClosureLive} entry=${entry} />
+          </div>
+          <${GraphExplorer}
+            attr=${attr}
+            v=${v}
+            entry=${entry}
+            paths=${paths}
+            navigate=${navigate}
+          />
+        `}
       `}
     >
       <code>${v}</code>
@@ -591,6 +1266,10 @@ function VersionRow({
           ${label(r)}
         <//>
       </span>
+      <span class="rowsize muted">
+        ${entry?.ns != null ? fmtBytes(entry.ns) : ""}
+        ${entry && entry.ok === 0 ? html`<span class="badge-dead">○</span>` : ""}
+      </span>
       <span class="muted"
         >${archive && html`<a href=${archive}>${r.name}</a>`}</span
       >
@@ -601,6 +1280,8 @@ function VersionRow({
 function PackageDetail({ attr, route, revisions, navigate }) {
   const versions = useVersions(attr);
   const hist = useHistory(attr);
+  const metaFile = useWholeShard(Shard.META, attr);
+  const revdeps = useShard(Shard.REVDEPS, attr);
   const [bulk, bulkButton] = useBulk();
   const [openVers, setOpenVers] = useState(() => new Set());
   // Read inside toggleVer without making it depend on the set, so the callback
@@ -663,6 +1344,13 @@ function PackageDetail({ attr, route, revisions, navigate }) {
     compareVersions(b[0], a[0]),
   ); // newest first
 
+  // Store metadata, when the shard has landed: per-version meta entries, the
+  // shard's intern table for references, and this attr's reverse deps.
+  const meta =
+    metaFile && metaFile !== SHARD_ERROR ? metaFile.attrs?.[attr] : null;
+  const metaPaths = metaFile && metaFile !== SHARD_ERROR ? metaFile.paths : null;
+  const rds = revdeps && revdeps !== SHARD_ERROR ? revdeps : null;
+
   // Something the table does not already say: when this package entered
   // nixpkgs, and whether it is still there. "newest first, click to expand"
   // described the widget; this describes the package.
@@ -674,10 +1362,19 @@ function PackageDetail({ attr, route, revisions, navigate }) {
     ? Object.values(history).flatMap((v) => runsOf(v).flat())
     : [];
   const gone = offs.length && Math.max(...offs) < revisions.length - 1;
-  const lifetime = !offs.length
-    ? `${vers.length} versions`
-    : `${vers.length} versions · first packaged ${revisions[Math.min(...offs)].date}` +
-      (gone ? ` · gone since ${revisions[Math.max(...offs)].date}` : "");
+  // How much of this package the cache could measure, so a row without a
+  // badge reads as a stated limit rather than a silent absence.
+  const covered = meta ? vers.filter(([v]) => meta[v]).length : null;
+  const coverage =
+    covered != null && covered < vers.length
+      ? ` · cache data for ${covered} of ${vers.length} versions`
+      : "";
+  const lifetime =
+    (!offs.length
+      ? `${vers.length} versions`
+      : `${vers.length} versions · first packaged ${revisions[Math.min(...offs)].date}` +
+        (gone ? ` · gone since ${revisions[Math.max(...offs)].date}` : "")) +
+    coverage;
 
   return html`
     <h2 class="bulkline">
@@ -696,11 +1393,13 @@ function PackageDetail({ attr, route, revisions, navigate }) {
       route=${route}
       navigate=${navigate}
     />
+    ${meta &&
+    html`<${WeightChart} attr=${attr} meta=${meta} vers=${vers} />`}
     <div class="head cols-ver">
       <span></span><span>version</span><span>newest revision shipping it</span
-      ><span>channel build</span>
+      ><span>size</span><span>channel build</span>
     </div>
-    ${vers.map(([v, off]) => {
+    ${vers.map(([v, off], i) => {
       const r = revisions[off];
       if (!r) return null;
       return html`
@@ -715,9 +1414,138 @@ function PackageDetail({ attr, route, revisions, navigate }) {
           bulk=${force[v] ?? bulk}
           onOpenChange=${onOpenChange}
           navigate=${navigate}
+          entry=${meta?.[v]}
+          paths=${metaPaths}
+          prevEntry=${meta?.[vers[i + 1]?.[0]]}
+          rd=${rds?.[v]}
+          metaReady=${!!(metaFile && metaFile !== SHARD_ERROR)}
         />
       `;
     })}
+  `;
+}
+
+/* ---------- the weight of a package over time ----------
+ *
+ * Installed size (NarSize) and closure size per version, oldest to newest.
+ * The exact numbers the cache recorded when each version was built — a
+ * software-bloat curve nobody has been able to draw from changelogs.
+ */
+function WeightChart({ attr, meta, vers }) {
+  const [ref, width] = useWidth();
+  // Chronological by shipping revision, NOT by version number: release
+  // trains overlap (firefox ESR ships beside current), and this chart is
+  // about weight over TIME — so its x order can differ from the version
+  // table's, which is version-number order.
+  const rows = vers
+    .slice()
+    .sort((a, b) => a[1] - b[1])
+    .map(([v]) => ({ v, e: meta[v] }))
+    .filter((r) => r.e?.ns != null);
+  if (rows.length < 3) return null;
+
+  const hasCs = rows.some((r) => r.e.cs != null);
+  const max = Math.max(...rows.map((r) => Math.max(r.e.ns, r.e.cs || 0)));
+  const ticks = niceTicks(max);
+  const top = ticks[ticks.length - 1];
+  const inner = width - PLOT.left - PLOT.right;
+  const X = (n) => PLOT.left + (n / Math.max(1, rows.length - 1)) * inner;
+  const Y = (v) => PLOT.top + (1 - v / top) * PLOT_H;
+  const { i, onMove, onLeave } = useNearest(rows.length, width);
+
+  const line = (val) =>
+    rows
+      .map((r, n) => {
+        const y = val(r);
+        return y == null ? null : `${n ? "L" : "M"}${X(n)},${Y(y)}`;
+      })
+      .filter(Boolean)
+      .join("");
+
+  // Version labels on the x axis, thinned by pixel distance like yearTicks.
+  const labels = [];
+  let lastX = -Infinity;
+  rows.forEach((r, n) => {
+    const x = X(n);
+    if (x - lastX < 70) return;
+    labels.push({ v: r.v, x });
+    lastX = x;
+  });
+
+  return html`
+    <div class="chart">
+      <h3>How heavy each version was</h3>
+      <p class="sub">
+        Installed size${hasCs ? " and full closure size" : ""} of every version
+        of <code>${attr}</code>, as recorded by cache.nixos.org the day it was
+        built. Versions in shipping order, oldest to newest.
+      </p>
+      <div class="legend">
+        <span
+          class="whatis"
+          title="The size of this version's own store path — the uncompressed NAR archive Hydra built. Its dependencies are not included; for wrappers and multi-output packages this can be tiny while the real payload sits in the closure."
+          ><i style="background:var(--chart-series)"></i>installed (NAR)</span
+        >
+        ${hasCs &&
+        html`<span
+          class="whatis"
+          title="The store path plus everything it references, transitively — what a fresh machine has to download to run this version."
+          ><i style="background:var(--chart-removed)"></i>closure</span
+        >`}
+      </div>
+      <figure ref=${ref}>
+        <svg
+          height=${PLOT_H + PLOT.top + PLOT.bottom}
+          onMouseMove=${onMove}
+          onMouseLeave=${onLeave}
+        >
+          <g class="grid">
+            ${ticks.map(
+              (t) =>
+                html`<line
+                  x1=${PLOT.left}
+                  x2=${width - PLOT.right}
+                  y1=${Y(t)}
+                  y2=${Y(t)}
+                />`,
+            )}
+          </g>
+          ${ticks.map(
+            (t) =>
+              html`<text x=${PLOT.left - 6} y=${Y(t) + 4} text-anchor="end"
+                >${fmtBytes(t)}</text
+              >`,
+          )}
+          ${labels.map(
+            ({ v, x }) =>
+              html`<text x=${x} y=${PLOT_H + PLOT.top + 15} text-anchor="middle"
+                >${v.length > 10 ? v.slice(0, 9) + "…" : v}</text
+              >`,
+          )}
+          ${hasCs &&
+          html`<path
+            class="series series-closure"
+            d=${line((r) => r.e.cs)}
+          />`}
+          <path class="series" d=${line((r) => r.e.ns)} />
+          ${i !== null &&
+          html`<line
+            class="crosshair"
+            x1=${X(i)}
+            x2=${X(i)}
+            y1=${PLOT.top}
+            y2=${PLOT.top + PLOT_H}
+          />`}
+        </svg>
+        ${i !== null &&
+        html`<${Tooltip} x=${X(i)} width=${width}>
+          <span class="k">${rows[i].v}</span>
+          <b>${fmtBytes(rows[i].e.ns)}</b> installed
+          ${rows[i].e.cs != null &&
+          html`<div><b>${fmtBytes(rows[i].e.cs)}</b> closure</div>`}
+        <//>`}
+      </figure>
+    </div>
   `;
 }
 
@@ -734,7 +1562,7 @@ function Packages({ route, navigate, revisions }) {
     <input
       ref=${inputRef}
       type="search"
-      placeholder="Search 30,000+ package attributes — e.g. python3, ripgrep, nodejs"
+      placeholder="Search 30,000+ packages — or paste a /nix/store path, or try depends:openssl"
       value=${route.pkg || route.q}
       onInput=${(e) =>
         navigate({ q: e.currentTarget.value, pkg: "", ver: "" }, Nav.REPLACE)}
@@ -1107,7 +1935,7 @@ function Tooltip({ x, width, children }) {
 
 // A single-series trend over time. No legend by design — one series means the
 // title already names what is plotted, and a one-swatch box just restates it.
-function LineChart({ title, sub, rows, value, format, unit }) {
+function LineChart({ title, sub, rows, value, format, unit, tickFormat }) {
   const [ref, width] = useWidth();
   const pts = rows.map(value);
   const max = Math.max(...pts);
@@ -1148,7 +1976,7 @@ function LineChart({ title, sub, rows, value, format, unit }) {
           ${ticks.map(
             (t) =>
               html`<text x=${PLOT.left - 6} y=${Y(t) + 4} text-anchor="end"
-                >${compact(t)}</text
+                >${(tickFormat ?? compact)(t)}</text
               >`,
           )}
           ${years.map(
@@ -1325,7 +2153,439 @@ function ChurnChart({ rows }) {
   `;
 }
 
-function Stats({ stats }) {
+// A plain top-N table in the charts' visual register.
+function Leaderboard({ title, sub, cols, rows, navigate }) {
+  if (!rows?.length) return null;
+  return html`
+    <div class="chart">
+      <h3>${title}</h3>
+      <p class="sub">${sub}</p>
+      <div class="tableview" style="margin-top:0">
+        <table>
+          <thead>
+            <tr>
+              ${cols.map((c) => html`<th key=${c}>${c}</th>`)}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(
+              (r, i) => html`
+                <tr key=${i}>
+                  <td>
+                    <${Link}
+                      to=${{ pkg: r[0], ver: r.ver || "" }}
+                      navigate=${navigate}
+                      >${r[0]}<//
+                    >
+                    ${r[1] ? html` <span class="muted">${r[1]}</span>` : ""}
+                  </td>
+                  <td>${r[2]}</td>
+                </tr>
+              `,
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- the universe: every measured version, one dot each ----------
+ *
+ * A canvas scatter of all ~240k versions: x is the revision that first
+ * shipped it, y is installed size on a log scale. The slider picks a moment
+ * in the 13 years; versions alive at that revision light up, everything else
+ * stays as dim background. Canvas, not SVG — a quarter-million dots redraw
+ * in a few milliseconds, which is what makes scrubbing feel like time travel.
+ */
+const UNI_H = 430;
+const UNI_PAD = { left: 54, right: 12, top: 12, bottom: 26 };
+const UNI_LOG_LO = 3; // 1 KB
+const UNI_LOG_HI = 10.3; // ~20 GB
+const UNI_GRID = 10; // px per hover-lookup cell
+
+function Universe({ revisions, navigate }) {
+  const [data, setData] = useState(null);
+  const [t, setT] = useState(null);
+  const [hover, setHover] = useState(null);
+  const canvasRef = useRef(null);
+  const gridRef = useRef(null);
+  const [wrapRef, width] = useWidth();
+
+  const load = async () => {
+    setData("loading");
+    try {
+      const [bin, meta] = await Promise.all([
+        fetch("universe.bin").then((r) => {
+          if (!r.ok) throw new Error(`universe.bin: HTTP ${r.status}`);
+          return r.arrayBuffer();
+        }),
+        fetchJson("universe-meta.json"),
+      ]);
+      const n = new DataView(bin).getUint32(0, true);
+      let o = 4;
+      const firsts = new Uint16Array(bin, o, n);
+      o += 2 * n;
+      const lasts = new Uint16Array(bin, o, n);
+      o += 2 * n;
+      const sizes = new Uint32Array(bin, o, n);
+      o += 4 * n;
+      const attrs = new Uint16Array(bin, o, n);
+      setData({ n, firsts, lasts, sizes, attrs, meta });
+      setT(revisions.length - 1);
+    } catch {
+      setData("error");
+    }
+  };
+
+  const alive = useMemo(() => {
+    if (!data || typeof data === "string" || t == null) return 0;
+    let a = 0;
+    for (let i = 0; i < data.n; i++)
+      if (data.firsts[i] <= t && t <= data.lasts[i]) a++;
+    return a;
+  }, [data, t]);
+
+  useEffect(() => {
+    if (!data || typeof data === "string" || t == null) return;
+    const c = canvasRef.current;
+    if (!c) return;
+    const w = Math.max(320, Math.floor(width));
+    const dpr = devicePixelRatio || 1;
+    c.width = w * dpr;
+    c.height = UNI_H * dpr;
+    c.style.height = `${UNI_H}px`;
+    const ctx = c.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, UNI_H);
+
+    const css = getComputedStyle(document.documentElement);
+    const cAlive = css.getPropertyValue("--chart-series").trim();
+    const cDead = css.getPropertyValue("--muted").trim();
+    const cText = css.getPropertyValue("--muted").trim();
+    const cGrid = css.getPropertyValue("--line").trim();
+
+    const plotW = w - UNI_PAD.left - UNI_PAD.right;
+    const plotH = UNI_H - UNI_PAD.top - UNI_PAD.bottom;
+    const nRev = revisions.length;
+    const X = (off) => UNI_PAD.left + (off / (nRev - 1)) * plotW;
+    const Y = (ns) =>
+      UNI_PAD.top +
+      (1 -
+        (Math.min(UNI_LOG_HI, Math.max(UNI_LOG_LO, Math.log10(ns))) -
+          UNI_LOG_LO) /
+          (UNI_LOG_HI - UNI_LOG_LO)) *
+        plotH;
+
+    // Axes first, under the dots.
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.fillStyle = cText;
+    ctx.strokeStyle = cGrid;
+    ctx.lineWidth = 1;
+    for (const [exp, label] of [
+      [3, "1 KB"],
+      [6, "1 MB"],
+      [9, "1 GB"],
+    ]) {
+      const y = Y(10 ** exp);
+      ctx.beginPath();
+      ctx.moveTo(UNI_PAD.left, y);
+      ctx.lineTo(w - UNI_PAD.right, y);
+      ctx.stroke();
+      ctx.textAlign = "right";
+      ctx.fillText(label, UNI_PAD.left - 6, y + 4);
+    }
+    ctx.textAlign = "center";
+    let lastX = -Infinity;
+    let lastYear = "";
+    revisions.forEach((r, off) => {
+      const year = r.date.slice(0, 4);
+      if (year === lastYear) return;
+      lastYear = year;
+      const x = X(off);
+      if (x - lastX < YEAR_GAP) return;
+      lastX = x;
+      ctx.fillText(year, x, UNI_H - 8);
+    });
+
+    // Dots in three states: alive at t (bright), superseded (its package
+    // still ships a lit version — the ordinary march of upgrades, dim gray),
+    // and extinct (no version of its package is alive at t — the lineage
+    // itself is gone, dim red). Also rebuild the hover grid — cheap, and it
+    // must match this exact layout.
+    const cGone = css.getPropertyValue("--chart-removed").trim();
+    const grid = new Map();
+    const cell = (x, y) =>
+      `${Math.floor(x / UNI_GRID)}:${Math.floor(y / UNI_GRID)}`;
+    const { n, firsts, lasts, sizes, attrs } = data;
+    const attrAlive = new Uint8Array(65536);
+    for (let i = 0; i < n; i++)
+      if (firsts[i] <= t && t <= lasts[i]) attrAlive[attrs[i]] = 1;
+    // The future is not drawn: a version first shipped after `t` is unborn,
+    // not dead, and painting it "extinct" red was a lie. Scrubbing forward
+    // therefore grows the universe left to right.
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = cDead;
+    for (let i = 0; i < n; i++) {
+      if (firsts[i] > t) continue;
+      const liveNow = t <= lasts[i];
+      const x = X(firsts[i]);
+      const y = Y(sizes[i]);
+      if (!liveNow && attrAlive[attrs[i]]) ctx.fillRect(x, y, 1.5, 1.5);
+      const k = cell(x, y);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(i);
+    }
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = cGone;
+    for (let i = 0; i < n; i++) {
+      if (firsts[i] > t || t <= lasts[i]) continue;
+      if (attrAlive[attrs[i]]) continue;
+      ctx.fillRect(X(firsts[i]), Y(sizes[i]), 1.5, 1.5);
+    }
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = cAlive;
+    for (let i = 0; i < n; i++) {
+      if (!(firsts[i] <= t && t <= lasts[i])) continue;
+      ctx.fillRect(X(firsts[i]) - 1, Y(sizes[i]) - 1, 2.5, 2.5);
+    }
+    ctx.globalAlpha = 1;
+    gridRef.current = { grid, X, Y };
+  }, [data, t, width]);
+
+  const findNearest = (e) => {
+    const g = gridRef.current;
+    if (!g || !data || typeof data === "string") return null;
+    const box = canvasRef.current.getBoundingClientRect();
+    const mx = e.clientX - box.left;
+    const my = e.clientY - box.top;
+    let best = null;
+    let bestD = UNI_GRID * UNI_GRID;
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++) {
+        const k = `${Math.floor(mx / UNI_GRID) + dx}:${Math.floor(my / UNI_GRID) + dy}`;
+        for (const i of g.grid.get(k) || []) {
+          const x = g.X(data.firsts[i]);
+          const y = g.Y(data.sizes[i]);
+          const d = (x - mx) ** 2 + (y - my) ** 2;
+          if (d < bestD) {
+            bestD = d;
+            best = { i, x, y };
+          }
+        }
+      }
+    return best;
+  };
+
+  if (!data)
+    return html`<button class="more" onClick=${load}>
+      draw the universe — all measured versions on one canvas →
+    </button>`;
+  if (data === "loading")
+    return html`<div class="capt">loading the universe…</div>`;
+  if (data === "error")
+    return html`<div class="capt">could not load universe.bin</div>`;
+
+  const onMove = (e) => {
+    const hit = findNearest(e);
+    if (!hit) return setHover(null);
+    const { i, x, y } = hit;
+    setHover({
+      x,
+      y,
+      attr: data.meta.attrs[data.attrs[i]],
+      ver: data.meta.versions[i],
+      ns: data.sizes[i],
+      from: revisions[data.firsts[i]].date,
+      to: revisions[data.lasts[i]].date,
+    });
+  };
+  // The full target, not a patch: a patch merges onto the CURRENT route,
+  // which here is view=stats — and the stats view drops `pkg` from the URL,
+  // so the click silently did nothing. Same trap the Link component
+  // documents.
+  const onClick = () => {
+    if (hover)
+      navigate({
+        view: "packages",
+        pkg: hover.attr,
+        ver: hover.ver,
+        q: "",
+        rev: "",
+        release: "",
+      });
+  };
+
+  return html`
+    <figure class="universe" ref=${wrapRef}>
+      <canvas
+        ref=${canvasRef}
+        onMouseMove=${onMove}
+        onMouseLeave=${() => setHover(null)}
+        onClick=${onClick}
+        style=${hover ? "cursor:pointer" : ""}
+      ></canvas>
+      ${hover &&
+      html`<${Tooltip} x=${hover.x} width=${width}>
+        <b>${hover.attr}</b> ${hover.ver}
+        <div class="k">${fmtBytes(hover.ns)} · ${hover.from} → ${hover.to}</div>
+      <//>`}
+      <div class="unislider">
+        <input
+          type="range"
+          min="0"
+          max=${revisions.length - 1}
+          value=${t}
+          onInput=${(e) => setT(+e.currentTarget.value)}
+        />
+        <span class="muted">
+          ${revisions[t].date} — <b>${alive.toLocaleString()}</b> versions
+          current, ${(data.n - alive).toLocaleString()} elsewhere in time
+        </span>
+      </div>
+      <div class="capt">
+        one dot per measured version (${data.n.toLocaleString()}): x is the
+        revision that first shipped it, y its installed size (log scale).
+        Drag the slider to move through thirteen years. Blue dots are what
+        nixpkgs shipped at that moment; gray dots were superseded by a newer
+        version of the same package; red dots belong to packages with no
+        living version at that moment — extinct lineages. A version that left
+        and returned stays lit across its gap. Hover to identify, click to
+        open.
+      </div>
+    </figure>
+  `;
+}
+
+/* ---------- the census: is thirteen years of software still alive ---------- */
+function CacheHealth({ navigate }) {
+  const census = useFile("census.json");
+  if (!census || census === SHARD_ERROR) return null;
+  const t = census.totals;
+  const years = census.byYear.map((y) => ({ ...y, month: String(y.y) }));
+  const bloat = census.bloat.filter((b) => b.medianNs != null);
+
+  return html`
+    <h2>The cache census</h2>
+    <p class="muted">
+      Every matched store path was asked for, by name, at cache.nixos.org
+      ${" on "}${census.at}. This is not an estimate — it is a roll call.
+    </p>
+    <div class="kpis">
+      <div class="kpi">
+        <div class="v">${t.matched.toLocaleString()}</div>
+        <div class="l">
+          versions with a known store path${t.universe
+            ? ` — ${Math.round((100 * t.matched) / t.universe)}% of
+               ${t.universe.toLocaleString()}`
+            : ""}
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="v">${((t.alive / t.matched) * 100).toFixed(1)}%</div>
+        <div class="l">of those still substitutable today</div>
+      </div>
+      <div class="kpi">
+        <div class="v">${fmtBytes(t.aliveBytes)}</div>
+        <div class="l">of history still downloadable</div>
+      </div>
+      <div class="kpi">
+        <div class="v">${(t.matched - t.alive).toLocaleString()}</div>
+        <div class="l">matched versions gone from the cache</div>
+      </div>
+    </div>
+    <p class="muted">
+      The unmatched remainder is a limit of the prototype's name matching, not
+      evidence of deletion: unfree and broken packages were never built by
+      Hydra at all, and some derivation names drifted from their attribute.
+      Verified twice over: every narinfo answered, and a follow-up sweep
+      HEAD-checked all 227,146 NAR payload files themselves — zero missing.
+      Thirteen years, nothing lost.
+    </p>
+
+    <${LineChart}
+      title="Survival by vintage"
+      sub="Of the package versions whose newest build landed in each year, the share cache.nixos.org still serves."
+      rows=${years}
+      value=${(r) => (r.pairs ? (100 * r.alive) / r.pairs : 0)}
+      format=${(v) => `${v.toFixed(1)}%`}
+      unit="% alive"
+    />
+
+    ${bloat.length > 2 &&
+    html`
+      <${LineChart}
+        title="The bloat curve"
+        sub="Median installed (NAR) size of the package versions closing in each year. Measured from the cache's own records, not from changelogs."
+        rows=${bloat.map((b) => ({ ...b, month: String(b.y) }))}
+        value=${(r) => r.medianNs}
+        format=${fmtBytes}
+        tickFormat=${fmtBytes}
+        unit="median installed size"
+      />
+    `}
+    ${census.bloat.filter((b) => b.medianNd != null).length > 2 &&
+    html`
+      <${LineChart}
+        title="Dependencies per package"
+        sub="Median count of direct runtime references, by the year a version last shipped."
+        rows=${census.bloat
+          .filter((b) => b.medianNd != null)
+          .map((b) => ({ ...b, month: String(b.y) }))}
+        value=${(r) => r.medianNd}
+        format=${(v) => v.toFixed(1)}
+        unit="median direct deps"
+      />
+    `}
+
+    <${Leaderboard}
+      title="The immortals"
+      sub="Versions still shipping today whose current unbroken run started longest ago."
+      cols=${["package", "shipping since"]}
+      rows=${(census.immortals || []).map(([a, v, d]) =>
+        Object.assign([a, v, d], { ver: v }),
+      )}
+      navigate=${navigate}
+    />
+    <${Leaderboard}
+      title="Biggest single-bump weight gains"
+      sub="Consecutive versions of one package, ranked by how much installed size the bump added."
+      cols=${["package", "gained"]}
+      rows=${(census.jumps || []).map(([a, v1, v2, d]) =>
+        Object.assign([a, `${v1} → ${v2}`, `+${fmtBytes(d)}`], { ver: v2 }),
+      )}
+      navigate=${navigate}
+    />
+
+    <${Leaderboard}
+      title="Heaviest closures shipping today"
+      sub="Current versions, ranked by full runtime closure."
+      cols=${["package", "closure"]}
+      rows=${(census.topClosures || []).map(([a, v, cs]) =>
+        Object.assign([a, v, fmtBytes(cs)], { ver: v }),
+      )}
+      navigate=${navigate}
+    />
+    <${Leaderboard}
+      title="Most depended-upon today"
+      sub="Current versions, ranked by how many packages link against them at runtime."
+      cols=${["package", "dependents"]}
+      rows=${(census.topDeps || []).map(([a, n]) => [a, "", n.toLocaleString()])}
+      navigate=${navigate}
+    />
+    <${Leaderboard}
+      title="Largest losses"
+      sub="The biggest builds the cache no longer serves."
+      cols=${["package", "installed size"]}
+      rows=${(census.biggestDead || []).map(([a, v, ns]) =>
+        Object.assign([a, v, fmtBytes(ns)], { ver: v }),
+      )}
+      navigate=${navigate}
+    />
+  `;
+}
+
+function Stats({ stats, revisions, navigate }) {
   if (!stats)
     return html`<div id="status" class="muted">Loading stats.json…</div>`;
   const t = stats.totals;
@@ -1373,6 +2633,17 @@ function Stats({ stats }) {
     />
 
     <${ChurnChart} rows=${stats.monthly} />
+
+    ${revisions.length > 1 &&
+    html`
+      <h2>The universe</h2>
+      <p class="muted">
+        Every package version the cache could measure, drawn at once.
+      </p>
+      <${Universe} revisions=${revisions} navigate=${navigate} />
+    `}
+
+    <${CacheHealth} navigate=${navigate} />
   `;
 }
 
@@ -1389,7 +2660,15 @@ function Stats({ stats }) {
  * Cached per shard at module scope: opening five packages beginning "py"
  * fetches once.
  */
-const Shard = { VERSIONS: "versions", HISTORY: "history" };
+const Shard = {
+  VERSIONS: "versions",
+  HISTORY: "history",
+  // Per-version store metadata: digest, sizes, closure, liveness, direct
+  // references (interned in the shard's own "paths" table).
+  META: "meta",
+  // Inverted references: who depended on each version of this attribute.
+  REVDEPS: "revdeps",
+};
 
 const shardOf = (attr) =>
   [...attr.slice(0, 2).toLowerCase()]
@@ -1441,6 +2720,33 @@ function useShard(dir, attr) {
 // the same two objects, so opening a row costs nothing extra.
 const useHistory = (attr) => useShard(Shard.HISTORY, attr);
 const useVersions = (attr) => useShard(Shard.VERSIONS, attr);
+
+// The whole shard file rather than one attribute's slice: the meta shard
+// carries a "paths" intern table beside "attrs" and every reference is an
+// index into it, so a consumer needs both halves.
+function useWholeShard(dir, attr) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    loadShard(dir, attr)
+      .then((d) => live && setData(d))
+      .catch(() => live && setData(SHARD_ERROR));
+    return () => {
+      live = false;
+    };
+  }, [dir, attr]);
+  return data;
+}
+
+const useMeta = (attr) => useWholeShard(Shard.META, attr);
+const useRevdeps = (attr) => useShard(Shard.REVDEPS, attr);
+
+// A reference entry out of the meta shard's intern table: [name] for a path
+// that is not an indexed package, [name, attr, version] for one that is.
+const refName = (p) => p[0];
+const refAttr = (p) => p[1];
+const refVer = (p) => p[2];
 
 /* ---------- whole files, fetched only by what needs them ----------
  *
@@ -1519,10 +2825,17 @@ function Timeline({
   const lo = Math.max(0, Math.min(...bounds) - pad);
   const hi = Math.min(revisions.length - 1, Math.max(...bounds) + pad);
 
-  const gutter = Math.min(TL_LABEL_W, width * 0.28);
+  // Adaptive density: firefox has 300+ versions, and 15px rows would make
+  // the chart taller than the rest of the page combined. Rows shrink to as
+  // little as 2px — the bars stay hoverable strips — and the per-row labels
+  // go once rows are too thin to label; the tooltip still names them.
+  const rowH = Math.max(2, Math.min(TL_ROW_H, Math.floor(560 / vers.length)));
+  const showLabels = rowH >= 10;
+  const gutter = showLabels ? Math.min(TL_LABEL_W, width * 0.28) : 8;
   const inner = width - gutter - PLOT.right;
   const X = (off) => gutter + ((off - lo) / Math.max(1, hi - lo)) * inner;
-  const height = vers.length * TL_ROW_H + PLOT.bottom;
+  const height = vers.length * rowH + PLOT.bottom;
+  const barPad = showLabels ? 3 : Math.max(0, Math.floor((rowH - 3) / 2));
 
   // Same distance rule as the trend charts, over the visible window only: the
   // index has one revision in 2013 and none in 2014, so year-start offsets
@@ -1545,12 +2858,7 @@ function Timeline({
           <g class="grid">
             ${years.map(
               ({ x }) =>
-                html`<line
-                  x1=${x}
-                  x2=${x}
-                  y1="0"
-                  y2=${vers.length * TL_ROW_H}
-                />`,
+                html`<line x1=${x} x2=${x} y1="0" y2=${vers.length * rowH} />`,
             )}
           </g>
           ${years.map(
@@ -1560,7 +2868,7 @@ function Timeline({
               >`,
           )}
           ${vers.map((v, n) => {
-            const y = n * TL_ROW_H;
+            const y = n * rowH;
             // Every open row, not just the one in the URL: `ver` holds a
             // single version, so with several rows expanded the graph would
             // highlight one of them and silently ignore the rest.
@@ -1577,10 +2885,11 @@ function Timeline({
                   x="0"
                   y=${y}
                   width=${Math.max(0, width)}
-                  height=${TL_ROW_H}
+                  height=${rowH}
                   fill="transparent"
                 />
-                <text class="tl-label" x="0" y=${y + 11}>${v}</text>
+                ${showLabels &&
+                html`<text class="tl-label" x="0" y=${y + 11}>${v}</text>`}
                 ${runsOf(hist[v]).map(([s, e]) => {
                   // A single-revision run would otherwise be invisible, so
                   // every bar gets a 2px floor.
@@ -1589,9 +2898,9 @@ function Timeline({
                   return html`<rect
                     class="tl-bar"
                     x=${x}
-                    y=${y + 3}
+                    y=${y + barPad}
                     width=${w}
-                    height=${TL_ROW_H - 6}
+                    height=${Math.max(2, rowH - 2 * barPad)}
                     rx="1"
                   />`;
                 })}
@@ -1602,7 +2911,7 @@ function Timeline({
         ${hover &&
         html`<div
           class="tip"
-          style=${`left:${gutter}px; top:${hover.y + TL_ROW_H}px`}
+          style=${`left:${gutter}px; top:${hover.y + rowH}px`}
         >
           <b>${hover.v}</b>
           ${runsOf(hist[hover.v]).map(
@@ -1762,7 +3071,12 @@ function App() {
     </section>
 
     <section hidden=${route.view !== "stats"}>
-      ${route.view === "stats" && html`<${Stats} stats=${stats} />`}
+      ${route.view === "stats" &&
+      html`<${Stats}
+        stats=${stats}
+        revisions=${small?.revisions ?? []}
+        navigate=${navigate}
+      />`}
     </section>
 
     <section hidden=${route.view !== "releases"}>

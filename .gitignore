@@ -2,3 +2,6 @@ index/.per-rev/
 result
 result-*
 mvs/target/
+
+# Prototype outpaths/references demo (generated data, ~200MB) — never commit
+demo/
