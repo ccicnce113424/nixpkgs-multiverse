@@ -115,6 +115,42 @@ $ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
 $ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.ffmpeg.lib'
 ```
 
+### `nix run` cannot take a fake
+
+`nix build` and `nix shell` accept a store path as an installable, which is
+all `.out` is. `nix run` does not, so there is no spelling of a fast selector
+that it accepts:
+
+```console
+$ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello'
+error: … lacks attribute 'drvPath'
+
+$ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
+error: attribute 'legacyPackages.x86_64-linux.fast.latest.hello.out.type' does not exist
+```
+
+Both errors are the same fact seen from two sides. `nix run` resolves an
+installable by forcing it as a derivation — which needs the `drvPath` a fake
+does not have — or as an *app*, which means reading `.type`, and `.out` is a
+string rather than an attrset. A bare `nix run /nix/store/…` is refused too:
+"installable does not correspond to a Nix language value".
+
+An `app` attrset alongside the fake does not help either: Nix only honours
+apps under `apps.<system>`, and mirroring the whole `fast` tree there is not
+an option, because `nix flake check` requires every attribute under
+`apps.<system>` to be an app itself and fails on a nested tree.
+
+So to *run* a fast package, use a shell, or [`mvs run`](./cli.md#running-a-version),
+which takes the store-path road by default:
+
+```console
+$ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out' -c hello
+Hello, world!
+
+$ mvs run hello@2.12.2
+Hello, world!
+```
+
 ```nix
 # a specific version, zero-eval
 mv.fast.version "python3" "3.8.9"
