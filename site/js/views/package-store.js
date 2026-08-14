@@ -421,8 +421,8 @@ export function GraphExplorer({ attr, v, entry, navigate }) {
         })}
       </svg>
       <div class="capt">
-        the complete runtime closure, fetched live from
-        <a href="https://cache.nixos.org">cache.nixos.org</a>:
+        the complete runtime closure, fetched live from${" "}
+        <a href="https://cache.nixos.org">cache.nixos.org</a>:${" "}
         <b>${nodes.length} paths · ${fmtBytes(total)}</b>
         ${complete ? "" : ` (stopped at ${WALK_CAP} paths)`}
       </div>
