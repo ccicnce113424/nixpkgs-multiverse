@@ -202,11 +202,11 @@ export function ClosureLive({ entry }) {
     </div>`;
   return html`
     <div class="capt">
-      closure, measured live:
+      closure, measured live:${" "}
       <b>${state.count} paths · ${fmtBytes(state.total)}</b>
       ${state.dead ? ` · ${state.dead} paths gone from the cache` : ""}
-      ${state.complete ? "" : ` · stopped at ${WALK_CAP} paths`} · heaviest
-      ${state.top.length} paths:
+      ${state.complete ? "" : ` · stopped at ${WALK_CAP} paths`} ·
+      heaviest${" "} ${state.top.length} paths:
     </div>
     <div class="chips">
       ${state.top.map(
