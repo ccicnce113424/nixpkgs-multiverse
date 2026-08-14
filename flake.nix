@@ -585,6 +585,7 @@
           module = evalTest "test-module" ./tests/module.nix;
           history = evalTest "test-history" ./tests/history.nix;
           lock = evalTest "test-lock" ./tests/lock.nix;
+          fast = evalTest "test-fast" ./tests/fast.nix;
           compose = (import ./tests/compose.nix { inherit system; }).env;
 
           # Every in-repository markdown link, against the headings that
