@@ -14,7 +14,7 @@ use clap::{Parser, Subcommand};
 use mvs::db::Index;
 use mvs::lock;
 use mvs::query::{self, Format};
-use mvs::run::{self, Execute};
+use mvs::run::{self, Execute, Speed};
 use mvs::solve;
 use mvs::store;
 
@@ -59,9 +59,13 @@ enum Command {
         constraints: Vec<String>,
     },
 
-    /// Run a package straight out of the revision that shipped it
+    /// Run a package, straight out of the binary cache where possible
     ///
-    /// A wrapper around `nix run`: `mvs run ripgrep@13.0.0 -- --version`.
+    /// `mvs run ripgrep@13.0.0 -- --version`. The store-path index knows
+    /// which /nix/store path the version built to, so the default path
+    /// substitutes it and runs it — no nixpkgs fetch, no evaluation. A
+    /// version the index never matched falls back to fetching and evaluating
+    /// its revision, which --eval also forces.
     Run {
         #[arg(value_name = "ATTR[@VERSION]")]
         spec: String,
@@ -70,14 +74,21 @@ enum Command {
         #[arg(last = true)]
         args: Vec<String>,
 
-        /// Print the nix command line instead of running it
+        /// Fetch and evaluate the revision instead of substituting the
+        /// indexed store path
+        #[arg(long)]
+        eval: bool,
+
+        /// Print the command line instead of running it
         #[arg(long)]
         dry_run: bool,
     },
 
     /// A shell with packages from the revisions that shipped them
     ///
-    /// A wrapper around `nix shell`. Composing across revisions is right for
+    /// A wrapper around `nix shell`, taking indexed store paths where the
+    /// index has them and evaluated revisions where it does not — the two mix
+    /// freely within one shell. Composing across revisions is right for
     /// standalone tools and wrong for a development environment — for that,
     /// `mvs solve` gives one coherent revision.
     Shell {
@@ -87,6 +98,11 @@ enum Command {
         /// Command to run in the shell, instead of an interactive one
         #[arg(last = true)]
         args: Vec<String>,
+
+        /// Fetch and evaluate the revisions instead of substituting the
+        /// indexed store paths
+        #[arg(long)]
+        eval: bool,
 
         /// Print the nix command line instead of running it
         #[arg(long)]
@@ -242,6 +258,15 @@ fn execute(dry_run: bool) -> Execute {
     }
 }
 
+/// `--eval` as the enum the wrappers take, for the same reason.
+fn speed(eval: bool) -> Speed {
+    if eval {
+        Speed::Eval
+    } else {
+        Speed::Fast
+    }
+}
+
 fn run() -> Result<()> {
     let cli = Cli::parse();
     let index = Index::open(cli.db.as_deref())?;
@@ -266,13 +291,15 @@ fn run() -> Result<()> {
         Command::Run {
             spec,
             args,
+            eval,
             dry_run,
-        } => run::run(&index, spec, args, execute(*dry_run)),
+        } => run::run(&index, spec, args, execute(*dry_run), speed(*eval)),
         Command::Shell {
             specs,
             args,
+            eval,
             dry_run,
-        } => run::shell(&index, specs, args, execute(*dry_run)),
+        } => run::shell(&index, specs, args, execute(*dry_run), speed(*eval)),
         Command::Path { spec } => store::path(&index, spec, format),
         Command::Size { spec } => store::size(&index, spec, format),
         Command::Deps { spec } => store::deps(&index, spec, format),

@@ -54,7 +54,7 @@ impl MatchedBy {
 /// The version is matched the way every other command matches it — exact
 /// first, then as a component-wise prefix — and when several versions
 /// qualify, the pair current at the index tip wins, then the newest version.
-fn resolve_pair(index: &Index, spec: &str) -> Result<PairPath> {
+pub fn resolve_pair(index: &Index, spec: &str) -> Result<PairPath> {
     let constraint = Constraint::parse(spec)?;
     let pairs = index.store_pairs_of(&constraint.attr)?;
 
@@ -133,6 +133,46 @@ fn report(pair: &PairPath) {
         "{}",
         format!("{} {}{state}", pair.attr, pair.version).style(output::muted())
     );
+}
+
+/// The pname half of a derivation name: everything before the first dash that
+/// is followed by a digit, which is how Nix itself splits one.
+fn pname_of(name: &str) -> &str {
+    let bytes = name.as_bytes();
+    for (i, w) in bytes.windows(2).enumerate() {
+        if w[0] == b'-' && w[1].is_ascii_digit() {
+            return &name[..i];
+        }
+    }
+    name
+}
+
+/// What `mvs run` and `mvs shell` need to take the fast road: the store path
+/// to substitute, and the names to report and to look for under `bin/`.
+pub struct Target {
+    pub attr: String,
+    pub version: String,
+    pub store_path: String,
+    /// The derivation's pname, which is the other plausible spelling of the
+    /// program when it differs from the attribute (`ripgrep` builds `rg`, but
+    /// `python3` builds `python3`).
+    pub pname: Option<String>,
+    pub tip: bool,
+}
+
+/// Resolve a spec to its indexed store path, for callers that execute rather
+/// than print. Errors exactly as the store subcommands do.
+pub fn target(index: &Index, spec: &str) -> Result<Target> {
+    let pair = resolve_pair(index, spec)?;
+    let pname = pair.path.name.as_deref().map(pname_of).map(str::to_string);
+
+    Ok(Target {
+        attr: pair.attr,
+        version: pair.version,
+        store_path: pair.path.store_path(),
+        pname,
+        tip: pair.tip,
+    })
 }
 
 /// `mvs path <attr>[@version]` — the bare `/nix/store` path.
@@ -609,5 +649,18 @@ mod tests {
         // not a digest however plausible it looks.
         assert!(digest_of(&"e".repeat(DIGEST_LEN)).is_err());
         assert!(digest_of("").is_err());
+    }
+
+    /// Tests that a derivation name splits into the pname `mvs run` looks for
+    /// under bin/, by feeding it the shapes the index actually holds: a
+    /// dashed name, a name whose pname itself ends in a digit, one with no
+    /// version at all, and one whose version is not the first dashed part.
+    #[test]
+    fn splits_pnames() {
+        assert_eq!(pname_of("hello-2.12.2"), "hello");
+        assert_eq!(pname_of("python3-3.8.9"), "python3");
+        assert_eq!(pname_of("ripgrep-15.2.0"), "ripgrep");
+        assert_eq!(pname_of("nix-info"), "nix-info");
+        assert_eq!(pname_of("gcc-wrapper-13.2.0"), "gcc-wrapper");
     }
 }
