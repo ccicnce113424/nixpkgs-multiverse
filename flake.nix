@@ -172,6 +172,31 @@
       # app.js is renamed to app.<content-hash>.js and index.html rewritten to
       # match, so the served HTML and script can never be a mismatched pair
       # across deploys, and the script could be cached immutably.
+      # The pinned store-path artifacts, assembled into one directory for the
+      # site build. Each file is fetched by the {tag, narHash} data-pins.json
+      # records — hash-verified, so an overwritten release asset fails closed —
+      # and nothing is fetched until something builds a site.
+      dataArtifactsFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+          pins = builtins.fromJSON (builtins.readFile ./data-pins.json);
+          fetched = builtins.mapAttrs (
+            name: pin:
+            builtins.fetchTree {
+              type = "file";
+              url = "${pins.baseUrl}/${pin.tag}/${name}";
+              inherit (pin) narHash;
+            }
+          ) pins.files;
+        in
+        pkgs.runCommand "multiverse-data" { } ''
+          mkdir -p $out
+          ${builtins.concatStringsSep "\n" (
+            map (name: "cp ${fetched.${name}} $out/${name}") (builtins.attrNames fetched)
+          )}
+        '';
+
       siteFor =
         system:
         let
@@ -433,6 +458,19 @@
             # once, and no shard can answer it. Fetched when a revision row is
             # opened, never at boot.
             cp versions.json $out/versions.json
+
+            # The store-data products: meta/revdeps/identify shards,
+            # census.json, universe.bin. Built from the pinned artifacts, so
+            # the site's store views and the fast evaluation path always
+            # describe the same data cut. The script reads the committed
+            # index files itself (it closes the open tip on its own), so it
+            # gets an assembled checkout root like mvs' build-db.py does.
+            root=$(mktemp -d)
+            mkdir -p "$root/index"
+            cp ${./revisions.json} "$root/revisions.json"
+            cp ${./index/versions.json} "$root/index/versions.json"
+            cp ${./index/history.json} "$root/index/history.json"
+            python3 ${./tools/build-site-data.py} "$root" ${dataArtifactsFor system} $out
 
             # The social-card image the og:/twitter: meta tags point at.
             cp ${./multiverse_lotr.jpg} $out/multiverse_lotr.jpg
