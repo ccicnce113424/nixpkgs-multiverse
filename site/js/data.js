@@ -131,6 +131,16 @@ const NAMES_FILE = "names.json";
 const INDEX_FILE = "versions.json";
 
 const fileCache = new Map();
+// The same fetch as useFile, for callers outside the render cycle — an event
+// handler that must resolve something before it can decide where to go. It
+// shares fileCache, so a file either view already pulled costs nothing.
+// Rejections surface as null rather than the SHARD_ERROR sentinel: an
+// imperative caller is choosing a branch, not rendering a state.
+export function loadFile(file) {
+  if (!fileCache.has(file)) fileCache.set(file, fetchJson(file));
+  return fileCache.get(file).catch(() => null);
+}
+
 export function useFile(file) {
   const [data, setData] = useState(null);
   useEffect(() => {

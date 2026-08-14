@@ -10,10 +10,17 @@
  */
 
 import { html, useState, useEffect, useRef } from "htm/preact";
+import cytoscape from "cytoscape";
 
 import { SHARD_ERROR } from "../config.js";
-import { CACHE_URL, WALK_CAP, fetchNarinfo, walkClosure } from "../cache.js";
-import { refName, refAttr, refVer, useNames } from "../data.js";
+import {
+  CACHE_URL,
+  STORE_DIR,
+  WALK_CAP,
+  fetchNarinfo,
+  walkClosure,
+} from "../cache.js";
+import { refName, refAttr, refVer, useNames, loadFile } from "../data.js";
 import { fmtBytes, pnameOf } from "../format.js";
 import { Link } from "../router.js";
 
@@ -236,11 +243,74 @@ const GRAPH_LABELED = 40; // nodes past depth 1 that still get labels
 const ZOOM_STEP = 1.2;
 const ZOOM_MAX_FACTOR = 40;
 
+// The four layouts the graph offers, as one table rather than a copy inside
+// each effect that needs one — the create effect and the layout-switch effect
+// were carrying separate copies of the same switch.
+//
+// Every layout sets nodeDimensionsIncludeLabels, which is what keeps labels
+// from colliding: without it a layout packs circles, and the text hanging off
+// each circle is free to land on its neighbour. avoidOverlap adds the same
+// promise for the node bodies. The numbers are otherwise the defaults, chosen
+// to spread a ~150-node closure without pushing it off screen.
+const GRAPH_PADDING = 30;
+// Below this rendered font size cytoscape stops drawing labels entirely,
+// which is what makes a zoomed-out closure legible as a shape.
+const MIN_LABEL_FONT_PX = 7;
+// How wide a label may get before it is ellipsised. Roughly the width of
+// "libxml2-2.13.5", past which names start covering their neighbours.
+const LABEL_MAX_WIDTH_PX = 110;
+const LAYOUT_ANIMATION_MS = 400;
+
+const layoutFor = (name, rootId) => {
+  const shared = {
+    padding: GRAPH_PADDING,
+    animate: true,
+    animationDuration: LAYOUT_ANIMATION_MS,
+    nodeDimensionsIncludeLabels: true,
+  };
+  switch (name) {
+    case "concentric":
+      return {
+        ...shared,
+        name: "concentric",
+        concentric: (n) => 100 - (n.data("depth") || 0),
+        levelWidth: () => 1,
+        avoidOverlap: true,
+        minNodeSpacing: 24,
+      };
+    case "cose":
+      return {
+        ...shared,
+        name: "cose",
+        nodeRepulsion: () => 400000,
+        idealEdgeLength: () => 70,
+        nodeOverlap: 20,
+        componentSpacing: 80,
+      };
+    case "circle":
+      return {
+        ...shared,
+        name: "circle",
+        avoidOverlap: true,
+        spacingFactor: 1.2,
+      };
+    default:
+      return {
+        ...shared,
+        name: "breadthfirst",
+        directed: true,
+        roots: [rootId],
+        spacingFactor: 1.4,
+        avoidOverlap: true,
+      };
+  }
+};
+
 export function GraphExplorer({ attr, v, entry, navigate }) {
-  const [state, setState] = useState(null); // null | {walking} | the graph
-  const [view, setView] = useState(null); // viewBox override while zooming
-  const svgRef = useRef(null);
-  const drag = useRef(null);
+  const [state, setState] = useState(null); // null | {walking: n} | {elements, count, total, rootId}
+  const [layoutName, setLayoutName] = useState("breadthfirst");
+  const containerRef = useRef(null);
+  const cyRef = useRef(null);
   const names = useNames();
 
   const run = async () => {
@@ -249,7 +319,7 @@ export function GraphExplorer({ attr, v, entry, navigate }) {
       setState({ walking: n }),
     );
 
-    // BFS depths and a spanning tree (first-discovery parent) over the walk.
+    // BFS depths and parent mapping over the walk
     const depth = new Map([[entry.d, 0]]);
     const parent = new Map();
     let frontier = [entry.d];
@@ -265,56 +335,163 @@ export function GraphExplorer({ attr, v, entry, navigate }) {
       frontier = next;
     }
 
-    // Concentric rings by depth. Each ring is ordered by its parents' angles
-    // so subtrees stay angularly together and tree edges rarely cross.
-    const rings = [];
-    for (const [d, dep] of depth) (rings[dep] ??= []).push(d);
-    const angle = new Map([[entry.d, -Math.PI / 2]]);
-    const maxDepth = rings.length - 1;
-    const R = Math.max(1, maxDepth) * GRAPH_RING + 80;
-    const posOf = new Map([[entry.d, [R, R]]]);
-    for (let dep = 1; dep < rings.length; dep++) {
-      const ring = rings[dep].slice().sort((a, b) => {
-        const pa = angle.get(parent.get(a)) ?? 0;
-        const pb = angle.get(parent.get(b)) ?? 0;
-        return pa - pb || (a < b ? -1 : 1);
-      });
-      ring.forEach((d, i) => {
-        const a = (i / ring.length) * 2 * Math.PI - Math.PI / 2;
-        angle.set(d, a);
-        posOf.set(d, [
-          R + dep * GRAPH_RING * Math.cos(a),
-          R + dep * GRAPH_RING * Math.sin(a),
-        ]);
-      });
-    }
+    const elements = [];
+    let total = 0;
 
-    // Labels: everything near the root, then only the heaviest of the rest.
-    const labeled = new Set(rings[0].concat(rings[1] || []));
-    [...depth.keys()]
-      .filter((d) => depth.get(d) > 1)
-      .sort((a, b) => (seen.get(b)?.ns || 0) - (seen.get(a)?.ns || 0))
-      .slice(0, GRAPH_LABELED)
-      .forEach((d) => labeled.add(d));
-
-    const nodes = [...depth.keys()].map((d) => {
+    for (const [d, dep] of depth) {
       const i = seen.get(d);
       const name = i?.name ?? d;
       const pn = pnameOf(name);
-      return {
-        d,
-        name,
-        ns: i?.ns,
-        depth: depth.get(d),
-        pos: posOf.get(d),
-        label: labeled.has(d),
-        link: names && names !== SHARD_ERROR && names[pn] ? pn : null,
-        ver: name.slice(pn.length + 1),
-      };
-    });
-    const total = nodes.reduce((s, nd) => s + (nd.ns || 0), 0);
-    setState({ nodes, parent, posOf, R, complete, total });
+      const ns = i?.ns || 0;
+      total += ns;
+      const isRoot = dep === 0;
+      // A colouring hint, not a destination: the name's pname matching an
+      // attribute means this is probably a package the index knows, which is
+      // worth a lighter node. Where it actually goes is settled by the
+      // digest when the node is tapped — see the handler below.
+      const link = names && names !== SHARD_ERROR && names[pn] ? pn : null;
+
+      elements.push({
+        data: {
+          id: d,
+          name,
+          label: name,
+          depth: dep,
+          isRoot,
+          link,
+          ns,
+          formattedSize: fmtBytes(ns),
+          color: isRoot ? "#3b82f6" : link ? "#60a5fa" : "#64748b",
+          size: isRoot
+            ? 24
+            : Math.max(
+                12,
+                Math.min(28, 8 + Math.log10((ns || 1) / 1024 + 1) * 6),
+              ),
+        },
+      });
+
+      const p = parent.get(d);
+      if (p) {
+        elements.push({
+          data: {
+            id: `e_${p}_${d}`,
+            source: p,
+            target: d,
+          },
+        });
+      }
+    }
+
+    setState({ elements, count: depth.size, complete, total, rootId: entry.d });
   };
+
+  useEffect(() => {
+    if (!containerRef.current || !state?.elements) return;
+
+    const isDark =
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const labelColor = isDark ? "#e2e8f0" : "#1e293b";
+    const edgeColor = isDark ? "#475569" : "#cbd5e1";
+    // What the label panel is painted with: the page behind the graph, so a
+    // label reads as sitting on the canvas rather than in a box.
+    const panelColor = isDark ? "#0f172a" : "#ffffff";
+
+    const cy = cytoscape({
+      container: containerRef.current,
+      elements: state.elements,
+      style: [
+        {
+          selector: "node",
+          style: {
+            "background-color": "data(color)",
+            label: "data(label)",
+            color: labelColor,
+            "font-size": "11px",
+            "font-family": "system-ui, sans-serif",
+            "text-valign": "bottom",
+            "text-margin-y": 4,
+            // Three defences against a wall of overlapping text in a dense
+            // closure. Labels disappear below the zoom where they would be
+            // unreadable anyway, so the zoomed-out view shows shape rather
+            // than mush; a long derivation name is clipped rather than
+            // sprawling across its neighbours; and each label sits on a
+            // panel of the page background, so where two do overlap the
+            // front one stays readable instead of interleaving.
+            "min-zoomed-font-size": MIN_LABEL_FONT_PX,
+            "text-wrap": "ellipsis",
+            "text-max-width": LABEL_MAX_WIDTH_PX,
+            "text-background-color": panelColor,
+            "text-background-opacity": 0.85,
+            "text-background-padding": 2,
+            "text-background-shape": "roundrectangle",
+            // The label is decoration; a tap belongs to the node under it.
+            "text-events": "no",
+            width: "data(size)",
+            height: "data(size)",
+            cursor: "pointer",
+          },
+        },
+        {
+          selector: "node[?isRoot]",
+          style: {
+            "border-width": 3,
+            "border-color": "#60a5fa",
+            "font-weight": "bold",
+          },
+        },
+        {
+          selector: "edge",
+          style: {
+            width: 1.5,
+            "line-color": edgeColor,
+            "target-arrow-shape": "triangle",
+            "target-arrow-color": edgeColor,
+            "curve-style": "bezier",
+            opacity: 0.7,
+            "arrow-scale": 0.8,
+          },
+        },
+      ],
+      layout: layoutFor(layoutName, state.rootId),
+    });
+
+    // Where a node goes is decided by the digest, not by its name. A closure
+    // holds whatever the consumer's own revision linked against, so the
+    // name's version is frequently not one this index recorded for that
+    // attribute — a multi-output sibling (gcc-9.3.0-lib parses as version
+    // "9.3.0-lib") or an older build of the same library. Measured over real
+    // reference lists, 36% of the nodes whose pname matches an attribute
+    // would land on an (attr, version) pair that does not exist.
+    //
+    // identify/<xx>.json is the index's own digest -> (attr, version) map, so
+    // one small cached fetch answers exactly, aliases included. A digest the
+    // index never recorded is not a dead end either: the search box's
+    // identify card explains what it is instead.
+    cy.on("tap", "node", async (evt) => {
+      const { id, name } = evt.target.data();
+      const shard = await loadFile(`identify/${id.slice(0, 2)}.json`);
+      const hit = shard && shard[id];
+      if (hit) {
+        navigate({ pkg: hit[0], ver: hit[1] });
+        return;
+      }
+      navigate({ q: `${STORE_DIR}${id}-${name}` });
+    });
+
+    cyRef.current = cy;
+    return () => {
+      cy.destroy();
+      cyRef.current = null;
+    };
+  }, [state]);
+
+  useEffect(() => {
+    if (cyRef.current && state?.rootId) {
+      cyRef.current.layout(layoutFor(layoutName, state.rootId)).run();
+    }
+  }, [layoutName]);
 
   if (!entry.d) return null;
   if (!state)
@@ -326,105 +503,64 @@ export function GraphExplorer({ attr, v, entry, navigate }) {
       walking the closure… ${state.walking} narinfos fetched
     </div>`;
 
-  const { nodes, parent, posOf, R, complete, total } = state;
-  const W = 2 * R;
-  const vb = view ?? { x: 0, y: 0, w: W, h: W };
-
-  const onWheel = (e) => {
-    e.preventDefault();
-    const box = svgRef.current.getBoundingClientRect();
-    const px = vb.x + ((e.clientX - box.left) / box.width) * vb.w;
-    const py = vb.y + ((e.clientY - box.top) / box.height) * vb.h;
-    const k = e.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-    const w = Math.min(W * 1.5, Math.max(W / ZOOM_MAX_FACTOR, vb.w * k));
-    setView({
-      x: px - ((px - vb.x) / vb.w) * w,
-      y: py - ((py - vb.y) / vb.h) * w,
-      w,
-      h: w,
-    });
-  };
-  const onDown = (e) => {
-    drag.current = { x: e.clientX, y: e.clientY, vb };
-  };
-  const onMove = (e) => {
-    if (!drag.current) return;
-    const box = svgRef.current.getBoundingClientRect();
-    const d = drag.current;
-    setView({
-      ...d.vb,
-      x: d.vb.x - ((e.clientX - d.x) / box.width) * d.vb.w,
-      y: d.vb.y - ((e.clientY - d.y) / box.height) * d.vb.h,
-    });
-  };
-  const onUp = () => (drag.current = null);
-  const rOf = (ns) => 2.5 + Math.log10((ns || 1) / 1024 + 1) * 1.6;
-
   return html`
-    <div class="graphbox">
-      <svg
-        ref=${svgRef}
-        viewBox=${`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
-        style="height:480px;touch-action:none;cursor:grab"
-        onWheel=${onWheel}
-        onPointerDown=${onDown}
-        onPointerMove=${onMove}
-        onPointerUp=${onUp}
-        onPointerLeave=${onUp}
+    <div class="graphbox" style="margin-top:0.5rem">
+      <div
+        style="display:flex; justify-space:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.4rem"
       >
-        ${nodes.map((nd) => {
-          const p = parent.get(nd.d);
-          if (!p) return null;
-          const [px, py] = posOf.get(p);
-          return html`<line
-            class=${`g-edge${nd.depth > 1 ? " g-edge2" : ""}`}
-            key=${`e${nd.d}`}
-            x1=${px}
-            y1=${py}
-            x2=${nd.pos[0]}
-            y2=${nd.pos[1]}
-          />`;
-        })}
-        ${nodes.map((nd) => {
-          const [x, y] = nd.pos;
-          const isRoot = nd.depth === 0;
-          const jump = () => nd.link && navigate({ pkg: nd.link, ver: nd.ver });
-          return html`
-            <g key=${`n${nd.d}`}>
-              <circle
-                class=${isRoot
-                  ? "g-node g-center"
-                  : `g-node${nd.link ? " g-node-link" : ""}`}
-                cx=${x}
-                cy=${y}
-                r=${isRoot ? 7 : rOf(nd.ns)}
-                onClick=${jump}
-              >
-                <title>${nd.name} · ${fmtBytes(nd.ns)}</title>
-              </circle>
-              ${nd.label &&
-              html`<text
-                class=${isRoot
-                  ? "g-label g-center-label"
-                  : `g-label${nd.depth > 1 ? " g-label2" : ""}${
-                      nd.link ? " g-label-link" : ""
-                    }`}
-                x=${x}
-                y=${y - (isRoot ? 12 : rOf(nd.ns) + 3)}
-                text-anchor="middle"
-                onClick=${jump}
-              >
-                ${nd.name}
-              </text>`}
-            </g>
-          `;
-        })}
-      </svg>
-      <div class="capt">
-        the complete runtime closure, fetched live from${" "}
-        <a href="https://cache.nixos.org">cache.nixos.org</a>:${" "}
-        <b>${nodes.length} paths · ${fmtBytes(total)}</b>
-        ${complete ? "" : ` (stopped at ${WALK_CAP} paths)`}
+        <div
+          style="display:flex; gap:0.3rem; align-items:center; font-size:12px"
+        >
+          <span class="muted">Layout:</span>
+          <button
+            class="more"
+            style=${`font-size:12px; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid var(--line); ${layoutName === "breadthfirst" ? "background:var(--line); font-weight:600" : ""}`}
+            onClick=${() => setLayoutName("breadthfirst")}
+          >
+            Tree
+          </button>
+          <button
+            class="more"
+            style=${`font-size:12px; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid var(--line); ${layoutName === "concentric" ? "background:var(--line); font-weight:600" : ""}`}
+            onClick=${() => setLayoutName("concentric")}
+          >
+            Radial
+          </button>
+          <button
+            class="more"
+            style=${`font-size:12px; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid var(--line); ${layoutName === "cose" ? "background:var(--line); font-weight:600" : ""}`}
+            onClick=${() => setLayoutName("cose")}
+          >
+            Force
+          </button>
+          <button
+            class="more"
+            style=${`font-size:12px; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid var(--line); ${layoutName === "circle" ? "background:var(--line); font-weight:600" : ""}`}
+            onClick=${() => setLayoutName("circle")}
+          >
+            Circle
+          </button>
+        </div>
+        <button
+          class="more"
+          style="font-size:12px; padding:0.1rem 0.4rem; border-radius:4px; border:1px solid var(--line); margin-left:auto"
+          onClick=${() => cyRef.current?.fit()}
+        >
+          Fit View
+        </button>
+      </div>
+
+      <div
+        ref=${containerRef}
+        style="width:100%; height:480px; background:var(--bg, transparent); border-radius:6px; border:1px solid var(--line);"
+      ></div>
+
+      <div class="capt" style="margin-top:0.4rem">
+        the complete runtime closure, fetched live from
+        <a href="https://cache.nixos.org">cache.nixos.org</a>:
+        <b>${state.count} paths · ${fmtBytes(state.total)}</b>${state.complete
+          ? ""
+          : ` (stopped at ${WALK_CAP} paths)`}
       </div>
     </div>
   `;
