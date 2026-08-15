@@ -1147,16 +1147,28 @@ rec {
 
       # Newest indexed version of each attribute, as of the data pin.
       #
-      # Keyed by the store-path index on purpose, unlike `versions` above:
-      # newestOf reads "newest" off the key set it is handed, so keying this
-      # by the eval index would silently redefine fast.latest as the newest
-      # version that exists rather than the newest one that can be served
-      # instantly. 757 attributes already differ between the two, and every
-      # one of them would turn from a fake into a throw, or — worse, under
-      # fastFallback = "eval" — into a quiet 378 MB fetch inside fast.
-      latest = builtins.mapAttrs newestOf fastIndex;
+      # A union rather than the swap `versions` above does, because newestOf
+      # reads "newest" off whichever key set it is handed. Where the
+      # store-path index has the attribute its versions win, so `latest`
+      # keeps meaning the newest version that can be served instantly rather
+      # than the newest that exists — 757 attributes differ between those two
+      # readings, and each would otherwise turn from a fake into a throw, or,
+      # under fastFallback = "eval", into a quiet 378 MB fetch inside fast.
+      # Where it does not, the eval index supplies the key, and the newest
+      # known version resolves through fastMissing exactly as it does under
+      # `versions`. That second half is pure addition: those attributes had
+      # no key here at all.
+      latest = builtins.mapAttrs newestOf (attrIndex // fastIndex);
 
       # What was current when the pin was cut: one fake per attribute.
+      #
+      # No union here, unlike `latest` above. A tip key names a revision
+      # rather than a version, and which attributes a revision provides is
+      # only knowable by evaluating it — the one thing this path exists to
+      # avoid. Keying off the eval index would put attributes here that the
+      # pinned revision may not carry, and fastMissing would then hand
+      # fastFallback = "eval" a derivation from whichever revision happened
+      # to ship that version, which is not what tip was asked for.
       tip = builtins.mapAttrs newestOf fastTip.attrs;
 
       # The selector form: fast.at "2022-03-15", fast.at "aae12a743f75".

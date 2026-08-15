@@ -53,6 +53,12 @@ let
   # Nix that no fallback could ever intercept.
   unfreeKeyed = mv.fast.versions ? vscode;
   unfreeThrows = !(builtins.tryEval mv.fast.versions.vscode."1.107.0").success;
+
+  # `latest` gets the same key for the same reason, but by union rather than
+  # by swap: an attribute the store-path index does know must keep choosing
+  # its newest *matched* version, since that is the only one fast can serve.
+  unfreeLatestKeyed = mv.fast.latest ? vscode;
+  unfreeLatestThrows = !(builtins.tryEval mv.fast.latest.vscode).success;
 in
 
 # A fake walks and quacks like a derivation.
@@ -95,6 +101,14 @@ assert !(builtins.tryEval fallbackHello.drvPath).success;
 # revision — the same reason `hello ? eval` above stops at presence.
 assert unfreeKeyed;
 assert unfreeThrows;
+assert unfreeLatestKeyed;
+assert unfreeLatestThrows;
+
+# The union must not disturb the attributes the store-path index does cover:
+# `latest` still means the newest version with a path, which for an attribute
+# whose newer versions Hydra never built is older than the newest known.
+assert mv.fast.latest.hello.version == "2.12.3";
+assert mv.fast.latest.ffmpeg.version == "9.0";
 
 {
   helloName = hello.name;
