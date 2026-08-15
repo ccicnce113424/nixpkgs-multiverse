@@ -1126,13 +1126,34 @@ rec {
       version = fastVersion;
 
       # Materialised {attr -> {version -> fake}}, the flake-installable
-      # spelling: nix shell .#fast.versions.python3."3.8.9". Covers every
-      # pair the store-path index matched, closed and current alike.
+      # spelling: nix shell .#fast.versions.python3."3.8.9".
+      #
+      # Keyed by the eval index rather than by the store-path index, so the
+      # tree has a key for every pair `versions` has. A pair the store-path
+      # index did not match resolves through fastVersion like any other and
+      # lands on fastMissing, which is the only way a miss can reach either
+      # the message naming the eval selector or fastFallback: an attribute
+      # absent from the attrset is Nix's own "attribute missing", thrown
+      # before any code here runs. Unfree attributes are the whole class —
+      # Hydra evaluates nixpkgs with allowUnfree = false, so no version of
+      # one is ever built, and none of them would otherwise be addressable.
+      #
+      # The cost is one parse of index/versions.json (~0.2s) on the first
+      # fast.versions lookup; mapAttrs stays lazy in its values, so a hit
+      # still resolves out of the store-path data alone.
       versions = builtins.mapAttrs (
         attr: vers: builtins.mapAttrs (ver: _: fastVersion attr ver) vers
-      ) fastIndex;
+      ) attrIndex;
 
       # Newest indexed version of each attribute, as of the data pin.
+      #
+      # Keyed by the store-path index on purpose, unlike `versions` above:
+      # newestOf reads "newest" off the key set it is handed, so keying this
+      # by the eval index would silently redefine fast.latest as the newest
+      # version that exists rather than the newest one that can be served
+      # instantly. 757 attributes already differ between the two, and every
+      # one of them would turn from a fake into a throw, or — worse, under
+      # fastFallback = "eval" — into a quiet 378 MB fetch inside fast.
       latest = builtins.mapAttrs newestOf fastIndex;
 
       # What was current when the pin was cut: one fake per attribute.

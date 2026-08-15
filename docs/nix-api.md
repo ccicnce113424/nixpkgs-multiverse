@@ -204,23 +204,23 @@ what Hydra built, which leaves unfree attributes out of it altogether —
 `vscode`, `steam` and `discord` have no store path at *any* version, while
 [the eval path](#unfree-packages-and-nixpkgs-config) serves them normally.
 
-Missing outright is different from unmatched, and it is why `fastFallback`
-looks like it does nothing here. `fast.versions`, `fast.latest` and `fast.tip`
-are attrsets keyed by the index, so an attribute the index never saw fails as a
-plain missing key, before any multiverse code that could fall back runs:
+`fast.version` and `fast.versions` are keyed by the version index rather than
+by the store-path index, so such a pair stays addressable and fails the way
+every other fast miss does — a message naming the eval selector, or the real
+derivation under `fastFallback = "eval"`:
 
-```
-error: attribute 'vscode' missing
+```console
+$ nix eval 'github:fzakaria/nixpkgs-multiverse#fast.versions.vscode."1.107.0"'
+error: multiverse: fast has no store path for vscode 1.107.0 — the pair is not
+in the store-path index (never built by Hydra, unfree, or newer than the data
+pin). Use the eval path: versions.vscode."1.107.0"
 ```
 
-`fastFallback` is honoured by the function form, which takes the attribute as
-an argument rather than looking it up as a key:
-
-```nix
-# throws by default, hands back the real derivation
-# under fastFallback = "eval"
-mv.fast.version "vscode" "1.107.0"
-```
+`fast.latest` and `fast.tip` are keyed by the store-path index instead, because
+both mean *the newest version that can be served instantly* — a meaning the
+version index cannot express. An attribute with no store path therefore has no
+key there at all, and `fast.latest.vscode` is Nix's own `attribute 'vscode'
+missing`, thrown before any fallback can run.
 
 ## A soak period
 

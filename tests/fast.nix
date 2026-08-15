@@ -44,6 +44,15 @@ let
   # With fastFallback = "eval" a matched pair must still come back fake; the
   # fake is recognisable by its throwing drvPath.
   fallbackHello = mvEval.fast.version "hello" "2.12.2";
+
+  # An attribute the store-path index never saw at any version. Hydra
+  # evaluates nixpkgs with allowUnfree = false, so vscode has no path to
+  # record and the fixture has no entry for it either. The tree is keyed by
+  # the eval index regardless, so the miss arrives as the module's own throw
+  # naming the eval selector, rather than as a bare missing attribute from
+  # Nix that no fallback could ever intercept.
+  unfreeKeyed = mv.fast.versions ? vscode;
+  unfreeThrows = !(builtins.tryEval mv.fast.versions.vscode."1.107.0").success;
 in
 
 # A fake walks and quacks like a derivation.
@@ -79,6 +88,13 @@ assert drvPathThrows;
 # fastFallback changes what happens to misses, not to hits.
 assert fallbackHello.name == hello.name;
 assert !(builtins.tryEval fallbackHello.drvPath).success;
+
+# An attribute with no store path at any version is still addressable, and
+# still throws. The fallback half of this is not asserted: forcing it under
+# fastFallback = "eval" is the eval path, which fetches a whole nixpkgs
+# revision — the same reason `hello ? eval` above stops at presence.
+assert unfreeKeyed;
+assert unfreeThrows;
 
 {
   helloName = hello.name;
