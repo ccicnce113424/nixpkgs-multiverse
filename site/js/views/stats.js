@@ -325,7 +325,7 @@ function CacheHealth({ navigate }) {
           html`${" "}<span
               title="The unmatched remainder is a limit of name matching, not evidence of deletion: unfree and broken packages were never built by Hydra at all, and some derivation names drifted from their attribute."
               style="cursor:help; border-bottom:1px dotted currentColor"
-              >(${Math.round((100 * t.matched) / t.universe)}% of
+              >(${Math.round((100 * t.matched) / t.universe)}% of${" "}
               ${t.universe.toLocaleString()})</span
             >`}
         </div>
