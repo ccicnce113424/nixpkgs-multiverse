@@ -31,7 +31,7 @@ Also published at <https://nixmultiverse.com/docs/>.
 
 <!-- BEGIN index-status -->
 - **305,221 package versions** across **31,819 attributes**, from **1,540 revisions**
-- 2013-10-31 → 2026-08-13, newest [`0e251e24a4f2`](https://github.com/NixOS/nixpkgs/commit/0e251e24a4f24e036a084b6b4b2d2491af4167f4) · [`nixos-26.11pre1053317`](https://nix-releases.s3.amazonaws.com/nixos/unstable/nixos-26.11pre1053317.0e251e24a4f2/)
+- 2013-10-31 → 2026-08-13, newest [`0e251e24a4f2`](https://github.com/NixOS/nixpkgs/commit/0e251e24a4f24e036a084b6b4b2d2491af4167f4) · [`nixos-26.11pre1053317`](https://releases.nixos.org/?prefix=nixos/unstable/nixos-26.11pre1053317.0e251e24a4f2/)
 <!-- END index-status -->
 
 ## Quickstart

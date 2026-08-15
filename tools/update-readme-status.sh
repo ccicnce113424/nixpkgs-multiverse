@@ -24,7 +24,12 @@ readme = os.path.join(mt, 'README.md')
 BEGIN = '<!-- BEGIN index-status -->'
 END = '<!-- END index-status -->'
 COMMIT_URL = 'https://github.com/NixOS/nixpkgs/commit/'
-CHANNEL_URL = 'https://nix-releases.s3.amazonaws.com/nixos/unstable/'
+# The browsable form, and the only one that works: a release directory is a
+# key prefix rather than an object, so requesting it as a path is a 404 on the
+# bucket and on releases.nixos.org alike. The `?prefix=` query is what both
+# serve — as XML from S3, as the rendered channel listing from
+# releases.nixos.org, which is also what site/js/config.js links.
+CHANNEL_URL = 'https://releases.nixos.org/?prefix=nixos/unstable/'
 SHORT_REV = 12
 
 # The newest revision carrying a narHash, which is exactly what multiverse.nix
