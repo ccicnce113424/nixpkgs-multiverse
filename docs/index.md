@@ -7,19 +7,21 @@ line tool.
 
 1. [Design](./design.md) explains why this exists, and why Nix makes it
    possible in the first place.
-2. [Selectors](./selectors.md) covers the one vocabulary for naming a
+2. [Comparisons](./comparisons.md) places this next to nix-index, comma,
+   fastpkgs, devbox, and flox, and says what it deliberately is not.
+3. [Selectors](./selectors.md) covers the one vocabulary for naming a
    revision, shared by the Nix API and `mvs`.
-3. [The Nix API](./nix-api.md) such as `at`, `daysBehind`, `versionsOf`, version
+4. [The Nix API](./nix-api.md) such as `at`, `daysBehind`, `versionsOf`, version
    history, provenance, and how releases differ from revisions.
-4. [The `mvs` CLI](./cli.md) allows querying the index offline, solving one revision for
+5. [The `mvs` CLI](./cli.md) allows querying the index offline, solving one revision for
    several packages, write per-package pins, run a version.
-5. [The NixOS, nix-darwin, and home-manager module](./modules.md) allows pinning
+6. [The NixOS, nix-darwin, and home-manager module](./modules.md) allows pinning
    individual packages from your system configuration.
-6. [Replacing several nixpkgs inputs](./flake-inputs.md) allows using the multiverse
+7. [Replacing several nixpkgs inputs](./flake-inputs.md) allows using the multiverse
    as the `nixpkgs` other flakes see.
-7. [Building the index](./building-the-index.md) explains how the data is extracted
+8. [Building the index](./building-the-index.md) explains how the data is extracted
    and refreshed.
-8. [The store-path index](./store-paths.md) explains how versions are matched
+9. [The store-path index](./store-paths.md) explains how versions are matched
    to cache.nixos.org store paths — the data behind `fast.*`, the census, and
    the site's dependency and liveness views.
 
