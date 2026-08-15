@@ -49,7 +49,8 @@ when they were current and pushed them to [cache.nixos.org](https://cache.nixos.
 
 So the missing piece was never building or storing. It was *addressing*: a way
 to say "python3 3.6.2" instead of "nixpkgs at 967d40bec14b", and to say it
-without paying for the 1,537 revisions you did not ask about.
+without paying for the other revisions you did not ask about — 1,537 of
+them, as of 2026-08-10.
 
 ## Lazy trees
 
@@ -86,7 +87,9 @@ inputs at all, and roughly the first third of this index predates it.
 ## The index
 
 Four files, none of which grows with the number of revisions in the way the
-obvious encoding would.
+obvious encoding would. Every count below is a measurement taken on
+2026-08-10 and left there; the index grows hourly, and the [status block in
+the README](../README.md#status) is what carries the current figures.
 
 `revisions.json` is the spine: 1,538 nixos-unstable channel bumps from
 2013-10-31 to 2026-08-10, each with its commit, date, channel name and

@@ -35,7 +35,7 @@ command*, and the answer is an attribute name, which is exactly what
 # which package?  -> ripgrep.out
 $ nix-locate bin/rg
 # which versions? -> 13.0.0 … 15.2.0
-$ mvs query versions ripgrep 
+$ mvs query versions ripgrep
 # that one.
 $ mvs run ripgrep@13.0.0
 ```
@@ -69,7 +69,7 @@ graph between the paths, which is what makes `mvs deps`, `mvs size` and
 
 Where they differ:
 * Nixhub is a service. `mvs` resolves from JSON that works offline.
-* devbox is an environment manager
+* devbox is an environment manager.
 
 ## flox
 
@@ -89,8 +89,11 @@ Where they differ:
 * **Not an environment manager.** No activation, no services, no shell to
   enter, no containers. `mvs shell` is a thin wrapper over `nix shell`, and for
   a development environment `solve` gives you a revision to pin, not a runtime.
-* **Not a build service.** Every version the index names is a
-  [cache.nixos.org](https://cache.nixos.org) hit that Hydra produced when it
-  was current. Nothing unfree, broken, or never-built is reachable.
+* **Not a build service.** Nothing here compiles anything: every version the
+  store-path index matched is a [cache.nixos.org](https://cache.nixos.org)
+  hit that Hydra produced when it was current. Unfree and broken attributes
+  are the ones Hydra never built, so they have no store path and [no fast
+  path](./nix-api.md#unfree-packages-have-no-fast-path) — the eval path still
+  serves them, given the `config` to allow it.
 * **Not a file index.** "Which package has this binary" is nix-index's purpose.
 * **Only nixos-unstable.** The revision list is computed from the unstable channel's bump. Release branches appear as [releases](./nix-api.md#releases-move-revisions-do-not), which are moving tips rather than indexed history.

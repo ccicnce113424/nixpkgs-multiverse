@@ -29,9 +29,10 @@ history index's runs) and takes the newest revision whose listing has it,
 since Hydra occasionally skips a package for weeks of bumps.
 
 Any unmatched remainder is mostly (a) never-built unfree or broken attributes,
-and (b) derivations absent from their era's listing (i.e. wrapper packages).
+and (b) derivations absent from their era's listing (e.g. wrapper packages).
 An unmatched pair under `fast.*` throws, naming the eval selector that still
- serves it.
+serves it — or resolves to that eval derivation directly, if the multiverse
+was imported with `fastFallback = "eval"`.
 
 ## The digest is per version, not per revision
 

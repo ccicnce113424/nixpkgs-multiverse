@@ -308,8 +308,8 @@ would have included the data.
 
 ## The database
 
-The underlying database is SQLite and it can be queried directly.
-as the artifact for anyone who wants to run SQL over 13 years of nixpkgs.
+The underlying database is SQLite, and it ships as an artifact of its own,
+for anyone who wants to run SQL over 13 years of nixpkgs.
 
 ```console
 $ nix build github:fzakaria/nixpkgs-multiverse#index-db

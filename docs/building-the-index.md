@@ -19,7 +19,7 @@ nix run .#build-index -- -j 40
 nix run .#build-history
 # only what the history has never covered
 nix run .#build-history -- --incremental
-# rewrite the status block at the top of this README
+# rewrite the status block at the top of the README
 nix run .#update-readme-status
 ```
 

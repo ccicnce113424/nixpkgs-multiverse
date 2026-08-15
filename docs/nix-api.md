@@ -104,52 +104,7 @@ builds a *fake* derivation around that path, many thanks to
 it, full closure included, straight from [cache.nixos.org](https://cache.nixos.org).
 **No nixpkgs fetch, no evaluation, no experimental features.**
 
-The selector grammar is the same, with only the terminal
-step swapped. One thing to remember: a "fake derivation" has no `drvPath`,
-so the CLI needs the *output*: append `.out` (or `.lib`, `.bin`, … for multi-output
-packages):
-
-```console
-$ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.versions.python3."3.8.9".out'
-$ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
-$ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.ffmpeg.lib'
-```
-
-### `nix run` cannot take a fake
-
-`nix build` and `nix shell` accept a store path as an installable, which is
-all `.out` is. `nix run` does not, so there is no spelling of a fast selector
-that it accepts:
-
-```console
-$ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello'
-error: … lacks attribute 'drvPath'
-
-$ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
-error: attribute 'legacyPackages.x86_64-linux.fast.latest.hello.out.type' does not exist
-```
-
-Both errors are the same fact seen from two sides. `nix run` resolves an
-installable by forcing it as a derivation — which needs the `drvPath` a fake
-does not have — or as an *app*, which means reading `.type`, and `.out` is a
-string rather than an attrset. A bare `nix run /nix/store/…` is refused too:
-"installable does not correspond to a Nix language value".
-
-An `app` attrset alongside the fake does not help either: Nix only honours
-apps under `apps.<system>`, and mirroring the whole `fast` tree there is not
-an option, because `nix flake check` requires every attribute under
-`apps.<system>` to be an app itself and fails on a nested tree.
-
-So to *run* a fast package, use a shell, or [`mvs run`](./cli.md#running-a-version),
-which takes the store-path road by default:
-
-```console
-$ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out' -c hello
-Hello, world!
-
-$ mvs run hello@2.12.2
-Hello, world!
-```
+The selector grammar is the same, with only the terminal step swapped. 
 
 ```nix
 # a specific version, zero-eval
@@ -169,6 +124,17 @@ would get if you did the evaluation. We just go straight to the substitution
 path. Release selectors are **eval-only** and refuse: a release branch is not
 an indexed revision.
 
+**Note**: a "fake derivation" has no `drvPath`,
+so the CLI needs the *output*: append `.out` (or `.lib`, `.bin`, … for multi-output
+packages):
+
+```console
+$ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.versions.python3."3.8.9".out'
+$ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
+$ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.ffmpeg.lib'
+```
+
+
 Every fake carries a lazy `.eval` holding the real, revision-exact
 derivation for everything a fake cannot do: `override`, `nix develop`,
 `drvPath`, full `meta`:
@@ -178,7 +144,7 @@ derivation for everything a fake cannot do: `override`, `nix develop`,
 ```
 
 By default, a version the store-path index has no digest for **throws**,
-so there is no surprise fetch, however this can be tuned per `mkMultiverse`: 
+so there is no surprise fetch, however this can be tuned per `mkMultiverse`:
 
 ```nix
 mkMultiverse {
@@ -195,6 +161,31 @@ The index covers x86_64-linux; other systems throw
 rather than substitute foreign binaries. Data arrives through
 `data-pins.json` lazily: nothing is fetched until the first `fast.*` value
 is forced.
+
+### `nix run` cannot take a fake
+
+`nix build` and `nix shell` accept a store path as an installable, which is
+all `.out` is. `nix run` does not, so there is no spelling of a fast selector
+that it accepts:
+
+```console
+$ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello'
+error: … lacks attribute 'drvPath'
+
+$ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
+error: attribute 'legacyPackages.x86_64-linux.fast.latest.hello.out.type' does not exist
+```
+
+To *run* a fast package, use a shell, or [`mvs run`](./cli.md#running-a-version),
+which takes the store-path road by default:
+
+```console
+$ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out' -c hello
+Hello, world!
+
+$ mvs run hello@2.12.2
+Hello, world!
+```
 
 ### Unfree packages have no fast path
 
@@ -268,16 +259,18 @@ nix-repl> (mv.at "2026-05-30").frankenphp.version
 "1.12.3"
 ```
 
-If you need a result that cannot drift, select by **date or commit**. 
+If you need a result that cannot drift, select by **date or commit**.
 
 Releases live in their own file, `releases.json`, keyed by name
-and indexed by nothing:
+and indexed by nothing. This is where `at "26.05"` above read its revision
+from, and like everything else about a release it is a snapshot of the
+channel on the day it was written:
 
 ```console
 nix-repl> multiverse.x86_64-linux.releaseTips."26.05"
-{ build = 7273; date = "2026-08-08";
-  name = "nixos-26.05.7273.8b8c811c7c25";
-  rev = "8b8c811c7c2541c30382c5de7ed26be055569c60"; }
+{ build = 7376; date = "2026-08-09";
+  name = "nixos-26.05.7376.fcb8fcd6bf2d";
+  rev = "fcb8fcd6bf2d0adecae5bd491afaaaf8311b758d"; }
 ```
 
 Each one is the highest-numbered published bump of that channel in the [nix-releases archive](https://nix-releases.s3.amazonaws.com/), so it exists in the [cache.nixos.org](https://cache.nixos.org) as well. Betas are skipped, so a release appears only once it has shipped.
@@ -290,7 +283,7 @@ nix-repl> (mv.at "13.10").hello.name
 ```
 
 
-Query the underlying revision data.
+## The revision data at a glance
 
 ```nix
 # every known version, version-aware sort
@@ -355,7 +348,7 @@ A version may have been upgraded and then downgraded, or removed and later re-ad
 - `earliest` / `latest` are the **outer bounds of every sighting**.
 - `runs` are the **unbroken stretches**.
 
-As an input to your own flake
+## As an input to your own flake
 
 ```nix
 {
@@ -379,8 +372,8 @@ As an input to your own flake
 ## Unfree packages and nixpkgs `config`
 
 A multiverse revision is an ordinary nixpkgs import, so unfree packages need
-`allowUnfree`. The `multiverse.<system>` flake output is built with an
-empty `config`:
+`allowUnfree`. The `multiverse.<system>` flake output is built with an empty
+`config`, so it cannot serve one.
 
 `lib.mkMultiverse` is the same API with `config` and `overlays` threaded
 through to every revision it hands out:
@@ -396,7 +389,7 @@ through to every revision it hands out:
       mv = multiverse.lib.mkMultiverse {
         inherit system;
         config.allowUnfree = true;
-        overlays = [ inputs.nix-vscode-extensions.overlays.default ];
+        overlays = [ nix-vscode-extensions.overlays.default ];
       };
     in
     {
@@ -406,5 +399,8 @@ through to every revision it hands out:
 ```
 
 `mv.tip`, `mv.at`, `mv.version`, `mv.versions` and `mv.latest` all carry that
-config. `mv.fast.*` cannot serve an unfree package at all, whatever `config`
-says — see [unfree packages have no fast path](#unfree-packages-have-no-fast-path).
+config, and so does anything `fastFallback = "eval"` hands back, since the
+fallback is those same derivations. What no `config` can give `mv.fast.*` is a
+store path to substitute: Hydra never built one, so an unfree package has the
+eval path or nothing. See
+[unfree packages have no fast path](#unfree-packages-have-no-fast-path).
