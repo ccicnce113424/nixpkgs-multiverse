@@ -196,6 +196,32 @@ rather than substitute foreign binaries. Data arrives through
 `data-pins.json` lazily: nothing is fetched until the first `fast.*` value
 is forced.
 
+### Unfree packages have no fast path
+
+Hydra evaluates nixpkgs with `allowUnfree = false`, so an unfree package is
+never built and never reaches cache.nixos.org. The store-path index records
+what Hydra built, which leaves unfree attributes out of it altogether —
+`vscode`, `steam` and `discord` have no store path at *any* version, while
+[the eval path](#unfree-packages-and-nixpkgs-config) serves them normally.
+
+Missing outright is different from unmatched, and it is why `fastFallback`
+looks like it does nothing here. `fast.versions`, `fast.latest` and `fast.tip`
+are attrsets keyed by the index, so an attribute the index never saw fails as a
+plain missing key, before any multiverse code that could fall back runs:
+
+```
+error: attribute 'vscode' missing
+```
+
+`fastFallback` is honoured by the function form, which takes the attribute as
+an argument rather than looking it up as a key:
+
+```nix
+# throws by default, hands back the real derivation
+# under fastFallback = "eval"
+mv.fast.version "vscode" "1.107.0"
+```
+
 ## A soak period
 
 `daysBehind` gives you the whole of nixos-unstable as it stood some number of
@@ -391,4 +417,5 @@ through to every revision it hands out:
 ```
 
 `mv.tip`, `mv.at`, `mv.version`, `mv.versions` and `mv.latest` all carry that
-config.
+config. `mv.fast.*` cannot serve an unfree package at all, whatever `config`
+says — see [unfree packages have no fast path](#unfree-packages-have-no-fast-path).
