@@ -348,7 +348,7 @@ nix-repl> multiverse.x86_64-linux.releaseTips."26.05"
   rev = "fcb8fcd6bf2d0adecae5bd491afaaaf8311b758d"; }
 ```
 
-Each one is the highest-numbered published bump of that channel in the [nix-releases archive](https://nix-releases.s3.amazonaws.com/), so it exists in the [cache.nixos.org](https://cache.nixos.org) as well. Betas are skipped, so a release appears only once it has shipped.
+Each one is the highest-numbered published bump of that channel in the [nix-releases archive](https://releases.nixos.org/?prefix=nixos/), so it exists in the [cache.nixos.org](https://cache.nixos.org) as well. Betas are skipped, so a release appears only once it has shipped.
 
 All 25 releases the archive holds are tracked, back to `13.10`:
 
