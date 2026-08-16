@@ -10,7 +10,6 @@
  */
 
 import { html, useState, useEffect, useRef } from "htm/preact";
-import cytoscape from "cytoscape";
 
 import { SHARD_ERROR } from "../config.js";
 import {
@@ -261,6 +260,19 @@ const MIN_LABEL_FONT_PX = 7;
 const LABEL_MAX_WIDTH_PX = 110;
 const LAYOUT_ANIMATION_MS = 400;
 
+// The graph library is by far the heaviest thing the site can pull — 122 KB
+// over the wire, 378 KB unpacked — and this component is the only thing that
+// ever draws with it. A static import put it on the module graph every page
+// loads at boot: the revisions, releases and stats tabs, which never draw a
+// graph, and every package page whose visitor never presses the button below.
+// `run` awaits this before it sets the state the draw effect keys off, so the
+// effect still finds a loaded module and stays synchronous. The import map in
+// index.html resolves the bare specifier and checks its integrity hash for a
+// dynamic import exactly as it does for a static one.
+let cytoscape = null;
+const loadCytoscape = () =>
+  import("cytoscape").then((m) => (cytoscape = m.default));
+
 const layoutFor = (name, rootId) => {
   const shared = {
     padding: GRAPH_PADDING,
@@ -315,6 +327,9 @@ export function GraphExplorer({ attr, v, entry, navigate }) {
 
   const run = async () => {
     setState({ walking: 0 });
+    // Both are network-bound and neither needs the other's answer, so the
+    // library downloads while the closure is being walked rather than after.
+    const drawing = loadCytoscape();
     const { seen, complete } = await walkClosure(entry.d, (n) =>
       setState({ walking: n }),
     );
@@ -383,6 +398,7 @@ export function GraphExplorer({ attr, v, entry, navigate }) {
       }
     }
 
+    await drawing;
     setState({ elements, count: depth.size, complete, total, rootId: entry.d });
   };
 
