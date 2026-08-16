@@ -115,10 +115,12 @@ export const refVer = (p) => p[2];
 
 /* ---------- whole files, fetched only by what needs them ----------
  *
- * None of these belongs in the boot chain. A package page is the URL worth
- * indexing and the one a search engine renders 30,000 times, so it loads its
- * two shards and nothing else; the files below are fetched by the components
- * that actually read them, the first time one is mounted.
+ * A package page is the URL worth indexing and the one a search engine renders
+ * 30,000 times, so it loads its two shards and nothing else; the files below
+ * are fetched by the components that actually read them, the first time one is
+ * mounted. stats.json is the exception — the summary line above the tabs reads
+ * its totals, so App asks for it on every route — and it lives here anyway, so
+ * that the shell and the stats tab share one response rather than two.
  */
 
 // Every attribute name and its version count: what the search box matches
@@ -133,6 +135,12 @@ const INDEX_FILE = "versions.json";
 // The channel-tip table, one entry per release. 3.8 KB, and only the releases
 // tab reads it.
 const RELEASES_FILE = "releases.json";
+
+// Aggregates over the whole index: the totals in the summary line above the
+// tabs, the churn column on the revisions tab, and every chart on the stats
+// tab. The one file here the shell itself reads, so App holds it too — but
+// through this cache, so opening the stats tab reuses the same response.
+const STATS_FILE = "stats.json";
 
 const fileCache = new Map();
 // The same fetch as useFile, for callers outside the render cycle — an event
@@ -170,6 +178,7 @@ export function useNames() {
 
 export const useFullIndex = () => useFile(INDEX_FILE);
 export const useReleases = () => useFile(RELEASES_FILE);
+export const useStats = () => useFile(STATS_FILE);
 
 // On disk a version with one unbroken run is [first, last]; one with gaps is a
 // list of those pairs. Same collapse multiverse.nix expands in runsOf.

@@ -5,31 +5,39 @@
 // views into the App component and boots the render.
 import { html, render, useState, useEffect, useMemo } from "htm/preact";
 
-import { REV_ABBREV, VIEWS } from "./config.js";
-import { fetchJson } from "./data.js";
+import { REV_ABBREV, SHARD_ERROR, VIEWS } from "./config.js";
+import { fetchJson, useStats } from "./data.js";
 import { Link, useRouter } from "./router.js";
 import { Packages } from "./views/packages.js";
 import { Revisions } from "./views/revisions.js";
 import { Releases } from "./views/releases.js";
 import { Stats } from "./views/stats.js";
 
+// The revision spine every view joins against: an index offset names nothing
+// without it, so this is the one file the shell fetches for itself.
+const REVISIONS_FILE = "revisions.json";
+
 /* ---------- app ---------- */
 
 function App() {
   const [route, navigate] = useRouter();
-  const [small, setSmall] = useState(null); // { revisions } — loads fast
-  const [stats, setStats] = useState(null); // stats.json — 27 KB, charts
+  const [revisions, setRevisions] = useState([]);
   const [error, setError] = useState(null);
 
-  // Everything the first paint needs, and nothing else. stats.json rides with
-  // revisions.json: it is 27 KB, it is all the charts need, and it also
-  // carries the totals the summary line used to count out of the whole index.
+  // stats.json rides the shared file cache rather than the fetch below. Only
+  // the summary line, the revisions churn column and the stats tab read it,
+  // and holding both in one Promise.all held the package table — the thing
+  // every one of 30,000 indexed URLs exists to show — until the charts' data
+  // had landed too.
+  const statsFile = useStats();
+  const stats = statsFile === SHARD_ERROR ? null : statsFile;
+
+  // The one file whose failure is the page's failure, so App fetches it
+  // directly and reports what went wrong rather than sharing useFile's
+  // "something did not load" sentinel.
   useEffect(() => {
-    Promise.all([fetchJson("revisions.json"), fetchJson("stats.json")])
-      .then(([revisions, s]) => {
-        setSmall({ revisions });
-        setStats(s);
-      })
+    fetchJson(REVISIONS_FILE)
+      .then(setRevisions)
       .catch((err) => setError(err.message));
   }, []);
 
@@ -69,18 +77,14 @@ function App() {
     </nav>
 
     <section hidden=${route.view !== "packages"}>
-      <${Packages}
-        route=${route}
-        navigate=${navigate}
-        revisions=${small?.revisions ?? []}
-      />
+      <${Packages} route=${route} navigate=${navigate} revisions=${revisions} />
     </section>
 
     <section hidden=${route.view !== "revisions"}>
-      ${small &&
+      ${revisions.length > 0 &&
       html`<${Revisions}
         route=${route}
-        revisions=${small.revisions}
+        revisions=${revisions}
         stats=${stats}
         navigate=${navigate}
       />`}
@@ -90,16 +94,16 @@ function App() {
       ${route.view === "stats" &&
       html`<${Stats}
         stats=${stats}
-        revisions=${small?.revisions ?? []}
+        revisions=${revisions}
         navigate=${navigate}
       />`}
     </section>
 
     <section hidden=${route.view !== "releases"}>
-      ${small &&
+      ${revisions.length > 0 &&
       html`<${Releases}
         route=${route}
-        revisions=${small.revisions}
+        revisions=${revisions}
         navigate=${navigate}
       />`}
     </section>
