@@ -34,22 +34,7 @@ four candidates predict.
 
 Class (a) is wider than "unfree or broken". `meta.hydraPlatforms = [ ]`
 takes an attribute out of the jobset, and wrapper packages use it routinely
-so Hydra does not rebuild a symlink farm. `neovim` is the one to remember:
-an ordinary package until December 2017, a wrapper carrying
-`hydraPlatforms = [ ]` ever since, so its last matched version is 0.2.1 and
-`neovim-unwrapped` is what actually has paths. Nothing about the attribute
-looks unusual from the outside.
-
-At the current pin, 2,987 of 31,868 attributes have no store path at any
-version, and 2,085 of the 24,876 the newest indexed revision ships have none
-there.
-
-An unmatched pair under `fast.*` throws, naming the eval selector that still
-serves it — or resolves to that eval derivation directly, if the multiverse
-was imported with `fastFallback = "eval"`. Every `fast.*` tree takes its keys
-from the eval index so that this stays true: an attribute missing from the
-attrset entirely would fail with Nix's own error before either the message or
-the fallback could reach it.
+so Hydra does not rebuild a symlink farm.
 
 ## The digest is per version, not per revision
 
@@ -60,6 +45,14 @@ most recently built, most likely to still substitute, and it is why the
 bit-exact, while revision selectors are version-exact but build-canonical
 (the right version, as its newest build, which may come from a slightly
 newer revision than the one named).
+
+It is not per *branch* either, which is why releases does not work.
+Everything here is joined against nixos-unstable listings,
+and a `(attribute, version)` pair names a different build on every branch.
+
+A branch may have a different stdenv, different patches, or different build flags,
+for a single package which bubbles up and changes the store path of nearly
+every package, see [releases have no fast path](./nix-api.md#why-releases-have-no-fast-path).
 
 ## The census
 

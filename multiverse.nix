@@ -1066,9 +1066,19 @@ rec {
   #   `fast.at "tip"`; see its definition for why that is the honest
   #   spelling.
   #
-  #   Release selectors are EVAL-ONLY and refuse: a release branch is not an
-  #   indexed revision, and faking it from unstable-at-that-date would
-  #   silently drop backports. `at` serves releases for real.
+  #   Release selectors are EVAL-ONLY and refuse. Not for want of data:
+  #   release channels publish store-paths.xz under nixos/<major.minor>/
+  #   exactly as unstable does, at the very channel name releases.json
+  #   already records. What is missing is a key. This index is keyed
+  #   (attr, version) -> digest, and that pair does not identify a build
+  #   across branches: of the 80,611 derivation names present in both the
+  #   26.05 and unstable listings, 80,571 have different store paths, since
+  #   a path hashes the whole recipe and a release branch carries its own
+  #   stdenv. The 40 that agree are fonts and other content-addressed
+  #   blobs. So an unstable digest is wrong for a release almost everywhere,
+  #   not merely where a backport moved the version. Serving releases needs
+  #   a branch axis on the digests and a version index for release tips,
+  #   neither of which exists; `at` serves them for real meanwhile.
   #
   # Every fake carries a lazy `.eval` holding the real, revision-exact
   # derivation for everything a fake cannot do (override, nix develop,
@@ -1086,9 +1096,11 @@ rec {
         sel:
         if releaseTable ? ${sel} then
           throw ''
-            multiverse: fast cannot serve the release "${sel}". A release branch is
-            not an indexed revision, and faking it from unstable would silently drop
-            backports. Use the eval path: at "${sel}"
+            multiverse: fast cannot serve the release "${sel}". The store-path index
+            is keyed (attr, version) -> digest, and that pair names a different build
+            on every branch — a release carries its own stdenv, so nearly every path
+            differs from unstable's even at an identical version. Use the eval path,
+            which builds the release tree for real: at "${sel}"
           ''
         else
           builtins.mapAttrs (

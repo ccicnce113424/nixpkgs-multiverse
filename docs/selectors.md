@@ -29,12 +29,7 @@ frozen at whatever the last indexing run captured and drifts further behind the
 live channel until the index is rebuilt.
 
 `tip` means the same revision everywhere, including on the [fast
-path](./nix-api.md#the-fast-path): `fast.tip` *is* `fast.at "tip"`. The
-store-path artifacts carry their own snapshot of what was current when they
-were last cut, and that snapshot is deliberately not what `fast.tip` reads —
-it is re-cut once a UTC day while the revision list advances with every
-channel bump, so keying `tip` off it would make one selector name two
-different revisions depending on which road you took to it.
+path](./nix-api.md#the-fast-path).
 
 ### Releases
 
@@ -104,8 +99,15 @@ moving channel head and not a revision the index holds an offset for.
 
 | accepts releases | rejects releases |
 |---|---|
-| `at`, `flakeAt`, `daysBehind` (as an anchor) | `versionAt` |
+| `at`, `flakeAt`, `daysBehind` (as an anchor) | `versionAt`, `fast.*` |
 | `mvs query rev` | `mvs query at`, `mvs query diff` |
+
+`fast.*` refuses for its own reason, which is not that the paths are missing —
+release channels publish listings just as unstable does. The store-path index
+is keyed by `(attribute, version)`, and that pair names a different build on
+each branch, so unstable's digest is the wrong path for a release even at an
+identical version. See [why releases have no fast
+path](./nix-api.md#why-releases-have-no-fast-path).
 
 The error tells you what to do instead: select by date or commit, or read the
 version off the package set:

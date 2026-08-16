@@ -93,7 +93,7 @@ Where they differ:
   store-path index matched is a [cache.nixos.org](https://cache.nixos.org)
   hit that Hydra produced when it was current. Unfree and broken attributes
   are the ones Hydra never built, so they have no store path and [no fast
-  path](./nix-api.md#attributes-with-no-fast-path) — the eval path still
+  path](./nix-api.md#attributes-with-no-fast-path) however the eval path still
   serves them, given the `config` to allow it.
 * **Not a file index.** "Which package has this binary" is nix-index's purpose.
-* **Only nixos-unstable.** The revision list is computed from the unstable channel's bump. Release branches appear as [releases](./nix-api.md#releases-move-revisions-do-not), which are moving tips rather than indexed history.
+* **Only nixos-unstable.** The revision list is computed from the unstable channel's bump. Release branches appear as [releases](./nix-api.md#releases-move-revisions-do-not), which are moving tips rather than indexed history. They are served by the eval path only: the store-path index is keyed per version rather than per branch, and a release builds nearly every package to a different path than unstable does. See [why releases have no fast path](./nix-api.md#why-releases-have-no-fast-path).
