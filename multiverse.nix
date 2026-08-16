@@ -1033,13 +1033,16 @@ rec {
   #
   # Three honesty classes, chosen per selector rather than approximated:
   #
-  #   fast.versions / fast.latest / fast.tip are BIT-EXACT as of the data
-  #   pin: the digest is precisely the build the eval path resolves to.
+  #   fast.versions / fast.latest are BIT-EXACT as of the data pin: the
+  #   digest is precisely the build the eval path resolves to.
   #
-  #   fast.at (commit, date, label selectors) is VERSION-EXACT and
-  #   build-canonical: the right version for that revision, as the newest
-  #   build of it the index records — the index keeps one digest per
-  #   version, not one per revision.
+  #   fast.at and fast.tip (commit, date, label selectors, and the newest
+  #   indexed revision) are VERSION-EXACT and build-canonical: the right
+  #   version for that revision, as the newest build of it the index
+  #   records — the index keeps one digest per version, not one per
+  #   revision. `tip` belongs here rather than above because it is
+  #   `fast.at "tip"`; see its definition for why that is the honest
+  #   spelling.
   #
   #   Release selectors are EVAL-ONLY and refuse: a release branch is not an
   #   indexed revision, and faking it from unstable-at-that-date would
@@ -1160,16 +1163,27 @@ rec {
       # no key here at all.
       latest = builtins.mapAttrs newestOf (attrIndex // fastIndex);
 
-      # What was current when the pin was cut: one fake per attribute.
+      # The newest indexed revision, as fakes. Spelled as the selector it is,
+      # so `fast.tip` and `fast.at "tip"` cannot drift apart: one definition,
+      # one revision, one key set, one error path.
       #
-      # No union here, unlike `latest` above. A tip key names a revision
-      # rather than a version, and which attributes a revision provides is
-      # only knowable by evaluating it — the one thing this path exists to
-      # avoid. Keying off the eval index would put attributes here that the
-      # pinned revision may not carry, and fastMissing would then hand
-      # fastFallback = "eval" a derivation from whichever revision happened
-      # to ship that version, which is not what tip was asked for.
-      tip = builtins.mapAttrs newestOf fastTip.attrs;
+      # Deliberately NOT keyed off tip-outpaths.json, which is the obvious
+      # reading of "tip" and the wrong one. That snapshot is cut at most once
+      # a UTC day, while revisions.json advances with every channel bump — see
+      # the "Cut the dated data release" step in .github/workflows/update-index.yml,
+      # which exits early once the day's tag exists. Keying off it would let
+      # `fast.tip.foo` describe an older revision than `tip.foo` for the rest
+      # of the day, silently, since nothing in a digest says which revision
+      # produced it.
+      #
+      # Resolving through fastAt costs nothing in honesty, because digests are
+      # keyed by (attr, version) rather than by revision: an attribute the
+      # newer bumps did not touch still hits the snapshot's digest and stays
+      # bit-exact, and one they did touch misses and lands on fastMissing,
+      # loudly, naming the eval selector. A stale pin therefore costs the fast
+      # path for the handful of versions that moved since the cut, which is
+      # what a fast path is allowed to cost — never a wrong answer.
+      tip = fastAt "tip";
 
       # The selector form: fast.at "2022-03-15", fast.at "aae12a743f75".
       at = fastAt;

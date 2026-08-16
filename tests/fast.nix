@@ -7,6 +7,13 @@
 # the pinned release assets — the test runs anywhere, offline included, and
 # keeps running unchanged as the real pins move.
 #
+# The fixture supplies digests only. Which revision `tip` names, and which
+# version each attribute has there, still come from the checkout's own
+# revisions.json and index/history.json — that is the whole point of `tip`
+# being a selector. So the tip fixture must carry a digest for whatever
+# version of `hello` the newest indexed revision ships; when nixpkgs bumps
+# hello, add the new pair to tests/fixtures/fast-data/tip-outpaths.json.
+#
 # No assertion forces an outPath (or any sibling output) on purpose: current
 # Nix realises `path = true` string context the moment the string is forced,
 # which would ask the store to substitute the fixture's made-up digests. The
@@ -59,6 +66,22 @@ let
   # its newest *matched* version, since that is the only one fast can serve.
   unfreeLatestKeyed = mv.fast.latest ? vscode;
   unfreeLatestThrows = !(builtins.tryEval mv.fast.latest.vscode).success;
+
+  # `tip` is a selector, not a snapshot: the same revision `at "tip"` names,
+  # resolved the same way. Asserted as a key-set identity, because the two
+  # spellings once disagreed — `tip` keyed off tip-outpaths.json while
+  # `at "tip"` keyed off the history — and that is the shape the regression
+  # would take again.
+  tipKeys = builtins.attrNames mv.fast.tip;
+  atTipKeys = builtins.attrNames (mv.fast.at "tip");
+
+  # The consequence of that key set for an attribute the store-path data has
+  # never covered: it is addressable under `tip` exactly as it is under
+  # `versions` and `latest`, so the miss arrives as the module's own throw
+  # naming the eval selector, rather than as a bare missing attribute Nix
+  # raises before any fallback could intercept it.
+  tipUnfreeKeyed = mv.fast.tip ? vscode;
+  tipUnfreeThrows = !(builtins.tryEval mv.fast.tip.vscode).success;
 in
 
 # A fake walks and quacks like a derivation.
@@ -79,8 +102,17 @@ assert
   ];
 assert ffmpeg ? lib;
 
-# The tip snapshot serves what was current when the pin was cut.
-assert tipHello.version == "2.12.3";
+# `tip` serves the version its revision ships, read off the history index —
+# not whatever the store-path snapshot happened to hold when the pin was cut.
+# Those two answers diverge for a whole UTC day every time a second channel
+# bump lands before the next dated data release is cut.
+assert tipHello.version == mv.versionAt "hello" "tip";
+
+# The two spellings of the same revision agree on every key, and an
+# attribute with no store path is one of those keys.
+assert tipKeys == atTipKeys;
+assert tipUnfreeKeyed;
+assert tipUnfreeThrows;
 
 # Every fake carries the lazy escape hatch to the real derivation. Only its
 # presence is asserted: forcing it would fetch a whole nixpkgs revision.
