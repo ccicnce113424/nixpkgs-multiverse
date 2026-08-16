@@ -17,21 +17,17 @@ import { Stats } from "./views/stats.js";
 
 function App() {
   const [route, navigate] = useRouter();
-  const [small, setSmall] = useState(null); // { revisions, releases } — load fast
+  const [small, setSmall] = useState(null); // { revisions } — loads fast
   const [stats, setStats] = useState(null); // stats.json — 27 KB, charts
   const [error, setError] = useState(null);
 
   // Everything the first paint needs, and nothing else. stats.json rides with
-  // the two small files: it is 27 KB, it is all the charts need, and it also
+  // revisions.json: it is 27 KB, it is all the charts need, and it also
   // carries the totals the summary line used to count out of the whole index.
   useEffect(() => {
-    Promise.all([
-      fetchJson("revisions.json"),
-      fetchJson("releases.json"),
-      fetchJson("stats.json"),
-    ])
-      .then(([revisions, releases, s]) => {
-        setSmall({ revisions, releases });
+    Promise.all([fetchJson("revisions.json"), fetchJson("stats.json")])
+      .then(([revisions, s]) => {
+        setSmall({ revisions });
         setStats(s);
       })
       .catch((err) => setError(err.message));
@@ -103,7 +99,6 @@ function App() {
       ${small &&
       html`<${Releases}
         route=${route}
-        releases=${small.releases}
         revisions=${small.revisions}
         navigate=${navigate}
       />`}

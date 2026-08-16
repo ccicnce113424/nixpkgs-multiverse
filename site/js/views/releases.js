@@ -2,7 +2,8 @@
 
 import { html } from "htm/preact";
 
-import { FLAKE, COMMIT_URL, REV_ABBREV } from "../config.js";
+import { FLAKE, COMMIT_URL, REV_ABBREV, SHARD_ERROR } from "../config.js";
+import { useReleases } from "../data.js";
 import { archiveFor, domId } from "../format.js";
 import { Link, Nav } from "../router.js";
 import { Row, Cmd, useLinkableRow, useBulk } from "../ui.js";
@@ -53,9 +54,19 @@ function ReleaseRow({ name, r, near, selected, bulk, navigate }) {
   `;
 }
 
-export function Releases({ route, releases, revisions, navigate }) {
-  const rows = Object.entries(releases).reverse();
+export function Releases({ route, revisions, navigate }) {
+  // Fetched here rather than in the boot chain: releases.json is read by this
+  // one view, so nothing pays for it until this tab is opened.
+  const releases = useReleases();
   const [bulk, bulkButton] = useBulk();
+  if (!releases)
+    return html`<div id="status" class="muted">Loading releases…</div>`;
+  if (releases === SHARD_ERROR)
+    return html`<div id="status" class="muted">
+      Could not load <code>releases.json</code>.
+    </div>`;
+
+  const rows = Object.entries(releases).reverse();
   return html`
     <p class="muted bulkline">
       <span>

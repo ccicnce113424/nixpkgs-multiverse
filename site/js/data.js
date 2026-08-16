@@ -115,10 +115,10 @@ export const refVer = (p) => p[2];
 
 /* ---------- whole files, fetched only by what needs them ----------
  *
- * Neither of these belongs in the boot chain. A package page is the URL worth
+ * None of these belongs in the boot chain. A package page is the URL worth
  * indexing and the one a search engine renders 30,000 times, so it loads its
- * two shards and nothing else; the two files below are fetched by the
- * components that actually read them, the first time one is mounted.
+ * two shards and nothing else; the files below are fetched by the components
+ * that actually read them, the first time one is mounted.
  */
 
 // Every attribute name and its version count: what the search box matches
@@ -129,6 +129,10 @@ const NAMES_FILE = "names.json";
 // at this revision" is a question about every attribute at once and no shard
 // can answer it.
 const INDEX_FILE = "versions.json";
+
+// The channel-tip table, one entry per release. 3.8 KB, and only the releases
+// tab reads it.
+const RELEASES_FILE = "releases.json";
 
 const fileCache = new Map();
 // The same fetch as useFile, for callers outside the render cycle — an event
@@ -165,6 +169,7 @@ export function useNames() {
 }
 
 export const useFullIndex = () => useFile(INDEX_FILE);
+export const useReleases = () => useFile(RELEASES_FILE);
 
 // On disk a version with one unbroken run is [first, last]; one with gaps is a
 // list of those pairs. Same collapse multiverse.nix expands in runsOf.
