@@ -776,6 +776,33 @@
             cd repo
             python3 ${./tools/check-links.py} README.md docs/*.md | tee $out
           '';
+
+          # The browser suite over the built site. Everything else in `checks`
+          # is a pure build; this one is not, and cannot be: the page imports
+          # Preact from jsdelivr at run time, so a sandboxed build has no way
+          # to render it at all. __noChroot is what buys the network.
+          #
+          # That requires `sandbox = relaxed` in nix.conf. Without it the check
+          # fails immediately — "derivation has '__noChroot' set, but that's
+          # not allowed when 'sandbox' is 'true'" — and the ways around it are
+          #   nix flake check --option sandbox relaxed
+          # or `nix.settings.sandbox = "relaxed"` on the host. ci.yml passes
+          # the option; `nix run .#test-site` needs none of it.
+          #
+          # `relaxed` unsandboxes only derivations that ask for it by name, so
+          # every other check here still builds exactly as before.
+          #
+          # Impure, but cached against its inputs like any other derivation: it
+          # reruns when the site or the specs change, not on every check.
+          site =
+            pkgs.runCommand "check-site"
+              {
+                __noChroot = true;
+                nativeBuildInputs = [ (siteTestsFor system) ];
+              }
+              ''
+                test-site 2>&1 | tee $out
+              '';
         }
       );
 
@@ -880,9 +907,12 @@
             meta.description = "Read the nixpkgs multiverse index";
           };
 
-          # `nix run .#test-site` — the browser suite. Arguments reach
+          # `nix run .#test-site` — the browser suite, and the way to run it
+          # that asks nothing of the host's nix.conf. Arguments reach
           # Playwright, so a single spec or a headed run is
           #   nix run .#test-site -- --headed router.spec.js
+          # checks.site runs this very script inside a __noChroot build, so
+          # `nix flake check` covers it wherever the sandbox setting allows.
           test-site = {
             type = "app";
             program = "${siteTestsFor system}/bin/test-site";

@@ -8,6 +8,12 @@
 #   checks.compose      — the headline claim end to end: three Pythons from
 #                         three revisions composed into one buildEnv, built
 #                         for real (contents substitute from cache.nixos.org)
+#   checks.site         — tests/site/*.spec.js in a real browser against
+#                         `nix build .#site`. The only impure check: the page
+#                         imports Preact from a CDN, so it needs the network
+#                         while it runs, which is why the sandbox is relaxed
+#                         below. `nix run .#test-site` does the same locally
+#                         without touching nix.conf.
 #
 # update-index.yml keeps the index fresh; this workflow keeps it honest.
 name: ci
@@ -30,9 +36,15 @@ jobs:
 
       - uses: cachix/install-nix-action@v31
         with:
+          # `sandbox = relaxed` is what lets checks.site run: it marks itself
+          # __noChroot to reach the CDN the page imports Preact from, and Nix
+          # refuses to build such a derivation under a strict sandbox. It
+          # relaxes nothing for any other check — the setting only takes effect
+          # on derivations that ask for it by name.
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
+            sandbox = relaxed
 
       # What this saves is the tool wrappers and their closure, which every run
       # would otherwise rebuild. It does not cache the revisions themselves:
