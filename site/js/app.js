@@ -19,6 +19,20 @@ const REVISIONS_FILE = "revisions.json";
 
 /* ---------- app ---------- */
 
+// Whether a view has ever been the active one. The views stay mounted so their
+// state — a typed search, a widened revision window, an expanded row — survives
+// a trip to another tab, but a view nobody has opened has no state worth
+// keeping and should not be building DOM: the revisions tab was rendering 150
+// rows into a hidden section of every package page. Returns true from the
+// render that activates it, so becoming visible costs no extra frame.
+function useVisited(active) {
+  const [visited, setVisited] = useState(active);
+  useEffect(() => {
+    if (active) setVisited(true);
+  }, [active]);
+  return visited || active;
+}
+
 function App() {
   const [route, navigate] = useRouter();
   const [revisions, setRevisions] = useState([]);
@@ -31,6 +45,11 @@ function App() {
   // had landed too.
   const statsFile = useStats();
   const stats = statsFile === SHARD_ERROR ? null : statsFile;
+
+  // A view renders once it has been visited, and stays mounted from then on.
+  const showRevisions = useVisited(route.view === "revisions");
+  const showReleases = useVisited(route.view === "releases");
+  const showStats = useVisited(route.view === "stats");
 
   // The one file whose failure is the page's failure, so App fetches it
   // directly and reports what went wrong rather than sharing useFile's
@@ -81,7 +100,8 @@ function App() {
     </section>
 
     <section hidden=${route.view !== "revisions"}>
-      ${revisions.length > 0 &&
+      ${showRevisions &&
+      revisions.length > 0 &&
       html`<${Revisions}
         route=${route}
         revisions=${revisions}
@@ -91,7 +111,7 @@ function App() {
     </section>
 
     <section hidden=${route.view !== "stats"}>
-      ${route.view === "stats" &&
+      ${showStats &&
       html`<${Stats}
         stats=${stats}
         revisions=${revisions}
@@ -100,7 +120,8 @@ function App() {
     </section>
 
     <section hidden=${route.view !== "releases"}>
-      ${revisions.length > 0 &&
+      ${showReleases &&
+      revisions.length > 0 &&
       html`<${Releases}
         route=${route}
         revisions=${revisions}
