@@ -576,12 +576,34 @@ let
 
   readArtifact = name: builtins.fromJSON (builtins.readFile (artifactPath name));
 
+  # The same built-against-a-different-revision-list guard checkedIndex and
+  # checkedHistory apply, for the two store-path artifacts that carry the
+  # count. Neither file holds an offset — a digest is keyed by (attr, version)
+  # and is timeless — so this cannot resolve to the wrong commit the way a
+  # stale index can. What it catches is a pin describing a history this
+  # checkout is not part of: a hand-assembled dataOverride, or a pin rolled
+  # back onto an older tree.
+  #
+  # Covering fewer revisions is the ordinary state and stays allowed. The
+  # dated data release is cut once a UTC day while revisions.json advances
+  # with every bump, so the pin is behind for most of the day, every day.
+  checkedArtifact =
+    name: data:
+    if (data.revisionCount or null) == null || data.revisionCount > nRevs then
+      throw ''
+        multiverse: ${name} was built against ${toString (data.revisionCount or 0)}
+        revisions but revisions.json now has ${toString nRevs}. Update the checkout,
+        or re-point the pin with tools/bump-data-pin.sh.
+      ''
+    else
+      data;
+
   # Closed pairs, plus the snapshot of what was current when the pin was cut.
   # Both files are keyed, timeless truth — (attr, version) -> digest — so a
   # lagging pin only loses the fast path for versions that closed since; the
   # eval fallback serves those meanwhile.
-  fastClosed = readArtifact "outpaths.json";
-  fastTip = readArtifact "tip-outpaths.json";
+  fastClosed = checkedArtifact "outpaths.json" (readArtifact "outpaths.json");
+  fastTip = checkedArtifact "tip-outpaths.json" (readArtifact "tip-outpaths.json");
 
   # { attr -> { version -> [digest, drv-name-if-differs, ...] } }
   fastIndex =

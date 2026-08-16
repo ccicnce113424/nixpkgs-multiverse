@@ -37,6 +37,19 @@ let
     fastFallback = "eval";
   };
 
+  # Two copies of the base fixture, each with one number changed: the
+  # revision count one artifact claims to have been built against, set past
+  # the end of revisions.json. One artifact per copy, so a guard wired to
+  # only one of the two files still fails this.
+  mvTipAhead = import ../multiverse.nix {
+    inherit system;
+    dataOverride = ../tests/fixtures/fast-data-tip-ahead;
+  };
+  mvClosedAhead = import ../multiverse.nix {
+    inherit system;
+    dataOverride = ../tests/fixtures/fast-data-closed-ahead;
+  };
+
   hello = mv.fast.version "hello" "2.12.2";
   ffmpeg = mv.fast.version "ffmpeg" "9.0";
   tipHello = mv.fast.tip.hello;
@@ -82,6 +95,13 @@ let
   # raises before any fallback could intercept it.
   tipUnfreeKeyed = mv.fast.tip ? vscode;
   tipUnfreeThrows = !(builtins.tryEval mv.fast.tip.vscode).success;
+
+  # An artifact claiming more revisions than revisions.json holds is refused,
+  # the way index/versions.json and index/history.json already are. Each probe
+  # asks for a pair its own fixture covers, so the only thing that can fail
+  # the lookup is the guard.
+  tipAheadRefused = !(builtins.tryEval (mvTipAhead.fast.version "hello" "2.12.3")).success;
+  closedAheadRefused = !(builtins.tryEval (mvClosedAhead.fast.version "hello" "2.12.2")).success;
 in
 
 # A fake walks and quacks like a derivation.
@@ -113,6 +133,11 @@ assert tipHello.version == mv.versionAt "hello" "tip";
 assert tipKeys == atTipKeys;
 assert tipUnfreeKeyed;
 assert tipUnfreeThrows;
+
+# A pin that disagrees with revisions.json about the length of history is
+# refused rather than read, for both store-path artifacts.
+assert tipAheadRefused;
+assert closedAheadRefused;
 
 # Every fake carries the lazy escape hatch to the real derivation. Only its
 # presence is asserted: forcing it would fetch a whole nixpkgs revision.
