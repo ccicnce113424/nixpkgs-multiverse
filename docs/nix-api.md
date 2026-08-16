@@ -109,20 +109,34 @@ The selector grammar is the same, with only the terminal step swapped.
 ```nix
 # a specific version, zero-eval
 mv.fast.version "python3" "3.8.9"
-# newest indexed version, as of the pin
+# newest version with a store path
 mv.fast.latest.python3
-# what was current when the pin was cut
-mv.fast.tip.hello
 # a whole revision, as fakes
 mv.fast.at "2022-03-15"
+# the newest indexed revision — fast.at "tip"
+mv.fast.tip.hello
 # exact revision keys work too
 mv.fast."967d40bec14b".python3
 ```
 
-`fast.versions` / `fast.latest` / `fast.tip` are **bit-exact** as what you
-would get if you did the evaluation. We just go straight to the substitution
-path. Release selectors are **eval-only** and refuse: a release branch is not
-an indexed revision.
+There are three honesty classes, and which one you get depends on the
+selector rather than on luck:
+
+| selector | class | what it promises |
+|---|---|---|
+| `fast.version` / `fast.versions` | **bit-exact** | the digest is precisely the build the eval path resolves to |
+| `fast.latest` | **bit-exact**, but see [below](#fastlatest-prefers-servable-over-newest) | the newest version that *has* a store path, which is not always the newest version |
+| `fast.at` / `fast.tip` | **version-exact**, build-canonical | the right version for that revision, as the newest build of it any listing carried |
+| release (`fast.at "26.05"`) | **eval-only** | refuses — a release branch is not an indexed revision |
+
+`fast.tip` is spelled `fast.at "tip"` internally, so the two cannot disagree
+about which revision they mean or which attributes it has. That matters more
+than it sounds: the store-path data is re-cut once a UTC day while
+`revisions.json` advances with every channel bump, so a snapshot-keyed `tip`
+would describe a staler revision than `tip` for the rest of the day. Resolving
+through the selector instead means a lagging pin costs the *fast path* for the
+handful of versions that moved since the cut — they miss and throw, naming the
+eval selector — rather than quietly handing back the previous tip's build.
 
 **Note**: a "fake derivation" has no `drvPath`,
 so the CLI needs the *output*: append `.out` (or `.lib`, `.bin`, … for multi-output
@@ -187,20 +201,89 @@ $ mvs run hello@2.12.2
 Hello, world!
 ```
 
-### Unfree packages have no fast path
+### Attributes with no fast path
 
-Hydra evaluates nixpkgs with `allowUnfree = false`, so an unfree package is
-never built and never reaches cache.nixos.org. The store-path index records
-what Hydra built, which leaves unfree attributes out of it altogether.
-For instance, `vscode`, `steam` and `discord` have no store path at *any* version,
-while [the eval path](#unfree-packages-and-nixpkgs-config) serves them normally.
+Not every attribute has a store path to substitute. Three separate causes,
+worth telling apart because only the first is about licensing:
+
+1. **Hydra never built it.** nixpkgs is evaluated with
+   `allowUnfree = false`, so an unfree package never reaches
+   cache.nixos.org. `vscode`, `steam` and `discord` have no store path at
+   *any* version. Broken and unsupported-platform attributes land here too.
+2. **nixpkgs asked Hydra not to build it.** `meta.hydraPlatforms = [ ]`
+   excludes an attribute from the jobset, and wrapper packages use it
+   routinely to avoid rebuilding a symlink farm. The package is free, the
+   binary is cached, and the attribute you named still has no path of its
+   own — see [`fast.latest` prefers servable over
+   newest](#fastlatest-prefers-servable-over-newest) for what that does to
+   `neovim`.
+3. **The matcher could not name it.** A pair is joined to the channel
+   listing [by derivation name](./store-paths.md#matching); a derivation
+   absent from its era's listing, or named nothing the four candidates
+   predict, stays unmatched.
+4. **It is newer than the pin.** A version that first appeared in a bump
+   after the last data cut has no digest yet.
+
+As of the current pin, 2,987 of the 31,868 attributes the index knows have
+no store path at any version, and 2,085 of the 24,876 the newest indexed
+revision ships have none there.
+
+All four arrive the same way, and deliberately so — as this module's own
+throw naming the eval selector, not as a missing attribute:
 
 ```console
 $ nix eval 'github:fzakaria/nixpkgs-multiverse#fast.versions.vscode."1.107.0"'
 error: multiverse: fast has no store path for vscode 1.107.0 — the pair is not
 in the store-path index (never built by Hydra, unfree, or newer than the data
 pin). Use the eval path: versions.vscode."1.107.0"
+
+$ nix eval 'github:fzakaria/nixpkgs-multiverse#fast.tip.vscode'
+error: multiverse: fast has no store path for vscode 1.132.0 — the pair is not
+in the store-path index (never built by Hydra, unfree, or newer than the data
+pin). Use the eval path: (at "tip").vscode
 ```
+
+That is the reason every `fast.*` tree keys off the eval index rather than
+off the store-path data: an attribute Nix cannot find raises its own error
+before any of this module's code runs, which would put the message, and
+`fastFallback = "eval"`, permanently out of reach. [The eval
+path](#unfree-packages-and-nixpkgs-config) serves all three classes
+normally.
+
+### `fast.latest` prefers servable over newest
+
+`latest` means *the newest version that has a store path*, not the newest
+version that exists. Where the two differ, the servable one wins, so that
+`latest` keeps its promise of resolving instantly.
+
+The cost is that `fast.latest` can be far behind. 774 attributes currently
+resolve to an older version than the index's newest, 209 of them by a whole
+major version or more. `neovim` is the worst kind of example, because
+nothing about it looks unusual:
+
+```console
+$ nix eval 'github:fzakaria/nixpkgs-multiverse#fast.latest.neovim.version'
+"0.2.1"
+
+$ nix eval 'github:fzakaria/nixpkgs-multiverse#versionAt' --apply 'f: f "neovim" "tip"'
+"0.12.4"
+```
+
+0.2.1 is from 2017 and is not an accident of matching. Until December 2017
+`neovim` was an ordinary package and Hydra built it; the wrapper that
+replaced it carries `hydraPlatforms = [ ]` (*"To prevent builds on hydra"*),
+so no `neovim-<version>` path has entered a channel listing since. Only
+`neovim-unwrapped` is built, and that is the attribute to reach for:
+
+```console
+$ nix eval 'github:fzakaria/nixpkgs-multiverse#fast.tip.neovim-unwrapped.version'
+"0.12.4"
+```
+
+So: reach for `fast.tip` when you want what the newest indexed revision
+actually ships, and `latest` only when you want the newest thing that
+substitutes without an evaluation. When `latest` looks implausibly old,
+the wrapper/unwrapped split is the first thing to check.
 
 ## A soak period
 
@@ -403,4 +486,4 @@ config, and so does anything `fastFallback = "eval"` hands back, since the
 fallback is those same derivations. What no `config` can give `mv.fast.*` is a
 store path to substitute: Hydra never built one, so an unfree package has the
 eval path or nothing. See
-[unfree packages have no fast path](#unfree-packages-have-no-fast-path).
+[attributes with no fast path](#attributes-with-no-fast-path).

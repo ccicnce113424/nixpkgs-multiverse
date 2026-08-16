@@ -28,11 +28,28 @@ A pair missing at its own offset walks backwards through its lifetime (the
 history index's runs) and takes the newest revision whose listing has it,
 since Hydra occasionally skips a package for weeks of bumps.
 
-Any unmatched remainder is mostly (a) never-built unfree or broken attributes,
-and (b) derivations absent from their era's listing (e.g. wrapper packages).
+Any unmatched remainder is (a) attributes Hydra never built, and (b)
+derivations absent from their era's listing, or named something none of the
+four candidates predict.
+
+Class (a) is wider than "unfree or broken". `meta.hydraPlatforms = [ ]`
+takes an attribute out of the jobset, and wrapper packages use it routinely
+so Hydra does not rebuild a symlink farm. `neovim` is the one to remember:
+an ordinary package until December 2017, a wrapper carrying
+`hydraPlatforms = [ ]` ever since, so its last matched version is 0.2.1 and
+`neovim-unwrapped` is what actually has paths. Nothing about the attribute
+looks unusual from the outside.
+
+At the current pin, 2,987 of 31,868 attributes have no store path at any
+version, and 2,085 of the 24,876 the newest indexed revision ships have none
+there.
+
 An unmatched pair under `fast.*` throws, naming the eval selector that still
 serves it — or resolves to that eval derivation directly, if the multiverse
-was imported with `fastFallback = "eval"`.
+was imported with `fastFallback = "eval"`. Every `fast.*` tree takes its keys
+from the eval index so that this stays true: an attribute missing from the
+attrset entirely would fail with Nix's own error before either the message or
+the fallback could reach it.
 
 ## The digest is per version, not per revision
 
@@ -86,16 +103,26 @@ Three tiers, decided by one question: does anything pin it?
   fails closed if the convention is ever violated. Consumers fetch with
   `builtins.fetchTree { type = "file"; ... }`, lazily, keeping this flake's
   `inputs = { }` founding line intact.
-- **The rolling release** (`data-rolling`) carries only what nothing may
-  pin: `tip-outpaths.json` (rewritten as the channel moves — keyed,
-  self-contained data whose staleness degrades to "no speedup", never to a
-  wrong path), the census snapshots, the matcher's miss list, and the crawl
-  graph the incremental jobs resume from.
+- **The rolling release** (`data-rolling`) carries the working state between
+  cuts: the current `outpaths.json` and `tip-outpaths.json`, the census
+  snapshots, the matcher's miss list, and the crawl graph the incremental
+  jobs resume from. Every bump rewrites it; a dated cut freezes whatever it
+  holds at the time.
 
 A lagging pin is harmless by design: the delta between cuts is "versions
 that closed since" — things that were current yesterday. A stale pin loses
 the zero-eval fast path for exactly those versions, and the eval fallback
 serves them meanwhile.
+
+That property is why `tip-outpaths.json` is safe to pin at all, and why it
+is read only as **keyed data** — `(attr, version) → digest` — never as a
+statement about which revision is current. The dated cut happens on the
+first data run of each UTC day and is skipped for the rest of it, so the
+snapshot's own `revisionCount` falls behind `revisions.json` within hours.
+Selectors resolve against `revisions.json`; this file only answers "do you
+have a digest for this exact pair". An artifact claiming *more* revisions
+than `revisions.json` holds is refused outright, since it cannot be
+describing the same history.
 
 ## The pipeline
 

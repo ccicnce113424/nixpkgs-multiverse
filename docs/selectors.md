@@ -28,6 +28,14 @@ The newest revision the *index* knows is the `tip`. It is
 frozen at whatever the last indexing run captured and drifts further behind the
 live channel until the index is rebuilt.
 
+`tip` means the same revision everywhere, including on the [fast
+path](./nix-api.md#the-fast-path): `fast.tip` *is* `fast.at "tip"`. The
+store-path artifacts carry their own snapshot of what was current when they
+were last cut, and that snapshot is deliberately not what `fast.tip` reads —
+it is re-cut once a UTC day while the revision list advances with every
+channel bump, so keying `tip` off it would make one selector name two
+different revisions depending on which road you took to it.
+
 ### Releases
 
 A release name is a `major.minor` from the release table: `26.05`, `24.11`,
