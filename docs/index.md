@@ -26,3 +26,6 @@ line tool.
    the site's dependency and liveness views.
 
 The index itself is browsable at <https://nixmultiverse.com/>.
+
+Questions, ideas, and "does it handle X?" are welcome in the
+[Discord thread](https://discord.com/channels/568306982717751326/1538990827404267590).

@@ -24,6 +24,9 @@ and pin commands, plus the full revision and release tables.
 
 Also published at <https://nixmultiverse.com/docs/>.
 
+Questions, ideas, and "does it handle X?" are welcome in the
+[Discord thread](https://discord.com/channels/568306982717751326/1538990827404267590).
+
 ## Status
 
 ![github master branch workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/update-index.yml/badge.svg?branch=main)
