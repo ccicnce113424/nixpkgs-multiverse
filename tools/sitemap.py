@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Write the URLs worth offering a crawler, as sitemaps.org XML.
 
-Revisions are deliberately absent. There are 1,519 of them, each page a list of
+Revisions are deliberately absent. There are 1,532 of them, each page a list of
 what a commit pinned, and they are the one corner of the site that reads as
 bulk near-duplicate pages rather than as something a person searched for.
 
 `limit` caps how many package URLs the sitemap offers. Every attribute is a
-real page and could be listed — 31,798 fits inside the 50,000-URL limit — but
+real page and could be listed — 31,878 fits inside the 50,000-URL limit — but
 nothing here is prerendered, so whether one gets indexed depends on Google
 choosing to run its JavaScript. Offering a slice first makes that measurable in
 Search Console: if most of these land, raise the number; if almost none do, the

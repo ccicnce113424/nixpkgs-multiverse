@@ -5,9 +5,9 @@ designed for ergonomics.
 
 ```console
 $ nix run github:fzakaria/nixpkgs-multiverse#mvs -- query versions python3
-python3 · 62 versions · 2013-10-31 .. 2026-08-10
+python3 · 64 versions · 2012-07-05 .. 2026-08-16
 VERSION  FIRST       LAST        REVS
-3.3.2    2013-10-31  2013-10-31  1
+3.2.3    2012-07-05  2013-03-01  8
 3.4.3    2015-09-30  2015-09-30  1
 …
 3.13.13  2026-05-21  2026-07-05  12

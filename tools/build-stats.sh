@@ -11,7 +11,7 @@
 # committed files and nothing else, so it runs anywhere, including a fresh
 # clone.
 #
-# Aggregated by month rather than per revision. 1,519 points is more than a
+# Aggregated by month rather than per revision. 1,532 points is more than a
 # 700px-wide chart can resolve, and a month is the smallest bucket where
 # "commits per day" is not dominated by whether a bump happened to land on a
 # Tuesday.
@@ -72,7 +72,7 @@ for vers in hist['attrs'].values():
     for s, e in blocks:
         delta[s] += 1
         delta[e + 1] -= 1
-        # Offset 0 is the index reaching back to 2013, not 3,097 packages
+        # Offset 0 is the index reaching back to 2012, not 2,513 packages
         # landing that day; likewise a run ending at the newest revision is
         # still present, not removed.
         if s > 0:

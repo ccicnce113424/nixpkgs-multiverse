@@ -49,7 +49,7 @@ when they were current and pushed them to [cache.nixos.org](https://cache.nixos.
 
 So the missing piece was never building or storing. It was *addressing*: a way
 to say "python3 3.6.2" instead of "nixpkgs at 967d40bec14b", and to say it
-without paying for the other revisions you did not ask about — 1,518 of
+without paying for the other revisions you did not ask about — 1,531 of
 them, as of 2026-08-16.
 
 ## Lazy trees
@@ -91,10 +91,19 @@ obvious encoding would. Every count below is a measurement taken on
 2026-08-10 and left there; the index grows hourly, and the [status block in
 the README](../README.md#status) is what carries the current figures.
 
-`revisions.json` is the spine: 1,519 nixos-unstable channel bumps from
-2013-10-31 to 2026-08-16, each with its commit, date, channel name and
+`revisions.json` is the spine: 1,532 nixos-unstable channel bumps from
+2012-07-05 to 2026-08-16, each with its commit, date, channel name and
 `narHash`. Everything else refers to a revision by its **offset** into this
 array, which is why the other files stay small.
+
+The channel name spells its nixpkgs commit two ways, and the archive holds
+both. From the 17.03 era on it is the last dot-separated field, as in
+`nixos-26.11pre1049422.f13ff45afd1b`. Before that, nixos and nixpkgs were
+separate repositories and a name carried one commit from each —
+`nixos-13.07pre4909_b32ef4d-2238a23` is the nixos commit and then the nixpkgs
+one. Only the trailing hash names a tree worth indexing; the leading one is
+from a repository whose history was later grafted into nixpkgs, so it resolves
+against `NixOS/nixpkgs` just as happily and would quietly index the wrong tree.
 
 Every entry is a bump the nix-releases archive published, which is what makes
 the whole file uniform: each one has a channel name, a `store-paths` listing,
