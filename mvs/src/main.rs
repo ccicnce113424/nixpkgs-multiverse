@@ -49,11 +49,14 @@ enum Command {
     #[command(subcommand)]
     Query(Query),
 
-    /// Find one revision satisfying every constraint at once
+    /// Find the fewest revisions serving every constraint
     ///
     /// Each constraint is `attr` or `attr@version`, where the version is a
     /// prefix matched component by component: `python3@3.8` accepts 3.8.9 and
     /// refuses 3.81.
+    ///
+    /// The answer is always the minimum, and says why: each revision is forced
+    /// by one pin, and those pins never overlap, so no smaller set exists.
     Solve {
         #[arg(value_name = "ATTR[@VERSION]", required = true)]
         constraints: Vec<String>,

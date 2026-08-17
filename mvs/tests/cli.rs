@@ -19,6 +19,10 @@ const SETTLED_DATE: &str = "2022-03-15";
 const SETTLED_LABEL: &str = "2022-03-14-73ad5f9e147c";
 const SETTLED_PYTHON: &str = "3.9.10";
 
+/// The revision `solve python3@3.8 nodejs@14` lands on. Settled: python3 3.8
+/// ended there, and nothing about a closed run changes as the index grows.
+const SETTLED_SOLVE_REV: &str = "967d40bec14be87262b21ab901dbace23b7365db";
+
 /// A version old enough to be settled, and the commit that last shipped it.
 const OLD_RIPGREP: &str = "13.0.0";
 const OLD_RIPGREP_REV: &str = "5a09cb4b393d58f9ed0d9ca1555016a8543c2ac8";
@@ -112,29 +116,46 @@ fn refuses_a_release_where_it_would_have_to_guess() {
         .contains("release 26.05"));
 }
 
-/// solve: a satisfiable pair, an impossible one, and the exit status each
-/// gives, which is what a script branches on.
+/// solve: a pair that shares a revision, a pair that cannot, and a constraint
+/// nothing ever shipped — which is the only shape that still exits non-zero,
+/// and the one a script branches on.
 #[test]
-fn solves_and_proves_unsatisfiable() {
+fn solves_and_proves_minimality() {
     let Some(mvs) = mvs() else { return };
 
-    let solved: serde_json::Value =
+    // Two pins that overlap need exactly one revision, and both land on it.
+    let shared: serde_json::Value =
         serde_json::from_str(&mvs.stdout(&["--json", "solve", "python3@3.8", "nodejs@14"]))
             .unwrap();
-    assert_eq!(solved["satisfiable"], serde_json::json!(true));
-    assert!(solved["revisions"].as_i64().unwrap() > 0);
-
-    let out = mvs.run(&["--json", "solve", "python3@3.6", "ripgrep@14"]);
-    assert!(
-        !out.status.success(),
-        "an impossible solve must exit non-zero"
+    assert_eq!(shared["revisions"], serde_json::json!(1));
+    assert_eq!(shared["groups"][0]["pins"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        shared["groups"][0]["revision"]["rev"],
+        serde_json::json!(SETTLED_SOLVE_REV)
     );
-    let answer: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(answer["satisfiable"], serde_json::json!(false));
-    assert!(answer["disjoint"].is_array());
+
+    // Two pins that never overlapped are no longer an error: they are two
+    // revisions, and the pair that used to be the failure message is now the
+    // proof that two is the minimum.
+    let split: serde_json::Value =
+        serde_json::from_str(&mvs.stdout(&["--json", "solve", "python3@3.6", "ripgrep@14"])).unwrap();
+    assert_eq!(split["revisions"], serde_json::json!(2));
+    assert_eq!(
+        split["certificate"],
+        serde_json::json!(["python3 3.6.x", "ripgrep 14.x"])
+    );
+    assert!(split["why"].as_str().unwrap().contains("never overlapped"));
+
+    // Every pin sits on a revision that ships the version it resolved to.
+    for group in split["groups"].as_array().unwrap() {
+        for pin in group["pins"].as_array().unwrap() {
+            assert!(pin["version"].as_str().unwrap() != "?");
+        }
+    }
 
     // The component-wise prefix: 3.1 must not be satisfied by 3.10 through
-    // 3.13, which a string prefix or a SQL GLOB would allow.
+    // 3.13, which a string prefix or a SQL GLOB would allow. Nothing ever
+    // shipped python3 3.1.x, so there is no plan to make.
     assert!(!mvs.run(&["solve", "python3@3.1"]).status.success());
 }
 
