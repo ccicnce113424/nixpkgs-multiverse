@@ -16,11 +16,18 @@ let
   # never have to move as the index grows.
   py = mv.lifetimeOf "python3" "3.8.9";
 
-  # R cycled its default version back and forth in early 2019, so 3.5.2 has a
-  # gap — two runs rather than one. This is why history stores a list of ranges
-  # instead of the single [first, last] pair the design notes first considered:
-  # that encoding would have claimed four unbroken months here.
-  r = mv.lifetimeOf "R" "3.5.2";
+  # lshw was dropped from nixpkgs after 2018-11-17 and came back on 2021-12-07
+  # at the same version, so B.02.18 has a gap — two runs rather than one. This
+  # is why history stores a list of ranges instead of the single [first, last]
+  # pair the design notes first considered: that encoding would have claimed
+  # five unbroken years here.
+  #
+  # The example used to be R 3.5.2, whose gap turned out to be an artefact:
+  # its second run was the single 19.03 branch-off commit, where the release
+  # branch still carried 3.5.2 after unstable had moved on. Dropping those
+  # commits left it contiguous, which is the honest answer for a file that
+  # holds only unstable bumps.
+  r = mv.lifetimeOf "lshw" "B.02.18";
 
   timeline = mv.historyOf "python3";
 
