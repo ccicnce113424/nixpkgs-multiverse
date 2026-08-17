@@ -116,10 +116,16 @@ fn fixture(test: &str, store_data: StoreData) -> Option<Mvs> {
     // and app hold one version throughout.
     write(
         "revisions.json",
+        // Every revision carries the channel name the archive published it as,
+        // because every revision in the real file does — build-db.py takes the
+        // column as NOT NULL.
         json!([
-            {"rev": "a".repeat(40), "date": "2024-01-01", "narHash": "sha256-aaa"},
-            {"rev": "b".repeat(40), "date": "2024-02-01", "narHash": "sha256-bbb"},
-            {"rev": "c".repeat(40), "date": "2024-03-01", "narHash": "sha256-ccc"},
+            {"rev": "a".repeat(40), "date": "2024-01-01",
+             "name": "nixos-24.05pre100.aaaaaaaaaaaa", "narHash": "sha256-aaa"},
+            {"rev": "b".repeat(40), "date": "2024-02-01",
+             "name": "nixos-24.05pre200.bbbbbbbbbbbb", "narHash": "sha256-bbb"},
+            {"rev": "c".repeat(40), "date": "2024-03-01",
+             "name": "nixos-24.11pre300.cccccccccccc", "narHash": "sha256-ccc"},
         ]),
     );
     write("releases.json", json!({}));
