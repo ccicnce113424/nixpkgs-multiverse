@@ -3,3 +3,4 @@ index/.outpaths/
 result
 result-*
 mvs/target/
+__pycache__/
