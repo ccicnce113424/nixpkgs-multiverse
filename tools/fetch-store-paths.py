@@ -144,13 +144,9 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
     revs = json.load(open(args.revisions))
 
-    # Only revisions with a channel name have a listing to fetch; the cached
-    # ones cost a stat each, so an up-to-date run is effectively free.
-    jobs = [
-        (i, r)
-        for i, r in enumerate(revs)
-        if r.get("name") and i >= args.min_offset
-    ]
+    # Every revision is a published channel bump and so has a listing to fetch;
+    # the cached ones cost a stat each, so an up-to-date run is effectively free.
+    jobs = [(i, r) for i, r in enumerate(revs) if i >= args.min_offset]
     jobs = [j for j in jobs if not os.path.exists(f"{args.outdir}/{j[0]}.pkl")]
     if args.limit:
         jobs = jobs[: args.limit]

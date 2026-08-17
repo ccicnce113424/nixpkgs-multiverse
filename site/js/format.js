@@ -6,8 +6,10 @@ import { ARCHIVE_URL, REV_ABBREV } from "./config.js";
 export const label = (r) => `${r.date}-${r.rev.slice(0, REV_ABBREV)}`;
 
 // nixos/unstable/<name>/ for a revision, nixos/26.05/<name>/ for a release.
+// Every revision and every release carries the channel name the archive filed
+// it under, so this always resolves to a listing.
 export const archiveFor = (channelDir, name) =>
-  name ? `${ARCHIVE_URL}${channelDir}/${encodeURIComponent(name)}/` : null;
+  `${ARCHIVE_URL}${channelDir}/${encodeURIComponent(name)}/`;
 
 // Nix-style version ordering: split into digit and non-digit runs, compare
 // digit runs numerically. Enough to put 3.12.10 after 3.12.7.

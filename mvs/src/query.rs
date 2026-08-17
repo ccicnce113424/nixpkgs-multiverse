@@ -338,9 +338,7 @@ pub fn rev(index: &Index, selector: &str, format: Format) -> Result<()> {
             anstream::println!("  date    {}", r.date);
             anstream::println!("  label   {}", r.label);
             anstream::println!("  offset  {}", r.off);
-            if let Some(name) = &r.name {
-                anstream::println!("  channel {name}");
-            }
+            anstream::println!("  channel {}", r.name);
             match &r.narhash {
                 Some(h) => anstream::println!("  narHash {h}"),
                 // Without a narHash the revision is indexed but cannot be

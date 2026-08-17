@@ -104,11 +104,7 @@ function RevRow({ r, off, selected, churn, bulk, navigate }) {
           ? html`<span class="d">−${churn[1]}</span>`
           : null}`}
       </span>
-      <span class="muted">
-        ${archive
-          ? html`<a href=${archive}>${r.name}</a>`
-          : r.name || r.channel || ""}
-      </span>
+      <span class="muted"><a href=${archive}>${r.name}</a></span>
     <//>
   `;
 }

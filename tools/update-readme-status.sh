@@ -56,12 +56,11 @@ current = [
     f"[`{tip['rev'][:SHORT_REV]}`]({COMMIT_URL}{tip['rev']})"
 ]
 
-# Only revisions discovered through the channel archive carry the S3 object
-# that published them; named releases and hand-added entries do not. The hash
-# is already on the line, so the link shows just the channel it published as.
-if 'name' in tip:
-    channel = tip['name'].rsplit('.', 1)[0]
-    current.append(f" · [`{channel}`]({CHANNEL_URL}{tip['name']}/)")
+# Every revision comes from the channel archive and carries the S3 object that
+# published it. The hash is already on the line, so the link shows just the
+# channel it published as.
+channel = tip['name'].rsplit('.', 1)[0]
+current.append(f" · [`{channel}`]({CHANNEL_URL}{tip['name']}/)")
 
 # No line for revisions that are on file but unindexed. build-index.sh fails
 # rather than half-finish an incremental run, so the update job never commits

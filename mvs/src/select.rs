@@ -75,8 +75,8 @@ pub fn resolve(index: &Index, selector: &str, releases: Releases) -> Result<Targ
         return match index.revision_by_prefix(selector)? {
             Some(revision) => Ok(Target::Revision(revision)),
             None => Err(anyhow!(
-                "no indexed revision starts with {selector}.\nThe index holds channel bumps \
-                 and release commits, not every commit in nixpkgs — a revision nixpkgs has \
+                "no indexed revision starts with {selector}.\nThe index holds nixos-unstable \
+                 channel bumps, not every commit in nixpkgs — a revision nixpkgs has \
                  but the index does not is expected."
             )),
         };

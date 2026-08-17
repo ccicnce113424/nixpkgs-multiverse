@@ -45,11 +45,7 @@ function ReleaseRow({ name, r, near, selected, bulk, navigate }) {
       <code
         ><a href=${COMMIT_URL + r.rev}>${r.rev.slice(0, REV_ABBREV)}</a></code
       >
-      <span class="muted"
-        >${archive
-          ? html`<a href=${archive}>${r.name}</a>`
-          : r.name || ""}</span
-      >
+      <span class="muted"><a href=${archive}>${r.name}</a></span>
     <//>
   `;
 }

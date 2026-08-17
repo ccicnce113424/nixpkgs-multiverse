@@ -220,9 +220,7 @@ function VersionRow({
           ? html`<span class="badge-dead">○</span>`
           : ""}
       </span>
-      <span class="muted"
-        >${archive && html`<a href=${archive}>${r.name}</a>`}</span
-      >
+      <span class="muted"><a href=${archive}>${r.name}</a></span>
     <//>
   `;
 }

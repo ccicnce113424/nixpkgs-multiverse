@@ -39,9 +39,9 @@ pub struct Revision {
     pub off: i64,
     pub rev: String,
     pub date: String,
-    /// The channel's own name for it, e.g. `nixos-26.05pre…`. Absent for
-    /// release commits.
-    pub name: Option<String>,
+    /// The channel's own name for it, e.g. `nixos-26.05pre…`. Every revision is
+    /// a published channel bump, so every revision has one.
+    pub name: String,
     pub narhash: Option<String>,
     /// `YYYY-MM-DD-<12 hex>`, the handle every other command accepts back.
     pub label: String,

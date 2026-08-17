@@ -37,7 +37,7 @@ CREATE TABLE revisions(
   off     INTEGER PRIMARY KEY,   -- offset into revisions.json; the join key everywhere
   rev     TEXT NOT NULL,
   date    TEXT NOT NULL,
-  name    TEXT,
+  name    TEXT NOT NULL,         -- the channel the archive published it as
   narhash TEXT
 );
 CREATE INDEX revisions_rev  ON revisions(rev);
@@ -408,7 +408,7 @@ def main():
     db.executemany(
         "INSERT INTO revisions(off, rev, date, name, narhash) VALUES (?,?,?,?,?)",
         (
-            (i, r["rev"], r["date"], r.get("name"), r.get("narHash"))
+            (i, r["rev"], r["date"], r["name"], r.get("narHash"))
             for i, r in enumerate(revisions)
         ),
     )

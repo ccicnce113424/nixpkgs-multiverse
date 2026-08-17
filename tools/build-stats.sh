@@ -11,7 +11,7 @@
 # committed files and nothing else, so it runs anywhere, including a fresh
 # clone.
 #
-# Aggregated by month rather than per revision. 1,538 points is more than a
+# Aggregated by month rather than per revision. 1,519 points is more than a
 # 700px-wide chart can resolve, and a month is the smallest bucket where
 # "commits per day" is not dominated by whether a bump happened to land on a
 # Tuesday.
@@ -91,10 +91,11 @@ for i in range(N):
 # Channel bump cadence is flat at ~2 days and says nothing. The interesting
 # number is hiding in the revision name: `nixos-26.05pre977467` carries
 # nixpkgs' own commit counter, so the delta between two bumps is the commits
-# that landed between them. 80 of 1,538 revisions have no name to read.
+# that landed between them. A released bump is named `nixos-26.05.7813` with
+# no `pre`, and carries no counter, so it is skipped.
 counted = []
 for i, r in enumerate(revs[:N]):
-    m = re.search(r'pre(\d+)', r.get('name') or '')
+    m = re.search(r'pre(\d+)', r['name'])
     if m:
         counted.append((i, r['date'], int(m.group(1))))
 
