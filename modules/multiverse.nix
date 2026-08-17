@@ -110,6 +110,31 @@ in
       '';
     };
 
+    minimize = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Resolve `pins` through the fewest revisions that can serve them, rather
+        than each pin through the newest revision shipping its version.
+
+        Cost here is per revision touched, not per package: ten pins on ten
+        revisions is ten nixpkgs fetches and ten evaluations, and the same ten
+        pins grouped onto two is two. The versions installed are identical
+        either way — grouping decides which revision serves a version, never
+        which version is served.
+
+        What it does change is which *build* of that version you get. A pin can
+        land on an older revision inside its own version's run, so it carries
+        that revision's closure: the same package, an older openssl behind it.
+        `plan` reports exactly how much older, per pin, before anything is
+        built. Set this to false to put every pin back on the newest revision
+        shipping it, one fetch each.
+
+        This only ever moves a pin within the run of the version it names, so a
+        pin can never come back as a version you did not ask for.
+      '';
+    };
+
     lock = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
@@ -221,11 +246,46 @@ in
     pinned = lib.mkOption {
       type = lib.types.raw;
       readOnly = true;
-      default = builtins.mapAttrs (attr: version: mv.version attr version) cfg.pins;
+      default =
+        if cfg.minimize then
+          mv.solvePins cfg.pins
+        else
+          builtins.mapAttrs (attr: version: mv.version attr version) cfg.pins;
       defaultText = lib.literalExpression "{ <name> = <derivation>; }";
       description = ''
         `pins` resolved to derivations, keyed by attribute, so a pin can also be
         handed to an option that takes a package rather than only installed.
+      '';
+    };
+
+    plan = lib.mkOption {
+      type = lib.types.raw;
+      readOnly = true;
+      default = mv.pinPlan cfg.pins;
+      defaultText = lib.literalExpression "{ revisions = 2; groups = [ ... ]; certificate = [ ... ]; why = \"...\"; }";
+      description = ''
+        How `pins` divide across revisions, and the proof that no smaller
+        division exists. The same structure `mvs solve --json` prints:
+        `revisions` counts them, `groups` says which pin lands where and how
+        much older that leaves it, and `certificate` names the pins that make a
+        smaller plan impossible, with `why` as the sentence.
+
+        Computed from the index alone, so it is available before anything is
+        fetched — which is what makes it usable in an assertion. Demanding that
+        every pin share one revision, the strongest form of consistency this
+        module can offer, is:
+
+        ```nix
+        assertions = [
+          {
+            assertion = config.multiverse.plan.revisions == 1;
+            message = config.multiverse.plan.why;
+          }
+        ];
+        ```
+
+        Reported whether or not `minimize` is set: a plan is a fact about the
+        pins, and reading it is how you decide whether to set it.
       '';
     };
 

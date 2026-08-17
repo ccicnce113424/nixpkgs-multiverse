@@ -119,6 +119,27 @@ let
     lock = lockFile;
   };
 
+  # Two pins that were current together, so minimising puts them on one
+  # revision. jq 1.7 outlived ripgrep 13.0.0, so ripgrep forces the revision
+  # and the group lands on the one the pin assertions above already
+  # materialise — this case costs no extra fetch.
+  grouped = eval ../modules/nixos.nix {
+    enable = true;
+    pins = {
+      ripgrep = pinnedVersion;
+      jq = "1.7";
+    };
+  };
+
+  ungrouped = eval ../modules/nixos.nix {
+    enable = true;
+    minimize = false;
+    pins = {
+      ripgrep = pinnedVersion;
+      jq = "1.7";
+    };
+  };
+
   failing = cfg: builtins.filter (a: !a.assertion) cfg.assertions;
 in
 
@@ -135,6 +156,30 @@ assert home.environment.systemPackages == [ ];
 # assertion that materialises a revision.
 assert builtins.attrNames nixos.multiverse.pinned == [ "ripgrep" ];
 assert nixos.multiverse.pinned.ripgrep.version == pinnedVersion;
+
+# Minimising is on by default, and `plan` says how the pins divide before
+# anything is fetched. This pair shares one revision, so the whole set costs
+# one nixpkgs rather than two.
+assert grouped.multiverse.minimize;
+assert grouped.multiverse.plan.revisions == 1;
+assert grouped.multiverse.plan.why == "one revision serves every pin";
+
+# The plan is reported whether or not minimising is on: it is a fact about the
+# pins, and reading it is how a configuration decides whether to set the flag,
+# or asserts that one revision serves everything.
+assert ungrouped.multiverse.plan == grouped.multiverse.plan;
+assert !ungrouped.multiverse.minimize;
+
+# Grouping moves a pin onto an older revision inside its own version's run,
+# and says by how much. Versions are untouched either way, which is the whole
+# safety property: minimising changes which build serves a version, never
+# which version is served.
+assert (builtins.head grouped.multiverse.plan.groups).revision.label == "2023-11-23-5a09cb4b393d";
+assert builtins.all (
+  p: if p.attr == "ripgrep" then p.movedDays == 0 else p.movedDays > 0
+) (builtins.head grouped.multiverse.plan.groups).pins;
+assert grouped.multiverse.pinned.jq.version == "1.7";
+assert grouped.multiverse.pinned.ripgrep.version == pinnedVersion;
 
 # Cooldown resolves the attributes it was given, and gates on its own `enable`
 # rather than on the module's — a half-configured cooldown installs nothing and
