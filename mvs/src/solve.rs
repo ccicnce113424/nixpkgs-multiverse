@@ -252,7 +252,10 @@ fn displacement(index: &Index, block: Span, off: i64) -> Result<(i64, i64)> {
 
     let newest = index.revision(block.1)?;
     let chosen = index.revision(off)?;
-    Ok((block.1 - off, date::days_between(&chosen.date, &newest.date)))
+    Ok((
+        block.1 - off,
+        date::days_between(&chosen.date, &newest.date),
+    ))
 }
 
 /// How many of the pins the store-path index can serve without evaluating
@@ -277,7 +280,7 @@ fn fast_covered(index: &Index, resolved: &[(String, String)]) -> Result<Option<u
 }
 
 /// The forcing pins, as the sentence that proves the plan is minimal.
-fn why(constraints: &[Constraint], forced_by: &[usize]) -> String {
+pub fn why(constraints: &[Constraint], forced_by: &[usize]) -> String {
     let named: Vec<String> = forced_by
         .iter()
         .take(CERTIFICATE_SHOWN)
@@ -317,7 +320,10 @@ pub fn solve(index: &Index, specs: &[String], format: Format) -> Result<()> {
     // and the revision list disagree, so it is worth a sentence rather than a
     // fetch that fails much later.
     for group in &plan.groups {
-        if index.newest_materialisable_in(group.off, group.off)?.is_none() {
+        if index
+            .newest_materialisable_in(group.off, group.off)?
+            .is_none()
+        {
             return Err(anyhow!(
                 "revision {} satisfies these pins but has no narHash, so it cannot be \
                  fetched. Run tools/add-narhashes.sh.",
@@ -364,7 +370,10 @@ pub fn solve(index: &Index, specs: &[String], format: Format) -> Result<()> {
                     .pins
                     .iter()
                     .map(|&i| {
-                        let row = rows.iter().find(|(j, _, _, _)| *j == i).expect("row per pin");
+                        let row = rows
+                            .iter()
+                            .find(|(j, _, _, _)| *j == i)
+                            .expect("row per pin");
                         json!({
                             "attr": constraints[i].attr,
                             "constraint": constraints[i].version,
@@ -571,7 +580,10 @@ mod tests {
             .collect();
 
         assert_eq!(why(&constraints, &[0]), "one revision serves every pin");
-        assert_eq!(why(&constraints, &[0, 1]), "a 1.x and b 2.x never overlapped");
+        assert_eq!(
+            why(&constraints, &[0, 1]),
+            "a 1.x and b 2.x never overlapped"
+        );
         assert_eq!(
             why(&constraints, &[0, 1, 2]),
             "a 1.x, b 2.x, c 3.x never overlap"

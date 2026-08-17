@@ -191,6 +191,17 @@ enum Lock {
         all: bool,
     },
 
+    /// Move the pins onto the fewest revisions that serve them
+    ///
+    /// Versions are untouched; only the revision serving each one moves, so
+    /// pins that can share a revision do. A shared revision is fetched and
+    /// evaluated once, which is the whole saving.
+    Minimize {
+        /// Report what would change and exit non-zero, writing nothing
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Show the pins
     List,
 
@@ -316,6 +327,7 @@ fn run() -> Result<()> {
                 Lock::Update { attr, all } => {
                     lock::update(&index, &path, attr.as_deref(), *all, format)
                 }
+                Lock::Minimize { check } => lock::minimize(&index, &path, *check, format),
                 Lock::List => lock::list(&path, format),
                 Lock::Status => lock::status(&index, &path, format),
             }

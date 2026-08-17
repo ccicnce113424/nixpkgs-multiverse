@@ -23,6 +23,11 @@ const SETTLED_PYTHON: &str = "3.9.10";
 /// ended there, and nothing about a closed run changes as the index grows.
 const SETTLED_SOLVE_REV: &str = "967d40bec14be87262b21ab901dbace23b7365db";
 
+/// The revision `lock minimize` puts ripgrep 13.0.0, fd 8.7.0 and jq 1.6 on:
+/// the newest one shipping all three, which is jq 1.6's last. Settled, since
+/// every one of those runs is closed.
+const GROUPED_REV: &str = "6500b4580c2a1f3d0f980d32d285739d8e156d92";
+
 /// A version old enough to be settled, and the commit that last shipped it.
 const OLD_RIPGREP: &str = "13.0.0";
 const OLD_RIPGREP_REV: &str = "5a09cb4b393d58f9ed0d9ca1555016a8543c2ac8";
@@ -138,7 +143,8 @@ fn solves_and_proves_minimality() {
     // revisions, and the pair that used to be the failure message is now the
     // proof that two is the minimum.
     let split: serde_json::Value =
-        serde_json::from_str(&mvs.stdout(&["--json", "solve", "python3@3.6", "ripgrep@14"])).unwrap();
+        serde_json::from_str(&mvs.stdout(&["--json", "solve", "python3@3.6", "ripgrep@14"]))
+            .unwrap();
     assert_eq!(split["revisions"], serde_json::json!(2));
     assert_eq!(
         split["certificate"],
@@ -202,6 +208,55 @@ fn locks_pins() {
     // Removing what is not pinned is an error rather than a silent no-op.
     assert!(!mvs
         .run(&["lock", "--file", file, "rm", "ripgrep"])
+        .status
+        .success());
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// `mvs lock minimize`: three pins added at three revisions collapse onto one,
+/// keeping their versions, and `--check` reports the same regrouping without
+/// writing it. All three versions are closed, so the revision they share is
+/// settled and cannot move as the index grows.
+#[test]
+fn minimizes_pins() {
+    let Some(mvs) = mvs() else { return };
+
+    let dir = std::env::temp_dir().join(format!("mvs-cli-minimize-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("multiverse.lock");
+    let file = file.to_str().unwrap();
+
+    for spec in ["ripgrep@13.0.0", "fd@8.7.0", "jq@1.6"] {
+        mvs.stdout(&["lock", "--file", file, "add", spec]);
+    }
+
+    // --check reports the smaller plan, writes nothing, and exits non-zero so
+    // CI can fail on a lock that has drifted.
+    let out = mvs.run(&["--json", "lock", "--file", file, "minimize", "--check"]);
+    assert!(!out.status.success(), "--check must exit non-zero");
+    let plan: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(plan["before"], serde_json::json!(3));
+    assert_eq!(plan["after"], serde_json::json!(1));
+
+    let unchanged: serde_json::Value =
+        serde_json::from_str(&mvs.stdout(&["--json", "lock", "--file", file, "list"])).unwrap();
+    assert_eq!(unchanged["pins"]["jq"]["rev"], GROUPED_REV);
+    assert_ne!(unchanged["pins"]["ripgrep"]["rev"], GROUPED_REV);
+
+    // Applying it puts every pin on the one revision, with the versions they
+    // were pinned at. Minimising may change which build serves a version and
+    // must never change the version.
+    mvs.stdout(&["lock", "--file", file, "minimize"]);
+    let locked: serde_json::Value =
+        serde_json::from_str(&mvs.stdout(&["--json", "lock", "--file", file, "list"])).unwrap();
+    for (attr, version) in [("ripgrep", "13.0.0"), ("fd", "8.7.0"), ("jq", "1.6")] {
+        assert_eq!(locked["pins"][attr]["rev"], GROUPED_REV, "{attr} regrouped");
+        assert_eq!(locked["pins"][attr]["version"], version, "{attr} version");
+    }
+
+    // Already minimal: nothing to do, and a zero exit even under --check.
+    assert!(mvs
+        .run(&["lock", "--file", file, "minimize", "--check"])
         .status
         .success());
     std::fs::remove_dir_all(&dir).ok();

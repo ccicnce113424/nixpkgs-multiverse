@@ -26,7 +26,7 @@ use crate::date;
 use crate::db::Index;
 use crate::output::{self, Cell, Table};
 use crate::query::Format;
-use crate::solve::{newest_pinnable, spans_for, Constraint};
+use crate::solve::{self, block_for, newest_pinnable, spans_for, Constraint};
 use crate::version;
 
 /// The lock file's name, and the one `multiverse.lib.readLock` expects.
@@ -250,6 +250,147 @@ pub fn update(
                 .style(output::current()),
             entry["to"]["label"].as_str().unwrap()
         );
+    }
+    Ok(())
+}
+
+/// `mvs lock minimize` — move the existing pins onto the fewest revisions.
+///
+/// Deliberately one-shot rather than a mode the lock remembers. `update`
+/// promises to move exactly the pin it names, and a lock that re-minimised
+/// itself on every update would quietly move revisions under pins nobody
+/// asked about — the same versions, but different builds of them. Regrouping
+/// is therefore something the caller asks for, and can see the whole of.
+///
+/// Versions never change here. Each pin keeps the exact version it holds and
+/// only the revision serving it moves, which is why this can share a revision
+/// between pins without the caller re-deciding anything.
+pub fn minimize(index: &Index, path: &Path, check: bool, format: Format) -> Result<()> {
+    let mut lock = Lock::read(path)?;
+    if lock.pins.is_empty() {
+        return Err(anyhow!("{} has no pins", path.display()));
+    }
+
+    // The pinned version, not the constraint it was added with: minimising is
+    // allowed to change which revision serves a version and never which
+    // version is served.
+    let attrs: Vec<String> = lock.pins.keys().cloned().collect();
+    let constraints: Vec<Constraint> = attrs
+        .iter()
+        .map(|attr| Constraint {
+            attr: attr.clone(),
+            version: Some(lock.pins[attr].version.clone()),
+        })
+        .collect();
+
+    let blocks = constraints
+        .iter()
+        .map(|c| block_for(index, c))
+        .collect::<Result<Vec<_>>>()?;
+    let plan = solve::plan(&blocks);
+
+    let before = lock
+        .pins
+        .values()
+        .map(|pin| pin.rev.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
+    let after = plan.groups.len();
+    let explanation = solve::why(&constraints, &plan.forced_by);
+
+    // What each pin would become, and how much older that leaves it.
+    let mut moves = Vec::new();
+    for group in &plan.groups {
+        let revision = index.revision(group.off)?;
+        for &i in &group.pins {
+            let old = &lock.pins[&attrs[i]];
+            if old.rev == revision.rev {
+                continue;
+            }
+            moves.push(json!({
+                "attr": attrs[i],
+                "version": old.version,
+                "from": { "label": old.label, "date": old.date },
+                "to": { "label": revision.label, "date": revision.date },
+                "days": date::days_between(&revision.date, &old.date),
+                "rev": revision.rev,
+            }));
+        }
+    }
+
+    // --check reports and refuses to write, so CI can fail on a lock that has
+    // drifted without also rewriting it.
+    if !check {
+        for entry in &moves {
+            let attr = entry["attr"].as_str().unwrap();
+            let pin = lock.pins.get_mut(attr).expect("pin from this lock");
+            pin.rev = entry["rev"].as_str().unwrap().to_string();
+            pin.label = entry["to"]["label"].as_str().unwrap().to_string();
+            pin.date = entry["to"]["date"].as_str().unwrap().to_string();
+        }
+        if !moves.is_empty() {
+            lock.write(path)?;
+        }
+    }
+
+    if format == Format::Json {
+        output::print_json(json!({
+            "pins": attrs.len(),
+            "before": before,
+            "after": after,
+            "moved": moves,
+            "certificate": plan.forced_by.iter().map(|&i| constraints[i].describe()).collect::<Vec<_>>(),
+            "why": explanation,
+        }))?;
+        if check && after < before {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    if after == before {
+        anstream::println!(
+            "{} already sit on {} · {}",
+            output::plural(attrs.len(), "pin"),
+            output::plural(after, "revision"),
+            "minimal".style(output::current())
+        );
+        return Ok(());
+    }
+
+    anstream::println!(
+        "{} · {before} revisions → {} · {}",
+        output::plural(attrs.len(), "pin"),
+        after.style(output::current()),
+        "minimal".style(output::current())
+    );
+
+    let mut table = Table::new(&["ATTR", "VERSION", "REVISION", "DATE", "OLDER BY"]);
+    for entry in &moves {
+        table.row(vec![
+            Cell::new(entry["attr"].as_str().unwrap(), output::plain()),
+            Cell::new(entry["version"].as_str().unwrap(), output::plain()),
+            Cell::new(&entry["rev"].as_str().unwrap()[..12], output::plain()),
+            Cell::new(entry["to"]["date"].as_str().unwrap(), output::plain()),
+            Cell::new(
+                format!("{} days", entry["days"].as_i64().unwrap()),
+                output::muted(),
+            ),
+        ]);
+    }
+    anstream::println!();
+    table.print();
+    anstream::println!(
+        "\n{}",
+        format!("  minimal: {explanation}").style(output::muted())
+    );
+
+    if check {
+        anstream::println!(
+            "{}",
+            "  nothing written; run `mvs lock minimize` to apply".style(output::muted())
+        );
+        std::process::exit(1);
     }
     Ok(())
 }
