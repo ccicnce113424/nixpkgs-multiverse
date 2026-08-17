@@ -518,6 +518,156 @@ let
   skipped = checkedHistory.skipped;
 
   # ---------------------------------------------------------------------------
+  # Minimising: the fewest revisions that serve a set of pins.
+  #
+  # Cost here is per revision touched, not per package, so twenty pins spread
+  # over twenty revisions is twenty nixpkgs fetches and twenty evaluations.
+  # Grouping them onto the revisions they can share is the difference between
+  # that and one.
+  #
+  # The whole search is a greedy sweep, and is exactly minimal. See
+  # docs/design.md for the argument; `mvs solve` implements the same one and
+  # the two must agree, which tests/history.nix checks.
+  # ---------------------------------------------------------------------------
+
+  # The single block of revisions one pin is served by: the newest run of its
+  # version.
+  #
+  # A version can leave nixpkgs and come back, so a pin can hold over several
+  # disjoint stretches. Taking the newest is what `version` already resolves
+  # to — index/versions.json records only the newest revision shipping each
+  # version — and holding every pin to one stretch is what keeps the sweep
+  # below polynomial: a pin free to pick among its stretches turns the search
+  # into vertex cover.
+  blockOf =
+    attr: ver:
+    let
+      rs = runsOf attr ver;
+    in
+    if rs == null then
+      throw "multiverse: no revision ever shipped ${attr} ${ver}, so nothing can serve it"
+    else
+      builtins.elemAt rs (builtins.length rs - 1);
+
+  # The plan for a `{ attr = version; }` attrset: which revisions serve which
+  # pins, and the proof that no smaller set of revisions exists.
+  planFor =
+    pins:
+    let
+      attrs = builtins.attrNames pins;
+      blocks = map (attr: blockOf attr pins.${attr}) attrs;
+      firstOf = i: builtins.elemAt (builtins.elemAt blocks i) 0;
+      lastOf = i: builtins.elemAt (builtins.elemAt blocks i) 1;
+
+      # Earliest-ending block first: the only order the exchange argument
+      # holds in.
+      order = builtins.sort (a: b: lastOf a < lastOf b) (builtins.genList (i: i) (builtins.length attrs));
+
+      # Revisions are therefore placed oldest to newest, so the newest one
+      # placed is the only one that can still reach the block being
+      # considered. A block it cannot reach forces a revision of its own, at
+      # that block's last revision.
+      swept =
+        builtins.foldl'
+          (
+            acc: i:
+            let
+              reached = acc.offs != [ ] && builtins.elemAt acc.offs (builtins.length acc.offs - 1) >= firstOf i;
+            in
+            if reached then
+              acc
+            else
+              {
+                offs = acc.offs ++ [ (lastOf i) ];
+                forced = acc.forced ++ [ i ];
+              }
+          )
+          {
+            offs = [ ];
+            forced = [ ];
+          }
+          order;
+
+      # Each pin then joins the *newest* revision serving it rather than the
+      # first one placed. The plan is the same size either way, but a pin held
+      # at an older revision than it needs is an older build of the same
+      # version, so the later revision is strictly the better home. Folding
+      # left over offsets in order keeps the last match, which is that one.
+      homeOf =
+        i:
+        builtins.foldl' (
+          best: off: if firstOf i <= off && off <= lastOf i then off else best
+        ) null swept.offs;
+
+      pinsAt = off: builtins.filter (attr: homeOf (indexOfAttr attr) == off) attrs;
+
+      indexOfAttr =
+        attr:
+        builtins.foldl' (acc: i: if builtins.elemAt attrs i == attr then i else acc) null (
+          builtins.genList (i: i) (builtins.length attrs)
+        );
+
+      # How much older than its own newest revision a pin ended up. Zero for
+      # the pin that forced its group.
+      describePin =
+        off: attr:
+        let
+          i = indexOfAttr attr;
+        in
+        {
+          inherit attr;
+          version = pins.${attr};
+          movedRevisions = lastOf i - off;
+          movedDays = dayOf (revAt (lastOf i)).date - dayOf (revAt off).date;
+        };
+
+      named = map (i: "${builtins.elemAt attrs i} ${pins.${builtins.elemAt attrs i}}") swept.forced;
+      forcedCount = builtins.length named;
+
+      # The same summarising `mvs solve` does, so the two surfaces produce the
+      # same sentence for the same plan. Four names fit a line; past that the
+      # list stops being readable and the count says more.
+      certificateShown = 4;
+      leading = builtins.concatStringsSep ", " (
+        builtins.genList (i: builtins.elemAt named i) (
+          if forcedCount < certificateShown then forcedCount else certificateShown
+        )
+      );
+    in
+    # Every pin's block is forced before any of the plan is readable, so a
+    # version nothing ever shipped is an error rather than a plan quietly
+    # missing a pin. Nothing else here would force it for a single-pin plan:
+    # `sort` never calls its comparator on a one-element list, and `++` is lazy
+    # in its elements. A block is one lookup in a file already parsed, so
+    # forcing them all costs nothing worth keeping lazy.
+    builtins.deepSeq blocks {
+      revisions = builtins.length swept.offs;
+
+      groups = map (off: {
+        revision = revAt off // {
+          off = off;
+          label = labelOf off;
+        };
+        pins = map (describePin off) (pinsAt off);
+      }) swept.offs;
+
+      # The pins that forced each revision. Their blocks are pairwise disjoint
+      # by construction, so any plan needs at least this many revisions — the
+      # part a reader can check from the dates without trusting the sweep.
+      certificate = named;
+
+      why =
+        if forcedCount <= 1 then
+          "one revision serves every pin"
+        else if forcedCount == 2 then
+          "${builtins.elemAt named 0} and ${builtins.elemAt named 1} never overlapped"
+        else if forcedCount <= certificateShown then
+          "${leading} never overlap"
+        else
+          "${leading} and ${toString (forcedCount - certificateShown)} others never overlap";
+    };
+
+  # ---------------------------------------------------------------------------
   # The fast path: fake derivations over the store-path index, after
   # tomberek's fastpkgs (github.com/tomberek/fastpkgs) mkFakeDerivation trick.
   #
@@ -955,6 +1105,50 @@ rec {
   # coexist happily — Nix keeps them disjoint, so several versions of the same
   # package can sit in one buildEnv.
   version = versionDrv;
+
+  # A set of pins resolved through the fewest revisions that can serve them:
+  #
+  #   solvePins { ripgrep = "13.0.0"; fd = "8.7.0"; jq = "1.6"; }
+  #   => { ripgrep = <drv>; fd = <drv>; jq = <drv>; }   all from 2023-09-25
+  #
+  # The versions are exactly the ones asked for. What minimising decides is
+  # which revision serves each, and pins that can share one do — a shared
+  # revision is fetched and evaluated once, so three pins on one revision cost
+  # what a single pin costs.
+  #
+  # The price is that a pin can land on an older revision inside its own
+  # version's run: the same version, an older build of it. `pinPlan` reports
+  # exactly how much older, per pin, before anything is built.
+  #
+  # `mapAttrs` is lazy in its values, so nothing is materialised until one of
+  # these derivations is.
+  solvePins =
+    pins:
+    let
+      plan = planFor pins;
+      homes = builtins.foldl' (
+        acc: group:
+        acc
+        // builtins.listToAttrs (
+          map (p: {
+            name = p.attr;
+            value = group.revision.off;
+          }) group.pins
+        )
+      ) { } plan.groups;
+    in
+    builtins.mapAttrs (attr: _: instances.${toString homes.${attr}}.${attr}) pins;
+
+  # The same plan `solvePins` builds, as data rather than as derivations:
+  #
+  #   pinPlan { python3 = "3.8.9"; ripgrep = "14.1.1"; }
+  #   => { revisions = 2; groups = [ ... ]; certificate = [ ... ]; why = "..."; }
+  #
+  # The same fields `mvs solve --json` prints, so a configuration can assert on
+  # a plan the CLI can also explain. `revisions == 1` is how a caller demands
+  # one revision for a set of pins; `why` is the sentence to fail with, and
+  # names the pins that make a smaller plan impossible.
+  pinPlan = planFor;
 
   # A lock file written by `mvs lock`, resolved to derivations:
   #

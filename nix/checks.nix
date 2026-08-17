@@ -19,6 +19,7 @@ in
   module = evalTest "test-module" ../tests/module.nix;
   history = evalTest "test-history" ../tests/history.nix;
   lock = evalTest "test-lock" ../tests/lock.nix;
+  minimize = evalTest "test-minimize" ../tests/minimize.nix;
   fast = evalTest "test-fast" ../tests/fast.nix;
   compose = (import ../tests/compose.nix { inherit system; }).env;
 
