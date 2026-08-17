@@ -24,6 +24,9 @@ set -euo pipefail
 # down as MULTIVERSE_ROOT.
 MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# The evaluators live in nix/, which `nix run` copies in as its own store path;
+# the flake wrapper names it MULTIVERSE_NIX. See build-index.sh.
+NIXDIR="${MULTIVERSE_NIX:-$(cd "$(dirname "$0")/../nix" && pwd)}"
 
 WORK="$MT/index/.outpaths"
 PATHS="$WORK/paths"
@@ -73,7 +76,7 @@ if [ ! -s "$TIPNAMES" ]; then
   SRC=$(nix flake prefetch --json "github:NixOS/nixpkgs/$TIPREV" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["storePath"])')
   nix-instantiate --eval --strict --json \
-    --arg revPath "$SRC" "$HERE/extract-names.nix" > "$TIPNAMES.tmp"
+    --arg revPath "$SRC" "$NIXDIR/extract-names.nix" > "$TIPNAMES.tmp"
   mv "$TIPNAMES.tmp" "$TIPNAMES"
 fi
 

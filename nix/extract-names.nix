@@ -5,7 +5,7 @@
 # store-paths listing, and `pname` frequently differs from the attribute
 # (python3 -> python3-3.12.4). This is the evaluation that closes that gap.
 #
-# Mirrors the total-eval style of tools/extract-versions.nix: any attribute
+# Mirrors the total-eval style of nix/extract-versions.nix: any attribute
 # that fails to evaluate (broken package, unfree assertion, platform mismatch)
 # yields null rather than aborting the whole extraction.
 {

@@ -25,7 +25,9 @@ set -euo pipefail
 # Same split as build-index.sh: data in the caller's checkout, code beside this
 # script, which under `nix run` are two different places.
 MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-HERE="$(cd "$(dirname "$0")" && pwd)"
+# The evaluators live in nix/, which `nix run` copies in as its own store path;
+# the flake wrapper names it MULTIVERSE_NIX. See build-index.sh.
+NIXDIR="${MULTIVERSE_NIX:-$(cd "$(dirname "$0")/../nix" && pwd)}"
 REVFILE="$MT/revisions.json"
 OUT="$MT/index/history.json"
 WORK="$MT/index/.per-rev"
@@ -40,7 +42,7 @@ done
 
 # Keyed by the extractor's hash exactly as build-index.sh keys it, so the two
 # files can never be built from different extraction logic.
-EXTRACTOR_HASH=$(sha256sum "$HERE/extract-versions.nix" | cut -c1-8)
+EXTRACTOR_HASH=$(sha256sum "$NIXDIR/extract-versions.nix" | cut -c1-8)
 
 if [ ! -d "$WORK" ]; then
   echo "build-history: no extraction cache at $WORK" >&2

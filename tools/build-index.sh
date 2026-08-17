@@ -28,6 +28,11 @@ MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # land on the same checkout rather than re-deriving it from their own $0.
 export MULTIVERSE_ROOT="$MT"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# The Nix half of the code — the evaluators this script drives nix-instantiate
+# with — lives in nix/, one level up from the scripts. `nix run` copies the two
+# directories in separately, so the flake wrapper names this one explicitly
+# rather than letting it be derived from $0.
+NIXDIR="${MULTIVERSE_NIX:-$(cd "$(dirname "$0")/../nix" && pwd)}"
 # Optional. Point NIXPKGS at a clone to check revisions out of it rather than
 # downloading them; with no clone every revision is materialised through
 # `nix flake prefetch` instead.
@@ -57,7 +62,7 @@ FAILURES=0
 # The extraction cache is keyed by the extractor's own hash as well as the
 # revision. Without this, editing extract-versions.nix leaves every cached file
 # silently stale and a "successful" rebuild quietly reuses the old logic.
-EXTRACTOR_HASH=$(sha256sum "$HERE/extract-versions.nix" | cut -c1-8)
+EXTRACTOR_HASH=$(sha256sum "$NIXDIR/extract-versions.nix" | cut -c1-8)
 
 # One revision: materialise it, extract {attr: version}, and record its narHash
 # beside the extraction. Deliberately touches no shared file, so that -j can run
@@ -99,7 +104,7 @@ extract_one() {
 
   if nix-instantiate --eval --strict --json \
        --arg revPath "$src" --arg attrs 'null' \
-       "$HERE/extract-versions.nix" > "$dest.tmp" 2>"$dest.err"; then
+       "$NIXDIR/extract-versions.nix" > "$dest.tmp" 2>"$dest.err"; then
     mv "$dest.tmp" "$dest"
     n=$(python3 -c "import json;print(len(json.load(open('$dest'))))")
     if [ -n "$narhash" ]; then

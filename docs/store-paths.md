@@ -121,10 +121,11 @@ describing the same history.
 
 The hourly [update-index workflow](../.github/workflows/update-index.yml)
 appends a data pass after the index update, all of it incremental (the
-scripts live in `tools/`, and `update-outpaths.sh` orchestrates them):
+scripts live in `tools/`, the evaluators they drive in `nix/`, and
+`update-outpaths.sh` orchestrates them):
 
 1. fetch the new bump's listing (`fetch-store-paths.py`);
-2. extract `{attr → drv name}` at the tip (`extract-names.nix`), the pname
+2. extract `{attr → drv name}` at the tip (`nix/extract-names.nix`), the pname
    source the matcher's candidates come from;
 3. close versions and resolve digests (`match-outpaths.py --incremental`:
    already-closed matches are kept as-is, only the delta is resolved);

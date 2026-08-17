@@ -2,7 +2,7 @@
 # deployed tree is `nix build .#site` — the same derivation `nix run .#serve`
 # tests locally — which bundles the site/ files with the data files, renders
 # docs/*.md into /docs/, stamps the commit into the footer, and content-hashes
-# app.js. See siteFor in flake.nix.
+# app.js. See nix/site.nix.
 #
 # update-index.yml commits hourly when the channel moves, so the site tracks
 # the index at the same cadence — but only through the workflow_run trigger
