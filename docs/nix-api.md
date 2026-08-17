@@ -63,13 +63,13 @@ let
   # newest revision on or before that date
   pkgs_2022_03_15 = mv.at "2022-03-15";
   # by commit
-  pkgs_aae12a743f75 = mv.at "aae12a743f75";
+  pkgs_dc460ec76cbf = mv.at "dc460ec76cbf";
 in {
   packages = [
       pkgs_tip.python3
       pkgs_24_11.python3
       pkgs_2022_03_15.python3
-      pkgs_aae12a743f75.python3
+      pkgs_dc460ec76cbf.python3
     ];
 }
 ```
@@ -292,7 +292,7 @@ mv.daysBehind "26.05" 7
 # a week before that date
 mv.daysBehind "2026-05-30" 7
 # a month before that commit landed
-mv.daysBehind "aae12a743f75" 30
+mv.daysBehind "dc460ec76cbf" 30
 ```
 
 ```console

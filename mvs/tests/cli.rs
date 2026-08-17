@@ -21,7 +21,7 @@ const SETTLED_PYTHON: &str = "3.9.10";
 
 /// A version old enough to be settled, and the commit that last shipped it.
 const OLD_RIPGREP: &str = "13.0.0";
-const OLD_RIPGREP_REV: &str = "7c6e3666e2040fb64d43b209b84f65898ea3095d";
+const OLD_RIPGREP_REV: &str = "5a09cb4b393d58f9ed0d9ca1555016a8543c2ac8";
 
 struct Mvs {
     db: PathBuf,

@@ -756,7 +756,7 @@ rec {
   #   at "25.05"        the release channel as it stands TODAY, backports and
   #                     all — a moving target, like nixos-25.05 itself
   #   at "2024-06-12"   newest revision on or before that date — fixed forever
-  #   at "aae12a743f75" commit hash prefix — fixed forever
+  #   at "dc460ec76cbf" commit hash prefix — fixed forever
   #   at "2021-07-18-967d40bec14b"
   #                     a revision label, as revOf and revs hand out — fixed
   #                     forever, so revOf's answer feeds straight back in
@@ -810,7 +810,7 @@ rec {
   #   daysBehind "tip" 7            a week behind the newest indexed revision
   #   daysBehind "26.05" 7          a week before the 26.05 channel tip
   #   daysBehind "2026-05-30" 7     a week before that date
-  #   daysBehind "aae12a743f75" 30  a month before that commit landed
+  #   daysBehind "dc460ec76cbf" 30  a month before that commit landed
   daysBehind = sel: days: instanceBehind (dateOfSelector sel) days;
 
   # Every known version of an attribute, oldest first.
@@ -902,7 +902,7 @@ rec {
   # `foo`" answerable, and the label it returns feeds straight back into `at`
   # to get a working derivation out of the last revision that had it:
   #
-  #   goneSince "python2"  => { date = "2026-05-30"; label = "2026-05-30-…";
+  #   goneSince "python2"  => { date = "2026-05-23"; label = "2026-05-23-…";
   #                             version = "2.7.18.12"; }
   #
   # An attribute the history has never seen throws rather than answering null.
@@ -1219,7 +1219,7 @@ rec {
       # what a fast path is allowed to cost — never a wrong answer.
       tip = fastAt "tip";
 
-      # The selector form: fast.at "2022-03-15", fast.at "aae12a743f75".
+      # The selector form: fast.at "2022-03-15", fast.at "dc460ec76cbf".
       at = fastAt;
     };
 }
