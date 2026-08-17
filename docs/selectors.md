@@ -76,7 +76,7 @@ the conventional length and what the index hands back.
 Uppercase is rejected rather than folded: the index writes commits in
 lowercase, and accepting uppercase would make a prefix search silently miss.
 
-The index holds channel bumps and release commits, not every commit in nixpkgs.
+The index holds nixos-unstable channel bumps, not every commit in nixpkgs.
 A commit that exists in nixpkgs but not in the index is expected and is an
 error, not an empty result.
 

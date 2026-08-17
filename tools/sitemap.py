@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the URLs worth offering a crawler, as sitemaps.org XML.
 
-Revisions are deliberately absent. There are 1,538 of them, each page a list of
+Revisions are deliberately absent. There are 1,519 of them, each page a list of
 what a commit pinned, and they are the one corner of the site that reads as
 bulk near-duplicate pages rather than as something a person searched for.
 

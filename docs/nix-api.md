@@ -329,7 +329,7 @@ nix-repl> (mv.at "26.05").multiverse
 nix-repl> (mv.at "26.05").frankenphp.version
 "1.12.6"
 
-# the release commit, fixed forever
+# the newest bump on or before that date, fixed forever
 nix-repl> (mv.at "2026-05-30").frankenphp.version
 "1.12.3"
 ```
