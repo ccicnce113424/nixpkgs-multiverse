@@ -33,7 +33,7 @@ in
     cp ${../README.md} repo/README.md
     cp ${../LICENSE} repo/LICENSE
     cp ${../multiverse_lotr.jpg} repo/multiverse_lotr.jpg
-    cp ${../docs}/*.md repo/docs/
+    cp ${../docs}/*.md ${../docs}/*.svg repo/docs/
     cp ${../.github/workflows}/*.yml repo/.github/workflows/
     cd repo
     python3 ${../tools/check-links.py} README.md docs/*.md | tee $out

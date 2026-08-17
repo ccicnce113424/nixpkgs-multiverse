@@ -12,6 +12,7 @@ Usage: render-docs.py <cmark-gfm> <docs-dir> <out-dir> [origin] [commit] [store-
 import html
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -441,7 +442,17 @@ def main():
         with open(os.path.join(out_dir, f"{name}.html"), "w") as fh:
             fh.write(page)
 
-    print(f"rendered {len(names)} docs pages")
+    # Anything beside the markdown — the diagrams a page links to as
+    # `./name.svg` — goes across untouched. GitHub reads those links straight
+    # out of the repository, so the site has to serve them under the same
+    # names for one link to work in both readers.
+    assets = [f for f in sorted(os.listdir(docs_dir)) if not f.endswith(".md")]
+    for asset in assets:
+        shutil.copyfile(
+            os.path.join(docs_dir, asset), os.path.join(out_dir, asset)
+        )
+
+    print(f"rendered {len(names)} docs pages, copied {len(assets)} assets")
 
 
 if __name__ == "__main__":

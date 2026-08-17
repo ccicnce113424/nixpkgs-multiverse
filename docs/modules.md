@@ -43,6 +43,45 @@ package.
 **Note**: Only top-level attributes work. Nested sets such as `python3Packages.*`,
 or `nodePackages.*` are not in the index and cannot be used.
 
+### How many nixpkgs your pins cost
+
+Cost is per revision touched, not per package: ten pins landing on ten
+revisions is ten nixpkgs fetches and ten evaluations. `multiverse.minimize` is
+on by default and resolves the whole set through the fewest revisions that can
+serve it, which is often one or two.
+
+The versions installed are identical either way — minimising decides which
+revision serves a version, never which version is served, and a pin can never
+leave the run of the version it names. What it does change is which *build* of
+that version you get: a pin can land on an older revision inside its run, and
+so carries that revision's closure. Set `minimize = false` to put every pin
+back on the newest revision shipping it, one fetch each.
+
+`multiverse.plan` reports the division, and is computed from the index without
+fetching anything — so it is available to an assertion:
+
+```nix
+{
+  multiverse.pins = {
+    python3 = "3.8.9";
+    nodejs = "14.17.3";
+  };
+
+  # These two must come out of the same nixpkgs, or fail the build.
+  assertions = [
+    {
+      assertion = config.multiverse.plan.revisions == 1;
+      message = config.multiverse.plan.why;
+    }
+  ];
+}
+```
+
+`plan.groups` says which pin lands where and how much older that leaves it, in
+days and in revisions. `plan.certificate` names the pins that make a smaller
+plan impossible. It is the same structure `mvs solve --json` prints — see
+[Minimising](./design.md#minimising).
+
 ## Cooldown
 
 A soak period, as a module option. `days` behind `anchor`, along nixos-unstable,
@@ -107,6 +146,11 @@ nixpkgs.overlays = [
 
 Now `pkgs.vscode` is 1.107.0 everywhere, and anything reading it — including
 other modules' `package` defaults — picks it up.
+
+`pinOverlay` minimises its pins the same way and by the same default as
+`multiverse.minimize`, and takes `minimize = false` to turn it off, so moving a
+set of pins from the module to the overlay does not quietly change what it
+costs.
 
 ## Without the module
 

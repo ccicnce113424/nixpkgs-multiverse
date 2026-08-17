@@ -77,11 +77,13 @@ Where they differ:
 its own binary cache: `flox init`, `flox install python@3.8`, `flox activate`,
 plus publishing and sharing on top.
 
-The interesting overlap is **package groups** which is what [`mvs solve`](./cli.md#one-revision-for-several-packages) computes.
+The interesting overlap is **package groups** which is what [`mvs solve`](./cli.md#the-fewest-revisions-for-several-packages) computes.
 
 Where they differ:
 * flox is a service. `mvs` resolves from JSON that works offline.
 * flox is an environment manager.
+* `mvs solve` returns the *fewest* revisions rather than one or nothing, and
+  proves the count is minimal — see [Minimising](./design.md#minimising).
 
 
 ## What this is not

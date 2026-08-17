@@ -92,6 +92,46 @@ nix-repl> multiverse.x86_64-linux.releases
 
 **Note**: Enumerating versions fetches nothing as it reads an index file only. A revision is materialised the first time you force a derivation.
 
+## Several pins, as few revisions as possible
+
+Asking for five packages one at a time means five revisions, and cost here is
+per revision touched — five fetches, five evaluations. `solvePins` takes the
+whole set at once and resolves it through the fewest revisions that can serve
+it:
+
+```nix
+mv.solvePins { ripgrep = "13.0.0"; fd = "8.7.0"; jq = "1.6"; }
+# => { ripgrep = <drv>; fd = <drv>; jq = <drv>; }
+# all three from 2023-09-25-6500b4580c2a — one fetch, one evaluation
+```
+
+The versions are exactly the ones asked for. What minimising decides is which
+revision serves each, so a pin can land on an older revision inside its own
+version's run: the same version, an older build of it. `pinPlan` is the same
+answer as data, computed from the index without fetching anything:
+
+```nix
+mv.pinPlan { python3 = "3.6.1"; ripgrep = "14.1.1"; }
+# => {
+#      revisions = 2;
+#      groups = [ { revision = { … off = 88; }; pins = [ { attr = "python3"; version = "3.6.1";
+#                                                          movedRevisions = 0; movedDays = 0; } ]; }
+#                 { revision = { … off = 1424; }; pins = [ … ]; } ];
+#      certificate = [ "python3 3.6.1" "ripgrep 14.1.1" ];
+#      why = "python3 3.6.1 and ripgrep 14.1.1 never overlapped";
+#    }
+```
+
+These are the same fields `mvs solve --json` prints, so a configuration can
+assert on a plan the CLI can also explain. Nothing offers "one revision or
+fail" as a mode, because the plan already says: `revisions == 1` is the
+assertion, and `why` is the message to fail with.
+
+`certificate` names one pin per revision, and those pins never overlap each
+other — which is the proof that no smaller plan exists, checkable from the
+dates alone. See [Minimising](./design.md#minimising) for the argument and for
+what the grouping costs.
+
 ## The fast path
 
 Everything above hands back *real* derivations, which means fetching a

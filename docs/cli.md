@@ -60,36 +60,56 @@ RUN  FIRST                    LAST                     REVS
   gap: 1 revision between 2017-04-27 and 2017-04-27
 ```
 
-## One revision for several packages
+## The fewest revisions for several packages
 
 Composing versions from *different* revisions gives complete closure down to
-the `libc`. That is fine for a leaf command-line tool and wrong for
-anything that links. `solve` inverts the question: one revision, one stdenv,
-internally consistent.
+the `libc`. That is fine for a leaf command-line tool and wrong for anything
+that links — and every extra revision is another nixpkgs to fetch and evaluate.
+`solve` answers both at once: the smallest set of revisions that ships every
+version asked for.
 
 ```console
 $ mvs solve python3@3.8 nodejs@14
-110 revisions · 2020-11-21 .. 2021-07-18
-newest: 967d40bec14b (2021-07-18)
+1 revision · minimal
+2 of 2 pins served by the store-path index
 
-ATTR     VERSION
-python3  3.8.9
-nodejs   14.17.3
-
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/967d40bec14be87262b21ab901dbace23b7365db";
+ATTR     VERSION  REVISION      DATE        MOVED
+python3  3.8.9    967d40bec14b  2021-07-18
+nodejs   14.17.3  967d40bec14b  2021-07-18  160 days (86 revs)
 ```
 
-When nothing satisfies the constraints it says which two never overlapped, and
-exits non-zero:
+`MOVED` is the price of sharing: nodejs 14.17.3 was current for another 160
+days after python3 3.8 ended, so grouping it with python3 puts it on an older
+build of the same version. Nothing here changes which *version* you get.
+
+Constraints that never overlapped are not an error — they are two revisions,
+and the pair that could not be reconciled is what proves two is the minimum:
 
 ```console
 $ mvs solve python3@3.6 ripgrep@14
-no revision ever had both
-WANTED         FROM        TO          REVS
-python3 3.6.x  2017-05-29  2018-11-17  162
-ripgrep 14.x   2023-11-26  2025-10-15  288
-  python3 3.6.x and ripgrep 14.x never overlapped
+2 revisions · minimal
+2 of 2 pins served by the store-path index
+
+ATTR     VERSION  REVISION      DATE        MOVED
+python3  3.6.6    80738ed9dc0c  2018-11-17
+ripgrep  14.1.1   544961dfcce8  2025-10-15
+
+  minimal: python3 3.6.x and ripgrep 14.x never overlapped
 ```
+
+The `minimal:` line is a certificate, not a remark. Each revision in a plan is
+forced by one pin, and those pins never overlap each other, so *k* of them need
+*k* revisions — you can check the claim from the dates without trusting the
+search. To demand a single revision, assert on the answer:
+
+```console
+$ mvs solve --json python3@3.8 nodejs@14 | jq -e '.revisions == 1'
+```
+
+The only thing that still exits non-zero is a constraint no revision ever
+satisfied, since there is no plan to make. See
+[Minimising](./design.md#minimising) for why the answer is always minimal and
+why finding it is not the search problem it looks like.
 
 A version is a prefix, matched component by component: `python3@3.8` accepts
 3.8.9 and refuses 3.81, and `python3@3.1` means 3.1.x rather than 3.10 through
@@ -100,7 +120,7 @@ A version is a prefix, matched component by component: `python3@3.8` accepts
 ```
 mvs lock add <attr>[@ver]        mvs lock update [<attr> | --all]
 mvs lock rm <attr>               mvs lock status
-mvs lock list
+mvs lock list                    mvs lock minimize [--check]
 ```
 
 `mvs lock update helix` finds the newest indexed revision providing helix and
@@ -131,6 +151,38 @@ $ mvs lock status
 ATTR   PINNED   LATEST   BEHIND
 helix  25.01.1  25.07.1  2 versions, 72 days
 ```
+
+### Fewer revisions for the same pins
+
+Each pin added lands on the newest revision shipping its version, and those
+rarely coincide, so a lock with four pins is four nixpkgs fetches. `mvs lock
+minimize` moves them onto the fewest revisions that can serve the versions
+already pinned:
+
+```console
+$ mvs lock minimize
+4 pins · 4 revisions → 1 · minimal
+
+ATTR     VERSION  REVISION      DATE        OLDER BY
+fd       8.7.0    6500b4580c2a  2023-09-25  24 days
+hello    2.12.1   6500b4580c2a  2023-09-25  603 days
+ripgrep  13.0.0   6500b4580c2a  2023-09-25  59 days
+
+  minimal: one revision serves every pin
+```
+
+Only `rev`, `label` and `date` change; the format is untouched, and `readLock`
+needs no help, since two pins carrying the same commit already resolve through
+one memoised revision. **Versions never move** — minimising decides which
+revision serves a version, never which version is served — but the build does,
+which is what `OLDER BY` reports.
+
+`--check` prints the same table, writes nothing and exits non-zero, so CI can
+fail on a lock that has drifted apart.
+
+This is a one-shot rather than a mode the lock remembers, on purpose. `update`
+promises to move exactly the pin you name; a lock that re-minimised itself on
+every update would quietly move revisions under pins you did not mention.
 
 A pin can never point past what the index knows, because materialising a
 revision needs its narHash. Moving one forward is therefore two steps, and

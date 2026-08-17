@@ -192,6 +192,93 @@ nobody looked at.
 `releases.json` is separate and indexed by nothing: 25 release channels, each
 holding the current tip of its branch. Releases move as backports are applied, so a release is a channel, not a snapshot, and it lives outside the revision array for that reason. See [releases move, revisions do not](./nix-api.md#releases-move-revisions-do-not).
 
+## Minimising
+
+Cost is per revision touched, not per package. Ten pins resolved independently
+are ten nixpkgs fetches and ten evaluations; the same ten grouped onto the
+revisions they can share might be two. `mvs solve`, `mv.solvePins` and
+`multiverse.pins` all ask the same question to get there: **what is the
+smallest set of revisions that ships every version asked for?**
+
+Every pin is one contiguous block on the revision axis — the stretch of
+revisions where nixpkgs shipped exactly that version. A revision *serves* a pin
+if it lies inside that pin's block. So the question is: fewest points touching
+every block.
+
+![How minimising picks revisions](./minimize.svg)
+
+The whole algorithm is one sweep. Sort the pins by where their block **ends**.
+Take the pin that ends earliest, put a revision at the last revision in its
+block, delete every pin that revision serves, repeat.
+
+### Why the sweep is optimal
+
+Let `A` be the pin whose block ends earliest, at `l(A)`. Every valid plan holds
+some revision `q` inside `A`'s block. Swap `q` for `l(A)`: any pin `B` that `q`
+served has `first(B) ≤ q ≤ last(B)`, and since `l(A)` is the smallest endpoint
+of anything left, `last(B) ≥ l(A)`; combined with `first(B) ≤ q ≤ l(A)`, the
+point `l(A)` is inside `B` too. Nothing is lost by the swap, so *some* optimal
+plan contains `l(A)`. Fix it, delete what it serves, and the argument repeats
+on what is left. Sort plus one pass: **O(n log n)**.
+
+You do not have to take that on trust. For each revision it places, the sweep
+names the pin that forced it, and those pins are pairwise disjoint — pin *j*'s
+block must start after pin *i*'s ended, or *i*'s endpoint would already have
+served it. *k* disjoint blocks need *k* distinct revisions, so the plan carries
+its own proof that nothing smaller exists. That is what `certificate` and `why`
+report, and it is checkable from the dates alone:
+
+```console
+$ mvs solve python3@3.8 nodejs@14 ripgrep@14
+2 revisions · minimal
+...
+  minimal: python3 3.8.x and ripgrep 14.x never overlapped
+```
+
+### Where this would have been NP-hard
+
+The swap above needed `first(B) ≤ l(A) ≤ last(B)` to imply that `l(A)` serves
+`B`, which holds only because `B` is one unbroken block.
+
+Versions do not always come in one block. A version can leave nixpkgs and come
+back — 1.7% of `(attr, version)` pairs have a hole, up to four blocks. Let a
+pin be served by *any* of its blocks and the problem stops being interval
+stabbing and becomes hitting set over unions of intervals, which is NP-hard:
+lay a graph's vertices on the line, turn each edge `{u, v}` into a pin served
+by exactly revisions `u` and `v`, and hitting every pin is a minimum vertex
+cover. There is no clever algorithm being missed — the hardness lives entirely
+in the holes.
+
+So a pin takes the **newest** of its blocks and only that one. This is not a
+new rule: `index/versions.json` records only the newest revision shipping each
+version, and `mv.version`, `mvs lock add` and `multiverse.pins` already resolve
+through it. It costs something in rare cases — of random pin sets containing a
+holed pin, roughly 8% come out one revision larger than the true optimum over
+all blocks, never more than one — and what it buys is that the answer is always
+exactly minimal for the blocks it considered, in `n log n`, with no solver.
+
+### What minimising costs
+
+A pin that shares a revision with another can end up on an older revision
+inside its own version's run: the same version, an older build of it, carrying
+that revision's closure. Measured across random pin sets, 22% of pins move at
+all, by a median of 78 days and a p90 of about ten months. The other 78% do not
+move, and no pin can ever leave the run of the version it names, so a pin can
+never come back as a version nobody asked for.
+
+Two details keep that cost as low as it can be. Each revision the sweep places
+is the *newest* one that can serve its whole group, and each pin then joins the
+newest placed revision that serves it rather than the first — same plan size,
+and it roughly halves how far pins are dragged back. `pinPlan` and
+`mvs solve` report the displacement per pin, in days and in revisions, before
+anything is fetched.
+
+Minimising is worth much less on the [fast path](./store-paths.md), and that is
+fine: a pin the store-path index knows costs no fetch at all, so there is
+nothing to group. Under `fastFallback = "eval"` the two compose without any
+special handling — covered pins cost nothing, and the misses fall through to
+the evaluation path, which is where the sweep operates.
+
 ---
 
 For the longer version of this story, see the blog post:

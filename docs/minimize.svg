@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 336" width="760" height="336"
+     role="img" aria-label="Six pins drawn as blocks on the revision axis. Sorted by where each block ends, the sweep places a revision at the end of the earliest-ending unserved block: jq 1.6 forces the first, nodejs 18.16.0 forces the second. Those two blocks do not overlap, which is why two revisions is the minimum.">
+  <style>
+    .ink   { fill: #6e7781; }
+    .rule  { stroke: #8b949e; }
+    .bar   { fill: #8b949e; fill-opacity: .45; }
+    .cert  { fill: #2f81f7; fill-opacity: .55; }
+    .mark  { fill: #2f81f7; }
+    .stem  { stroke: #2f81f7; }
+    text   { font-family: ui-sans-serif, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      .ink  { fill: #adbac7; }
+      .rule { stroke: #768390; }
+      .bar  { fill: #768390; fill-opacity: .5; }
+    }
+  </style>
+
+  <!-- The two revisions the sweep places, drawn first so every block sits on top. -->
+  <g class="stem" stroke-width="1.5" stroke-dasharray="4 4">
+    <line x1="342" y1="46" x2="342" y2="248"/>
+    <line x1="598" y1="46" x2="598" y2="248"/>
+  </g>
+  <g class="ink" font-size="12" text-anchor="middle">
+    <text x="342" y="36" font-weight="600">revision 1</text>
+    <text x="598" y="36" font-weight="600">revision 2</text>
+  </g>
+
+  <!-- One row per pin: the block of revisions shipping the version it names,
+       ordered by where the block ends, which is the order the sweep walks. -->
+  <g class="ink" font-size="12" text-anchor="end">
+    <text x="140" y="76">jq 1.6</text>
+    <text x="140" y="106">fd 8.7.0</text>
+    <text x="140" y="136">ripgrep 13.0.0</text>
+    <text x="140" y="166">nodejs 18.16.0</text>
+    <text x="140" y="196">python3 3.11.4</text>
+    <text x="140" y="226">hello 2.12.1</text>
+  </g>
+
+  <rect class="cert" x="150" y="67"  width="192" height="10" rx="5"/>
+  <rect class="bar"  x="214" y="97"  width="224" height="10" rx="5"/>
+  <rect class="bar"  x="278" y="127" width="256" height="10" rx="5"/>
+  <rect class="cert" x="406" y="157" width="192" height="10" rx="5"/>
+  <rect class="bar"  x="502" y="187" width="160" height="10" rx="5"/>
+  <rect class="bar"  x="214" y="217" width="448" height="10" rx="5"/>
+
+  <!-- Where each pin lands: the newest placed revision its block contains.
+       hello spans both and joins the later one, which is free and leaves it on
+       a newer build than the first revision would. -->
+  <g class="mark">
+    <circle cx="342" cy="72"  r="4.5"/>
+    <circle cx="342" cy="102" r="4.5"/>
+    <circle cx="342" cy="132" r="4.5"/>
+    <circle cx="598" cy="162" r="4.5"/>
+    <circle cx="598" cy="192" r="4.5"/>
+    <circle cx="598" cy="222" r="4.5"/>
+  </g>
+  <g class="ink" font-size="11">
+    <text x="352" y="248">hello is served by both, and joins the newer</text>
+  </g>
+
+  <!-- The revision axis. -->
+  <line class="rule" x1="150" y1="276" x2="726" y2="276" stroke-width="1"/>
+  <g class="ink" font-size="11">
+    <text x="150" y="292">older revisions</text>
+    <text x="726" y="292" text-anchor="end">newer revisions</text>
+  </g>
+
+  <!-- The certificate: the two blocks that forced a revision never overlap, so
+       no single revision could have served both, so two is the floor. -->
+  <g class="mark" fill-opacity=".9">
+    <rect x="150" y="308" width="192" height="3" rx="1.5"/>
+    <rect x="406" y="308" width="192" height="3" rx="1.5"/>
+  </g>
+  <g class="ink" font-size="11" text-anchor="middle">
+    <text x="374" y="328">the two blocks that forced a revision never overlap — so no plan smaller than 2 exists</text>
+  </g>
+</svg>
