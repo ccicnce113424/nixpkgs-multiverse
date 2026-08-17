@@ -30,8 +30,8 @@ Also published at <https://nixmultiverse.com/docs/>.
 ![ci workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/ci.yml/badge.svg?branch=main)
 
 <!-- BEGIN index-status -->
-- **302,720 package versions** across **31,716 attributes**, from **1,519 revisions**
-- 2013-10-31 → 2026-08-16, newest [`e5bdc4a41d4c`](https://github.com/NixOS/nixpkgs/commit/e5bdc4a41d4c072fe1e3787eaa0320a384741d44) · [`nixos-26.11pre1055335`](https://releases.nixos.org/?prefix=nixos/unstable/nixos-26.11pre1055335.e5bdc4a41d4c/)
+- **304,626 package versions** across **31,878 attributes**, from **1,532 revisions**
+- 2012-07-05 → 2026-08-16, newest [`e5bdc4a41d4c`](https://github.com/NixOS/nixpkgs/commit/e5bdc4a41d4c072fe1e3787eaa0320a384741d44) · [`nixos-26.11pre1055335`](https://releases.nixos.org/?prefix=nixos/unstable/nixos-26.11pre1055335.e5bdc4a41d4c/)
 <!-- END index-status -->
 
 ## Quickstart
@@ -71,9 +71,9 @@ by the `mvs` tool:
 
 ```console
 $ nix run github:fzakaria/nixpkgs-multiverse#mvs -- query versions python3
-python3 · 62 versions · 2013-10-31 .. 2026-08-10
+python3 · 64 versions · 2012-07-05 .. 2026-08-16
 VERSION  FIRST       LAST        REVS
-3.3.2    2013-10-31  2013-10-31  1
+3.2.3    2012-07-05  2013-03-01  8
 …
 3.14.6   2026-07-08  current     17
 ```

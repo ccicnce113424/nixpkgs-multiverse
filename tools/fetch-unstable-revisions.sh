@@ -29,12 +29,25 @@ MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # Optional. Point NIXPKGS at a clone to resolve new revisions locally; with no
 # clone they are resolved through the GitHub API instead.
 NIXPKGS="${NIXPKGS:-}"
-MIN_YEAR="${1:-2017}"
+# A floor on the channel dates considered, for a run that only wants recent
+# history. The default takes everything the archive has.
+MIN_YEAR=0
+# Adding a channel older than one already on file renumbers every offset after
+# it, which invalidates every index. Refused unless asked for; see the guard at
+# the bottom.
+ALLOW_REORDER=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --allow-reorder) ALLOW_REORDER=1; shift ;;
+    *) MIN_YEAR="$1"; shift ;;
+  esac
+done
 
-python3 - "$NIXPKGS" "$MIN_YEAR" "$MT/revisions.json" <<'PY'
+python3 - "$NIXPKGS" "$MIN_YEAR" "$MT/revisions.json" "$ALLOW_REORDER" <<'PY'
 import json, os, re, subprocess, sys, urllib.parse, urllib.request
 
 nixpkgs, min_year, revfile = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+allow_reorder = sys.argv[4] == '1'
 BASE = 'https://nix-releases.s3.amazonaws.com/'
 API = 'https://api.github.com/repos/NixOS/nixpkgs/commits/'
 
@@ -125,8 +138,24 @@ def resolve_api(ref):
 added = unresolved = named = api_calls = 0
 original_order = [r['rev'] for r in revs]
 
+# The channel name carries its nixpkgs commit in one of two spellings.
+#
+# From the 17.03 era on it is the last dot-separated field:
+# `nixos-26.11pre1049422.f13ff45afd1b`.
+#
+# Before that, nixos and nixpkgs were separate repositories and the name
+# carried one commit from each: `nixos-13.07pre4909_b32ef4d-2238a23` is the
+# nixos commit and then the nixpkgs one. Only the trailing hash names a tree
+# worth indexing -- the leading one belongs to the nixos repository, whose
+# history was later grafted into nixpkgs, so it resolves against
+# NixOS/nixpkgs just as happily and would silently index the wrong tree.
+# Requiring the `_<hash>-` prefix is also what keeps the SVN-era names
+# (`nixos-0.1pre33981-33982`) from matching a pair of revision numbers.
+NEW_FORM = re.compile(r'\.([0-9a-f]{7,12})$')
+OLD_FORM = re.compile(r'_[0-9a-f]{7,12}-([0-9a-f]{7,12})$')
+
 for name in names:
-    m = re.search(r'\.([0-9a-f]{7,12})$', name)
+    m = NEW_FORM.search(name) or OLD_FORM.search(name)
     if not m:
         continue
     short = m.group(1)
@@ -169,9 +198,11 @@ revs.sort(key=lambda r: (r['date'], r['rev']))
 # index/versions.json stores offsets into this array, so an entry that lands
 # anywhere other than the end silently repoints every version recorded after it.
 # That is a full rebuild, not an append, and it is the caller's decision to make.
-if [r['rev'] for r in revs][:len(original_order)] != original_order:
+reordered = [r['rev'] for r in revs][:len(original_order)] != original_order
+if reordered and not allow_reorder:
     sys.exit("revisions.json: a new revision sorted before an existing one; "
-             "offsets would shift. Nothing written — rebuild the index by hand.")
+             "offsets would shift. Nothing written — rerun with --allow-reorder "
+             "to accept a full rebuild.")
 
 json.dump(revs, open(revfile, 'w'), indent=1)
 source = 'clone' if have_clone else f'GitHub API ({api_calls} lookups)'
@@ -179,6 +210,13 @@ print(f"archived channels: {len(names):,}   added: {added}   "
       f"named: {named}   unresolved: {unresolved}   via: {source}")
 print(f"revisions.json now holds {len(revs):,} revisions "
       f"({revs[0]['date']} .. {revs[-1]['date']})")
-if added:
+if reordered:
+    # Every offset on file now points at the wrong revision, so say so in the
+    # terms the recovery needs rather than reporting a plain append.
+    print("OFFSETS SHIFTED: a revision landed before the end of the array.\n"
+          "  index/versions.json and index/history.json are now wrong. Rebuild\n"
+          "  both from the extraction cache (tools/build-index.sh, then\n"
+          "  tools/build-history.sh) and renumber the store-path artifacts.")
+elif added:
     print("new revisions appended — run tools/build-index.sh --incremental to index them")
 PY
