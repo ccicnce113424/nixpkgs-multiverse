@@ -7,29 +7,11 @@
   "narHash": "sha256-syp9gorPB3r5lYUW++r1VqrbwZuM4bNrP8lbtT/lH+k="
  },
  {
-  "rev": "69721a81d0dd010ca9a79f293e27f74634bcd2b1",
-  "date": "2015-09-30",
-  "channel": "release-commit",
-  "narHash": "sha256-VuzP9RfndgC6yhL2U8X6stGULoOHr1HcscympKUgwV4="
- },
- {
-  "rev": "8a7ca8508189facd3c34011dd0cdd895f840eb2f",
-  "date": "2016-03-31",
-  "channel": "release-commit",
-  "narHash": "sha256-2xT+Jmk3mGMY4E+M38iNeCHq12MPNu9ZiYUxZl8sS1Q="
- },
- {
   "rev": "adfcc2d9531e78bf6a9e3b56e2f4fc873cb3d87b",
   "date": "2016-09-24",
   "channel": "nixos-unstable",
   "name": "nixos-17.03pre92039.adfcc2d",
   "narHash": "sha256-PCJxrU92f5wzQeE1O566Ao7oggVV8FswBZ3ytJ6BNYA="
- },
- {
-  "rev": "7d50dfaed5540495385b5c0feae90891d2d0e72b",
-  "date": "2016-10-01",
-  "channel": "release-commit",
-  "narHash": "sha256-8K9wvu82flzlzpU1uJv/T8IaLGQlsCASwjxGcrVjpbM="
  },
  {
   "rev": "09e4b78b48fa9b5da00f44d2c01f0f9f16c3d406",
@@ -303,12 +285,6 @@
   "channel": "nixos-unstable",
   "name": "nixos-17.09pre104652.08c87ee",
   "narHash": "sha256-ftZB5yJE7C7hOICX8qPHW/kEbpRUaqYmo620ag4buXw="
- },
- {
-  "rev": "40e02267b9893677b3e69933a4f178a46e03c98e",
-  "date": "2017-03-30",
-  "channel": "release-commit",
-  "narHash": "sha256-AqddK1XlGDcK/xd8ENmDad0wuw/JYSxtV+vj8LPPibs="
  },
  {
   "rev": "a41668f4412b75b65d65a46d352552546488c3c7",
@@ -722,12 +698,6 @@
   "channel": "nixos-unstable",
   "name": "nixos-18.03pre116572.9824ca6975",
   "narHash": "sha256-d5VrLfP47zqFNdhyotKDcylmyzJTtTVtvJUkqF7kyt4="
- },
- {
-  "rev": "b213a386f91c89adee14d135d695bc623d70e61a",
-  "date": "2017-09-29",
-  "channel": "release-commit",
-  "narHash": "sha256-UI+jQUhxRreVrn2kl7SsUBjFdQiBRv2CXRLScBMk/U4="
  },
  {
   "rev": "aebdc892d6aa6834a083fb8b56c43578712b0dab",
@@ -1199,12 +1169,6 @@
   "name": "nixos-18.09pre133640.ea145b68a01"
  },
  {
-  "rev": "4f57714e03b9e7fdc165b3a4aa8bfa0463afc027",
-  "date": "2018-04-04",
-  "channel": "release-commit",
-  "narHash": "sha256-jtxfSXmc07z8U3l0+TuUCSHcd8BgkapvUzjUN7fwZEI="
- },
- {
   "rev": "b25153a2983bc8b7fbfdc3b505f98a3c9b9d5072",
   "date": "2018-04-07",
   "channel": "nixos-unstable",
@@ -1560,12 +1524,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-ZgAtqNaAJ7il7a8DvYHdi2MnOXMR1xOYd24dPvHsluE=",
   "name": "nixos-19.03pre154487.0a7e258012b"
- },
- {
-  "rev": "52bc0a35b9d813a2a5c56b4a50e871aac5d85996",
-  "date": "2018-10-05",
-  "channel": "release-commit",
-  "narHash": "sha256-7X4jp9lLB0pDxIK/btVHnH9/+ET7uL9MtmWDoBU0acU="
  },
  {
   "rev": "32bcd72bf28a971c9063a9cdcc32effe49f49331",
@@ -1951,12 +1909,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-/9Jv0hZiyOKNWLxI3V4OXka00PYorvZYhByO2T18/nc=",
   "name": "nixos-19.09pre174426.acbdaa569f4"
- },
- {
-  "rev": "62cec46a6a20c84f5f479eacb0b41f3a451d8e8b",
-  "date": "2019-04-08",
-  "channel": "release-commit",
-  "narHash": "sha256-vhXFo18tl7IOppyjeDRUDSa75OMepO+TwD6p5yEWVWA="
  },
  {
   "rev": "1fc591f9a5bd1b016b5d66dfab29560073955a14",
@@ -2575,12 +2527,6 @@
   "name": "nixos-20.03pre196201.07d4df59626"
  },
  {
-  "rev": "0d99a63fd353198d13b1f6c17eb747a9b28f47c5",
-  "date": "2019-10-09",
-  "channel": "release-commit",
-  "narHash": "sha256-IjHyx3uz9jYBh5R9v6lea5Hd/F6iYTBcyHkXHwSGGFY="
- },
- {
   "rev": "d8aae818854fe9fb9a9179af22bf5a7d1269f497",
   "date": "2019-10-09",
   "channel": "nixos-unstable",
@@ -3113,12 +3059,6 @@
   "name": "nixos-20.09pre222138.b3c3a0bd183"
  },
  {
-  "rev": "ce342ae31d3d542f1243f01a36c46438261cbfb6",
-  "date": "2020-04-20",
-  "channel": "release-commit",
-  "narHash": "sha256-mEKkeLgUrzAsdEaJ/1wdvYn0YZBAKEG3AN21koD2AgU="
- },
- {
   "rev": "22a3bf9fb9edad917fb6cd1066d58b5e426ee975",
   "date": "2020-04-21",
   "channel": "nixos-unstable",
@@ -3502,12 +3442,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-xKFmWVx+rFInBao3gtmvXcd0LjHD1+0c1Ef5PJDrbuM=",
   "name": "nixos-21.03pre249162.1dc37370c48"
- },
- {
-  "rev": "aea7242187f21a120fe73b5099c4167e12ec9aab",
-  "date": "2020-10-27",
-  "channel": "release-commit",
-  "narHash": "sha256-nj2SvACFH+NERpye1kudcuygCcvnsZYv26M2+wgM5vE="
  },
  {
   "rev": "34ad166a830d3ac1541dcce571c52231f2f0865a",
@@ -4138,12 +4072,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-+GOrUDsdneUqrOm9d+9bHXjEVoVcU8tm14WGVzbt6gg=",
   "name": "nixos-21.11pre292748.6933d068c5d"
- },
- {
-  "rev": "fefb0df7d2ab2e1cabde7312238026dcdc972441",
-  "date": "2021-05-31",
-  "channel": "release-commit",
-  "narHash": "sha256-ZjBd81a6J3TwtlBr3rHsZspYUwT9OdhDk+a/SgSEf7I="
  },
  {
   "rev": "1c2986bbb806c57f9470bf3231d8da7250ab9091",
@@ -4811,12 +4739,6 @@
   "name": "nixos-22.05pre334451.942eb9a335b"
  },
  {
-  "rev": "506445d88e183bce80e47fc612c710eb592045ed",
-  "date": "2021-11-29",
-  "channel": "release-commit",
-  "narHash": "sha256-AjhmbT4UBlJWqxY0ea8a6GU2C2HdKUREkG43oRr3TZg="
- },
- {
   "rev": "8a308775674e178495767df90c419425474582a1",
   "date": "2021-11-29",
   "channel": "nixos-unstable",
@@ -5417,12 +5339,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-7ghaQZ+7JXLI9FgNH8+RQHAt3/ubT92j8NtjZleP6t4=",
   "name": "nixos-22.11pre381600.b62ada43050"
- },
- {
-  "rev": "7a94fcdda304d143f9a40006c033d7e190311b54",
-  "date": "2022-05-30",
-  "channel": "release-commit",
-  "narHash": "sha256-M6bJShji9AIDZ7Kh7CPwPBPb/T7RiVev2PAcOi4fxDQ="
  },
  {
   "rev": "f1c167688a6f81f4a51ab542e5f476c8c595e457",
@@ -6405,12 +6321,6 @@
   "name": "nixos-23.05pre429868.a115bb9bd56"
  },
  {
-  "rev": "bd15cafc53d0aecd90398dd3ffc83a908bceb734",
-  "date": "2022-11-30",
-  "channel": "release-commit",
-  "narHash": "sha256-/HEZNyGbnQecrgJnfE8d0WC5c1xuPSD2LUpB6YXlg4c="
- },
- {
   "rev": "e76c78d20685a043d23f5f9e0ccd2203997f1fb1",
   "date": "2022-11-30",
   "channel": "nixos-unstable",
@@ -7286,12 +7196,6 @@
   "name": "nixos-23.11pre490387.4f53efe34b3"
  },
  {
-  "rev": "90d94ea32eed9991e2b8c6a761ccd8145935c57c",
-  "date": "2023-05-31",
-  "channel": "release-commit",
-  "narHash": "sha256-btHN1czJ6rzteeCuE/PNrdssqYD2nIA4w48miQAFloM="
- },
- {
   "rev": "e635192892f5abbc2289eaac3a73cdb249abaefd",
   "date": "2023-06-01",
   "channel": "nixos-unstable",
@@ -7992,12 +7896,6 @@
   "name": "nixos-24.05pre553283.8cfef6986adf"
  },
  {
-  "rev": "7c6e3666e2040fb64d43b209b84f65898ea3095d",
-  "date": "2023-11-29",
-  "channel": "release-commit",
-  "narHash": "sha256-MxCVrXY6v4QmfTwIysjjaX0XUhqBbxTWWB4HXtDYsdk="
- },
- {
   "rev": "e92039b55bcd58469325ded85d4f58dd5a4eaf58",
   "date": "2023-11-29",
   "channel": "nixos-unstable",
@@ -8544,12 +8442,6 @@
   "name": "nixos-24.11pre632549.ad57eef4ef06"
  },
  {
-  "rev": "5646423bfac84ec68dfc60f2a322e627ef0d6a95",
-  "date": "2024-05-31",
-  "channel": "release-commit",
-  "narHash": "sha256-vboIEwIQojofItm2xGCdZCzW96U85l9nDW3ifMuAIdM="
- },
- {
   "rev": "57610d2f8f0937f39dbd72251e9614b1561942d8",
   "date": "2024-06-01",
   "channel": "nixos-unstable",
@@ -9010,12 +8902,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-PbABj4tnbWFMfBp6OcUK5iGy1QY+/Z96ZcLpooIbuEI=",
   "name": "nixos-24.11pre706477.dc460ec76cbf"
- },
- {
-  "rev": "aae12a743f75097dd3a60a8265978b995298babc",
-  "date": "2024-11-14",
-  "channel": "release-commit",
-  "narHash": "sha256-CqCX4JG7UiHvkrBTpYC3wcEurvbtTADLbo3Ns2CEoL8="
  },
  {
   "rev": "5e4fbfb6b3de1aa2872b76d49fafc942626e2add",
@@ -9620,12 +9506,6 @@
   "name": "nixos-25.11pre804993.063f43f2dbde"
  },
  {
-  "rev": "afb2b21ba489196da32cd9f0072e0dce6588a20a",
-  "date": "2025-05-23",
-  "channel": "release-commit",
-  "narHash": "sha256-rWtXrcIzU5wm/C8F9LWvUfBGu5U5E7cFzPYT1pHIJaQ="
- },
- {
   "rev": "62b852f6c6742134ade1abdd2a21685fd617a291",
   "date": "2025-05-25",
   "channel": "nixos-unstable",
@@ -10123,12 +10003,6 @@
   "name": "nixos-26.05pre904649.2d293cbfa5a7"
  },
  {
-  "rev": "f671a0d2a0fc25696ca8e18df4cba66b481d7b08",
-  "date": "2025-11-30",
-  "channel": "release-commit",
-  "narHash": "sha256-M101xMtWdF1eSD0xhiR8nG8CXRlHmv6V+VoY65Smwf4="
- },
- {
   "rev": "418468ac9527e799809c900eda37cbff999199b6",
   "date": "2025-12-02",
   "channel": "nixos-unstable",
@@ -10561,12 +10435,6 @@
   "channel": "nixos-unstable",
   "narHash": "sha256-tpyBcxPpcQb8ukyNF7DoCwfSY3VPsxHoYwj00Cayv5o=",
   "name": "nixos-26.05pre1004030.64c08a7ca051"
- },
- {
-  "rev": "76b7bc98257455119a4ccb59746fd41c5e4d128d",
-  "date": "2026-05-30",
-  "channel": "release-commit",
-  "narHash": "sha256-md0zn0RnwNvPyASas1yG5YUuwQ4ALA6ucL50l0DvqCo="
  },
  {
   "rev": "331800de5053fcebacf6813adb5db9c9dca22a0c",
