@@ -1,6 +1,6 @@
 # The Nix API
 
-Access every version of every package ever packaged in nixpkgs, from 2013 to 2026 as an installable.
+Access every version of every package ever packaged in nixpkgs, from 2012 to 2026 as an installable.
 
 ```console
 $ nix run 'github:fzakaria/nixpkgs-multiverse#versions.python3."3.6.2"' -- --version
@@ -38,12 +38,12 @@ Query the flake for all the versions of a package that **ever existed in Nixpkgs
 $ nix eval --json --apply 'f: f "python3"' \
    github:fzakaria/nixpkgs-multiverse#multiverse.x86_64-linux.versionsOf
 [
-  "3.3.2",
-  "3.4.3",
-  # 58 other versions omitted for brevity
+  "3.2.3",
+  "3.3.1",
+  # 60 other versions omitted for brevity
   # ...
-  "3.13.13",
-  "3.14.6"
+  "3.14.6",
+  "3.14.7"
 ]
 ```
 
@@ -80,7 +80,7 @@ Explore more with `nix repl`
 $ nix repl
 nix-repl> :lf github:fzakaria/nixpkgs-multiverse
 nix-repl> multiverse.x86_64-linux.versionsOf "python3"
-[ "3.3.2" "3.4.3" … "3.14.6" ]           # 62 versions
+[ "3.2.3" "3.3.1" … "3.14.7" ]           # 64 versions
 
 nix-repl> multiverse.x86_64-linux.revOf "python3" "3.8.9"
 "2021-07-18-967d40bec14b"
@@ -404,7 +404,7 @@ nix-repl> mv.versionAt "python3" "2022-03-15"
 
 # when something left nixpkgs; null while it is still here
 nix-repl> mv.goneSince "python2"
-{ date = "2026-05-30"; label = "2026-05-30-76b7bc982574"; version = "2.7.18.12"; }
+{ date = "2026-05-23"; label = "2026-05-23-64c08a7ca051"; version = "2.7.18.12"; }
 
 # every version of a package with its lifetime, oldest first
 nix-repl> mv.historyOf "ripgrep"

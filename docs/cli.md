@@ -6,12 +6,13 @@ designed for ergonomics.
 ```console
 $ nix run github:fzakaria/nixpkgs-multiverse#mvs -- query versions python3
 python3 · 64 versions · 2012-07-05 .. 2026-08-16
-VERSION  FIRST       LAST        REVS
-3.2.3    2012-07-05  2013-03-01  8
-3.4.3    2015-09-30  2015-09-30  1
+VERSION   FIRST       LAST        REVS
+3.2.3     2012-07-05  2013-03-01  8
+3.3.1     2013-06-30  2013-06-30  1
 …
-3.13.13  2026-05-21  2026-07-05  12
-3.14.6   2026-07-08  current     17
+3.13.13   2026-05-21  2026-07-05  11
+3.14.6    2026-07-08  2026-08-10  17
+3.14.7    2026-08-12  current     3
 ```
 
 The `mvs` contains the index. There is no download path, no cache directory, and nothing
@@ -52,12 +53,10 @@ flattening it into a range:
 
 ```console
 $ mvs query when emacs 25.1
-emacs 25.1 · 60 revisions · 2016-09-24 .. 2017-04-27
+emacs 25.1 · 59 revisions · 2016-09-24 .. 2017-04-27
 RUN  FIRST                    LAST                     REVS
-1    2016-09-24-adfcc2d9531e  2016-09-24-adfcc2d9531e  1
-2    2016-10-13-09e4b78b48fa  2017-04-24-c90998d5cf8b  58
-3    2017-04-27-e89343dc08ca  2017-04-27-e89343dc08ca  1
-  gap: 1 revision between 2016-10-01 and 2016-10-01
+1    2016-09-24-adfcc2d9531e  2017-04-24-c90998d5cf8b  58
+2    2017-04-27-e89343dc08ca  2017-04-27-e89343dc08ca  1
   gap: 1 revision between 2017-04-27 and 2017-04-27
 ```
 
@@ -241,7 +240,7 @@ hand it to `nix run`, fetching ~378 MB of that revision.
 
 ```console
 $ mvs run ripgrep@13.0.0 --eval -- --version
-ripgrep 13.0.0 from 2023-11-29-7c6e3666e204
+ripgrep 13.0.0 from 2023-11-23-5a09cb4b393d
 ripgrep 13.0.0
 ```
 

@@ -39,7 +39,7 @@ Questions, ideas, and "does it handle X?" are welcome in the
 
 ## Quickstart
 
-Every version of every package ever packaged in nixpkgs, from 2013 to 2026, as
+Every version of every package ever packaged in nixpkgs, from 2012 to 2026, as
 an installable:
 
 ```console
@@ -75,10 +75,10 @@ by the `mvs` tool:
 ```console
 $ nix run github:fzakaria/nixpkgs-multiverse#mvs -- query versions python3
 python3 · 64 versions · 2012-07-05 .. 2026-08-16
-VERSION  FIRST       LAST        REVS
-3.2.3    2012-07-05  2013-03-01  8
+VERSION   FIRST       LAST        REVS
+3.2.3     2012-07-05  2013-03-01  8
 …
-3.14.6   2026-07-08  current     17
+3.14.7    2026-08-12  current     3
 ```
 
 Pin a package from a NixOS, nix-darwin, or home-manager configuration:

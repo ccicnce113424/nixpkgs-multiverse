@@ -300,10 +300,10 @@ mod tests {
         lock.pins.insert(
             "ripgrep".to_string(),
             Pin {
-                rev: "7c6e3666e2040fb64d43b209b84f65898ea3095d".to_string(),
-                label: "2023-11-29-7c6e3666e204".to_string(),
+                rev: "5a09cb4b393d58f9ed0d9ca1555016a8543c2ac8".to_string(),
+                label: "2023-11-23-5a09cb4b393d".to_string(),
                 version: "13.0.0".to_string(),
-                date: "2023-11-29".to_string(),
+                date: "2023-11-23".to_string(),
                 constraint: Some("13".to_string()),
             },
         );
