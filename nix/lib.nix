@@ -37,11 +37,17 @@
   # The system comes off `final` rather than being an argument: reading it from
   # the package set being extended is what keeps this usable inside
   # `nixpkgs.overlays` without a second source of truth for the platform.
+  #
+  # `minimize` matches `multiverse.minimize`, and defaults the same way: the
+  # pins are resolved through the fewest revisions that can serve them, since
+  # cost is per revision touched and the versions are identical either way.
+  # Set it false to put every pin on the newest revision shipping it.
   pinOverlay =
     {
       pins,
       config ? { },
       overlays ? [ ],
+      minimize ? true,
     }:
     final: _prev:
     let
@@ -50,5 +56,8 @@
         inherit config overlays;
       };
     in
-    builtins.mapAttrs (attr: version: mv.version attr version) pins;
+    if minimize then
+      mv.solvePins pins
+    else
+      builtins.mapAttrs (attr: version: mv.version attr version) pins;
 }
