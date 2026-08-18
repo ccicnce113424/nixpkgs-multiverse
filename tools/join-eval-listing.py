@@ -199,11 +199,16 @@ def main():
                 continue
 
             digest, _ = split_output(entry["outputs"]["out"], name, "out")
-            siblings = {
-                output: split_output(value, name, output)[0]
-                for output, value in entry["outputs"].items()
-                if output != "out"
-            }
+            # Siblings are recorded by digest alone, so a consumer rebuilds
+            # their path as `<digest>-<name>-<output>`. The rare output whose
+            # basename does not follow that is dropped rather than described
+            # wrongly — reduce-eval-jobs.py marks it by storing more than a
+            # digest.
+            siblings = {}
+            for output, value in entry["outputs"].items():
+                if output == "out" or len(value) != DIGEST_LEN:
+                    continue
+                siblings[output] = value
             if digest not in digests:
                 # Held back for the cache probe rather than rejected here: the
                 # listing not naming a path is not the same as the cache not

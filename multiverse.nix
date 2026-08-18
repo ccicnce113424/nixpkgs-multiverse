@@ -748,28 +748,62 @@ let
     else
       data;
 
+  # The store-path artifacts are per system, because a store path is per
+  # system: one file holds every digest evaluated for `system` and checked
+  # against the channel listings, and a system nobody has evaluated has no file
+  # at all rather than a wrong entry. See docs/store-paths.md.
+  #
+  # A file per system rather than a system key inside each entry, because the
+  # fast path's cost model is "fetch exactly one small file": nesting would make
+  # every x86_64 user download the aarch64 half too.
+  outpathsFile = "outpaths-${system}.json";
+  tipOutpathsFile = "tip-outpaths-${system}.json";
+  outsFile = "outs-${system}.json";
+
+  # Whether this system has those files. Under a data pin that is a question
+  # about data-pins.json; under a vendored dataOverride it is a question about
+  # the directory, which is what lets a fixture cover one system and not
+  # another.
+  fastSupported =
+    if dataOverride != null then
+      builtins.pathExists (dataOverride + "/${outpathsFile}")
+    else
+      dataPins.files ? ${outpathsFile};
+
   # Closed pairs, plus the snapshot of what was current when the pin was cut.
   # Both files are keyed, timeless truth — (attr, version) -> digest — so a
   # lagging pin only loses the fast path for versions that closed since; the
   # eval fallback serves those meanwhile.
-  fastClosed = checkedArtifact "outpaths.json" (readArtifact "outpaths.json");
-  fastTip = checkedArtifact "tip-outpaths.json" (readArtifact "tip-outpaths.json");
+  fastClosed = checkedArtifact outpathsFile (readArtifact outpathsFile);
+  fastTip = checkedArtifact tipOutpathsFile (readArtifact tipOutpathsFile);
 
   # { attr -> { version -> [digest, drv-name-if-differs, ...] } }
+  #
+  # The unsupported-system guard sits here rather than at each use: this is
+  # where an artifact is first read, so forcing anything downstream of it on a
+  # system with no data reports that, instead of a missing pin.
   fastIndex =
-    fastClosed.attrs
-    // builtins.mapAttrs (attr: vers: (fastClosed.attrs.${attr} or { }) // vers) fastTip.attrs;
+    if !fastSupported then
+      throw ''
+        multiverse: fast has no store-path index for ${system} — no
+        ${outpathsFile} is published. Use the eval path, which evaluates
+        nixpkgs for whatever system it is asked about.
+      ''
+    else
+      fastClosed.attrs
+      // builtins.mapAttrs (attr: vers: (fastClosed.attrs.${attr} or { }) // vers) fastTip.attrs;
 
-  # { drv name -> { output suffix -> digest } }: the sibling outputs of
-  # multi-output packages. "out" is dropped: it is the default output the
-  # index already records, and a stray <name>-out path must not shadow it.
+  # { digest -> { output suffix -> digest } }: the sibling outputs of a
+  # multi-output package, keyed by the digest of its `out` path.
+  #
+  # Keyed by digest and not by derivation name, because a name is claimed by
+  # more than one package (and, before this was per system, by more than one
+  # architecture), while a digest is unique by construction. "out" is dropped
+  # defensively: it is the path the index already records, and a stray
+  # <name>-out entry must not shadow it.
   siblingOutputs = builtins.mapAttrs (_: outs: builtins.removeAttrs outs [ "out" ]) (
-    readArtifact "outs.json"
+    readArtifact outsFile
   );
-
-  # The store-path index is built from the x86_64-linux channel listings, so
-  # handing its digests to any other system would substitute foreign binaries.
-  fastSupported = system == "x86_64-linux";
 
   checkedFastFallback =
     if fastFallback == "throw" || fastFallback == "eval" then
@@ -793,51 +827,53 @@ let
   # The fake derivation for one matched pair. `evalDrv` is the real,
   # revision-exact derivation, carried on `.eval` for everything a fake
   # cannot do: override, nix develop, drvPath, full meta.
+  #
+  # A system with no artifacts never reaches here: an entry comes from
+  # fastIndex, and forcing that throws first.
   mkFake =
     attr: ver: entry: evalDrv:
-    if !fastSupported then
-      throw "multiverse: fast covers x86_64-linux only — the store-path index is built from the x86_64 channel listings. Use the eval path for ${system}."
-    else
-      let
-        digest = builtins.elemAt entry 0;
-        drvName = if builtins.length entry > 1 then builtins.elemAt entry 1 else "${attr}-${ver}";
-        siblings = siblingOutputs.${drvName} or { };
+    let
+      digest = builtins.elemAt entry 0;
+      drvName = if builtins.length entry > 1 then builtins.elemAt entry 1 else "${attr}-${ver}";
+      # Keyed by the `out` digest, so siblings belong to this exact path
+      # rather than to everything that ever carried this derivation name.
+      siblings = siblingOutputs.${digest} or { };
 
-        # Each output is the bare context-carrying store path string, not a
-        # nested attrset. That is what makes `nix build .#…hello."2.12.2".out`
-        # work: the CLI sees a store path and substitutes it, no derivation
-        # required. The attrset spelling (an output as another derivation
-        # attrset) would send the CLI looking for the drvPath there is not.
-        outputPaths = {
-          out = storePathWithContext "/nix/store/${digest}-${drvName}";
-        }
-        // builtins.mapAttrs (
-          suffix: d: storePathWithContext "/nix/store/${d}-${drvName}-${suffix}"
-        ) siblings;
-      in
-      {
-        type = "derivation";
-        name = drvName;
-        pname = (builtins.parseDrvName drvName).name;
-        version = ver;
-        system = "x86_64-linux";
-        outputs = [ "out" ] ++ builtins.attrNames siblings;
-        outputName = "out";
-        outPath = outputPaths.out;
-        # Deliberately minimal: nothing evaluated nixpkgs, so there is
-        # nothing honest to put here. `.eval.meta` has the real thing.
-        meta = { };
-        # `nix build`/`nix run`/`nix shell` on the bare attrpath ask for the
-        # drvPath a fake cannot have, so the message says what to append.
-        drvPath = throw ''
-          multiverse: ${drvName} is a fast fake derivation and has no drvPath — it
-          substitutes by store path alone. Append the output: …${attr}."${ver}".out
-          (outputs: ${builtins.concatStringsSep " " ([ "out" ] ++ builtins.attrNames siblings)}).
-          For override / nix develop / a real derivation, use .eval instead.
-        '';
-        eval = evalDrv;
+      # Each output is the bare context-carrying store path string, not a
+      # nested attrset. That is what makes `nix build .#…hello."2.12.2".out`
+      # work: the CLI sees a store path and substitutes it, no derivation
+      # required. The attrset spelling (an output as another derivation
+      # attrset) would send the CLI looking for the drvPath there is not.
+      outputPaths = {
+        out = storePathWithContext "/nix/store/${digest}-${drvName}";
       }
-      // outputPaths;
+      // builtins.mapAttrs (
+        suffix: d: storePathWithContext "/nix/store/${d}-${drvName}-${suffix}"
+      ) siblings;
+    in
+    {
+      type = "derivation";
+      name = drvName;
+      pname = (builtins.parseDrvName drvName).name;
+      version = ver;
+      inherit system;
+      outputs = [ "out" ] ++ builtins.attrNames siblings;
+      outputName = "out";
+      outPath = outputPaths.out;
+      # Deliberately minimal: nothing evaluated nixpkgs, so there is
+      # nothing honest to put here. `.eval.meta` has the real thing.
+      meta = { };
+      # `nix build`/`nix run`/`nix shell` on the bare attrpath ask for the
+      # drvPath a fake cannot have, so the message says what to append.
+      drvPath = throw ''
+        multiverse: ${drvName} is a fast fake derivation and has no drvPath — it
+        substitutes by store path alone. Append the output: …${attr}."${ver}".out
+        (outputs: ${builtins.concatStringsSep " " ([ "out" ] ++ builtins.attrNames siblings)}).
+        For override / nix develop / a real derivation, use .eval instead.
+      '';
+      eval = evalDrv;
+    }
+    // outputPaths;
 
   # A miss under fast.*: throw naming the eval selector — never a surprise
   # 378 MB fetch inside something called fast — unless the importer opted

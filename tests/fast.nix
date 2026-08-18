@@ -12,7 +12,12 @@
 # revisions.json and index/history.json — that is the whole point of `tip`
 # being a selector. So the tip fixture must carry a digest for whatever
 # version of `hello` the newest indexed revision ships; when nixpkgs bumps
-# hello, add the new pair to tests/fixtures/fast-data/tip-outpaths.json.
+# hello, add the new pair to
+# tests/fixtures/fast-data/tip-outpaths-x86_64-linux.json.
+#
+# The fixture holds x86_64-linux files only, which is also what makes it the
+# fixture for the unsupported-system case: aarch64-linux has no file there and
+# must therefore throw rather than hand out x86_64 digests.
 #
 # No assertion forces an outPath (or any sibling output) on purpose: current
 # Nix realises `path = true` string context the moment the string is forced,
@@ -48,6 +53,14 @@ let
   mvClosedAhead = import ../multiverse.nix {
     inherit system;
     dataOverride = ../tests/fixtures/fast-data-closed-ahead;
+  };
+
+  # A system the fixture has no artifacts for. Issue #12 was fast handing an
+  # x86_64-linux user aarch64 binaries; the shape of the fix is that a system
+  # is served from its own file or not at all.
+  mvForeign = import ../multiverse.nix {
+    system = "riscv64-linux";
+    dataOverride = ../tests/fixtures/fast-data;
   };
 
   hello = mv.fast.version "hello" "2.12.2";
@@ -102,6 +115,10 @@ let
   # the lookup is the guard.
   tipAheadRefused = !(builtins.tryEval (mvTipAhead.fast.version "hello" "2.12.3")).success;
   closedAheadRefused = !(builtins.tryEval (mvClosedAhead.fast.version "hello" "2.12.2")).success;
+
+  # The pair the fixture covers for x86_64-linux, asked for as another system:
+  # the answer is a throw, not the x86_64 digest.
+  foreignSystemRefused = !(builtins.tryEval (mvForeign.fast.version "hello" "2.12.2")).success;
 in
 
 # A fake walks and quacks like a derivation.
@@ -112,8 +129,9 @@ assert hello.system == "x86_64-linux";
 assert hello.outputs == [ "out" ];
 
 # The entry's recorded drv name wins over attr-version, and the sibling
-# outputs from outs.json surface in the outputs list — with the stray "out"
-# suffix dropped rather than shadowing the default output.
+# outputs from outs-<system>.json — keyed there by ffmpeg's own digest —
+# surface in the outputs list, with the stray "out" suffix dropped rather than
+# shadowing the default output.
 assert ffmpeg.name == "ffmpeg-9.0";
 assert
   ffmpeg.outputs == [
@@ -138,6 +156,10 @@ assert tipUnfreeThrows;
 # refused rather than read, for both store-path artifacts.
 assert tipAheadRefused;
 assert closedAheadRefused;
+
+# A store path belongs to one system. Asking as another one gets nothing,
+# which is the whole of issue #12.
+assert foreignSystemRefused;
 
 # Every fake carries the lazy escape hatch to the real derivation. Only its
 # presence is asserted: forcing it would fetch a whole nixpkgs revision.
