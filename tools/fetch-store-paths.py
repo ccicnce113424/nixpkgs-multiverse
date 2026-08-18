@@ -6,10 +6,16 @@ pre-2017 era, a MANIFEST) listing every path Hydra built for it. Each named
 revision in revisions.json is fetched into a per-offset pickle of
 {drv name -> store digest} under the paths directory.
 
+Two files come out of each offset. `<off>.pkl` is the {drv name -> digest}
+map the name-keyed matcher reads, and `<off>.digests.pkl` is the set of every
+digest the listing holds, which is what the evaluation-driven join uses
+instead: a listing cannot say which system a path belongs to, so it can only
+be asked whether a digest it was handed is one Hydra built (PLAN-issue12.md).
+
 MANIFEST-era files also carry NarSize/Size/References/System per path; those
 are saved alongside so the old era needs no narinfo crawl at all. Only
-x86_64-linux entries are kept from manifests (store-paths.xz era files are
-x86_64-only already).
+x86_64-linux entries are kept from manifests — the one era where the listing
+does carry a System column, and the one era the name map is therefore honest.
 
 Incremental by construction: an offset whose pickle already exists is
 skipped, so the hourly job pays for exactly the bumps it has never seen.
@@ -40,14 +46,18 @@ def split_base(path):
 
 
 def parse_storepaths(raw):
-    m = {}
+    m, digests = {}, set()
     for line in lzma.decompress(raw).decode().splitlines():
         line = line.strip()
         if not line.startswith(STORE_PREFIX):
             continue
         digest, name = split_base(line)
+        # Whichever of a name's paths sorts first, which for anything built for
+        # more than one system is a coin flip. Kept for the matcher that still
+        # reads it; the digest set below is the honest half of this file.
         m.setdefault(name, digest)
-    return m, None
+        digests.add(digest)
+    return m, None, digests
 
 
 MANIFEST_FIELD = re.compile(
@@ -56,7 +66,7 @@ MANIFEST_FIELD = re.compile(
 
 
 def parse_manifest(text):
-    m, meta, cur = {}, {}, {}
+    m, meta, cur, digests = {}, {}, {}, set()
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.endswith("{"):
@@ -66,6 +76,7 @@ def parse_manifest(text):
             if sp and cur.get("System", "x86_64-linux") == "x86_64-linux":
                 digest, name = split_base(sp)
                 m.setdefault(name, digest)
+                digests.add(digest)
                 refs = [
                     split_base(p)
                     for p in cur.get("References", "").split()
@@ -81,7 +92,7 @@ def parse_manifest(text):
             f = MANIFEST_FIELD.match(line)
             if f:
                 cur[f.group(1)] = f.group(2)
-    return m, meta
+    return m, meta, digests
 
 
 def get(url):
@@ -90,10 +101,20 @@ def get(url):
         return r.read()
 
 
+def digests_path(outdir, off):
+    return f"{outdir}/{off}.digests.pkl"
+
+
+def load_digests(outdir, off):
+    """The set of every digest the offset's listing holds."""
+    with open(digests_path(outdir, off), "rb") as f:
+        return pickle.load(f)["digests"]
+
+
 def fetch(outdir, job):
     off, r = job
     out = f"{outdir}/{off}.pkl"
-    if os.path.exists(out):
+    if os.path.exists(out) and os.path.exists(digests_path(outdir, off)):
         return off, "cached"
 
     # store-paths.xz first; 404 falls back through the two MANIFEST spellings
@@ -101,7 +122,7 @@ def fetch(outdir, job):
     prefix = RELEASES_BASE + r["name"] + "/"
     try:
         try:
-            m, meta = parse_storepaths(get(prefix + "store-paths.xz"))
+            m, meta, digests = parse_storepaths(get(prefix + "store-paths.xz"))
             kind = "store-paths"
         except urllib.error.HTTPError as e:
             if e.code != 404:
@@ -112,7 +133,7 @@ def fetch(outdir, job):
                 if e2.code != 404:
                     raise
                 text = get(prefix + "MANIFEST").decode()
-            m, meta = parse_manifest(text)
+            m, meta, digests = parse_manifest(text)
             kind = "manifest"
     except Exception as e:
         return off, f"FAIL {e}"
@@ -120,7 +141,17 @@ def fetch(outdir, job):
     with open(out + ".tmp", "wb") as f:
         pickle.dump({"names": m, "meta": meta, "kind": kind}, f, protocol=4)
     os.replace(out + ".tmp", out)
-    return off, f"{kind} {len(m)}"
+
+    # Separate file rather than another key in the one above, so that an
+    # already-fetched offset gains the digest set without its name map being
+    # rewritten, and so that retiring the name map is a matter of deleting a
+    # file rather than a format migration.
+    dout = digests_path(outdir, off)
+    with open(dout + ".tmp", "wb") as f:
+        pickle.dump({"digests": digests, "kind": kind}, f, protocol=4)
+    os.replace(dout + ".tmp", dout)
+
+    return off, f"{kind} {len(m)} names {len(digests)} paths"
 
 
 def main():
@@ -147,7 +178,14 @@ def main():
     # Every revision is a published channel bump and so has a listing to fetch;
     # the cached ones cost a stat each, so an up-to-date run is effectively free.
     jobs = [(i, r) for i, r in enumerate(revs) if i >= args.min_offset]
-    jobs = [j for j in jobs if not os.path.exists(f"{args.outdir}/{j[0]}.pkl")]
+    jobs = [
+        j
+        for j in jobs
+        if not (
+            os.path.exists(f"{args.outdir}/{j[0]}.pkl")
+            and os.path.exists(digests_path(args.outdir, j[0]))
+        )
+    ]
     if args.limit:
         jobs = jobs[: args.limit]
     print(f"{len(jobs)} listings to fetch", flush=True)

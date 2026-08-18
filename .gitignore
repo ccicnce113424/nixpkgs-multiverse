@@ -1,5 +1,6 @@
 index/.per-rev/
 index/.outpaths/
+index/.eval/
 result
 result-*
 mvs/target/

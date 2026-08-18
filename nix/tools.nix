@@ -15,6 +15,9 @@ let
   deps = [
     pkgs.bash
     pkgs.python3
+    # The evaluator behind tools/eval-outpaths.sh. Unlike `nix` it is not
+    # something a host is expected to have, so it is vendored here.
+    pkgs.nix-eval-jobs
     pkgs.gitMinimal
     pkgs.gnutar
     pkgs.gnugrep
@@ -51,6 +54,7 @@ let
     build-stats = "Build index/stats.json (the aggregates the site's charts draw) from index/history.json";
     fetch-unstable-revisions = "Append new nixos-unstable channel bumps to revisions.json";
     update-outpaths = "Update the store-path artifacts: fetch listings, match digests, crawl the cache";
+    eval-outpaths = "Evaluate revisions with nix-eval-jobs for exact per-system store paths";
     bump-data-pin = "Repoint data-pins.json at a dated release cut's assets";
     fetch-releases = "Refresh releases.json with the current tip of every release channel";
     add-narhashes = "Fill in narHash for revisions that lack one";
