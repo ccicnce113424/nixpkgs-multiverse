@@ -10722,5 +10722,12 @@
   "channel": "nixos-unstable",
   "name": "nixos-26.11pre1055335.e5bdc4a41d4c",
   "narHash": "sha256-FBJRXmbGXiSUDvYEbfLYRkckayyZ6SK1UEqhCrIZ2Cs="
+ },
+ {
+  "rev": "ec2d622de0773551768cf98f3fc50cbcc003b9c5",
+  "date": "2026-08-17",
+  "channel": "nixos-unstable",
+  "name": "nixos-26.11pre1057119.ec2d622de077",
+  "narHash": "sha256-Ue1Yo8gfHdD4TMtNewhA4tkSYeFqXThju0nCyJc3ALo="
  }
 ]

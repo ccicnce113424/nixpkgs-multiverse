@@ -33,8 +33,8 @@ Questions, ideas, and "does it handle X?" are welcome in the
 ![ci workflow](https://github.com/fzakaria/nixpkgs-multiverse/actions/workflows/ci.yml/badge.svg?branch=main)
 
 <!-- BEGIN index-status -->
-- **304,626 package versions** across **31,878 attributes**, from **1,532 revisions**
-- 2012-07-05 → 2026-08-16, newest [`e5bdc4a41d4c`](https://github.com/NixOS/nixpkgs/commit/e5bdc4a41d4c072fe1e3787eaa0320a384741d44) · [`nixos-26.11pre1055335`](https://releases.nixos.org/?prefix=nixos/unstable/nixos-26.11pre1055335.e5bdc4a41d4c/)
+- **305,314 package versions** across **31,896 attributes**, from **1,533 revisions**
+- 2012-07-05 → 2026-08-17, newest [`ec2d622de077`](https://github.com/NixOS/nixpkgs/commit/ec2d622de0773551768cf98f3fc50cbcc003b9c5) · [`nixos-26.11pre1057119`](https://releases.nixos.org/?prefix=nixos/unstable/nixos-26.11pre1057119.ec2d622de077/)
 <!-- END index-status -->
 
 ## Quickstart
