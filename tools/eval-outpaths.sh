@@ -8,21 +8,22 @@
 # name-keyed listing lookup this replaces is measured handing x86_64 users
 # aarch64 binaries for two thirds of the index.
 #
-# Revisions are materialised into the store rather than into a scratch
-# directory, unlike tools/build-index.sh. Forcing `outPath` hashes the tree the
-# expression was imported from, so a temp directory whose name changes per run
-# would change the digests with it; `nix flake prefetch` gives every runner the
-# same `-source` path.
+# Revisions are checked out with `git archive` into a scratch directory, the
+# way tools/build-index.sh does, and never enter the store. That the digests
+# survive this was worth checking rather than assuming, since forcing `outPath`
+# does hash trees the expression imports: evaluating the 2026-08-17 tip out of
+# two differently-named plain directories and out of the store's `-source` path
+# gives byte-identical outputs for all 24,346 attributes.
 #
-# That costs ~280 MB of store per revision, which is 430 GB across the whole
-# revision set, so a backfill wants --drop-source: every system asked for is
-# evaluated against the source while it is on disk, and the source goes as soon
-# as the last of them is done.
+# It is also what makes the backfill parallel. Materialising into the store
+# instead puts every job behind the nix daemon adding a 280 MB tree, which on a
+# 256-core machine was the whole bottleneck — and it costs 430 GB of store
+# across the revision set, against a few hundred MB of scratch per job here.
 #
 # Usage:
 #   tools/eval-outpaths.sh                        every revision, x86_64-linux
 #   tools/eval-outpaths.sh --system aarch64-linux
-#   tools/eval-outpaths.sh --system x86_64-linux,aarch64-linux --drop-source
+#   tools/eval-outpaths.sh --system x86_64-linux,aarch64-linux
 #   tools/eval-outpaths.sh --offsets 1500:        offset range (python slice)
 #   tools/eval-outpaths.sh --offsets 14,154,939   named offsets, comma separated
 #   tools/eval-outpaths.sh -n 5                   first 5 revisions (smoke test)
@@ -41,6 +42,11 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # `nix run` copies in as its own store path. See build-index.sh.
 NIXDIR="${MULTIVERSE_NIX:-$(cd "$(dirname "$0")/../nix" && pwd)}"
 export MULTIVERSE_NIX="$NIXDIR"
+# Optional, and worth having: a clone every revision can be checked out of.
+# Without one every revision is downloaded through `nix flake prefetch`
+# instead, which is both slower and serialised behind the nix daemon.
+NIXPKGS="${NIXPKGS:-}"
+export NIXPKGS
 REVFILE="$MT/revisions.json"
 WORK="$MT/index/.eval"
 
@@ -57,7 +63,6 @@ JOBS=1
 # laptop, and -j on a big machine wants them lower.
 WORKERS="${WORKERS:-6}"
 MAXMEM="${MAXMEM:-3072}"
-DROP_SOURCE="${DROP_SOURCE:-0}"
 SUBCOMMAND=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -66,14 +71,13 @@ while [ $# -gt 0 ]; do
     -n) LIMIT="${2:-0}"; shift 2 ;;
     -j) JOBS="${2:-1}"; shift 2 ;;
     --workers) WORKERS="$2"; shift 2 ;;
-    --drop-source) DROP_SOURCE=1; shift ;;
     --max-memory) MAXMEM="$2"; shift 2 ;;
     # Internal: how -j hands one revision to a child invocation.
     --eval-one) SUBCOMMAND=eval-one; EVAL_SHA="$2"; EVAL_LABEL="$3"; shift 3 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-export SYSTEM WORKERS MAXMEM DROP_SOURCE
+export SYSTEM WORKERS MAXMEM
 
 if ! command -v nix-eval-jobs >/dev/null 2>&1; then
   echo "eval-outpaths: nix-eval-jobs is not on PATH." >&2
@@ -135,9 +139,9 @@ eval_system() {
 # run as many of these at once as the machine has memory for.
 eval_one() {
   local sha=$1 label=$2
-  local src failures=0 wanted=0 system
+  local src="" tmp="" failures=0 wanted=0 system
 
-  # Nothing to materialise when every system already has its file — the
+  # Nothing to check out when every system already has its file — the
   # difference between a resumed backfill costing a stat and costing a
   # download.
   for system in ${SYSTEM//,/ }; do
@@ -148,23 +152,32 @@ eval_one() {
     return 0
   fi
 
-  if ! src=$(nix flake prefetch --json "github:NixOS/nixpkgs/$sha" 2>/dev/null \
-      | python3 -c 'import json,sys; print(json.load(sys.stdin)["storePath"])'); then
-    echo "  $label: FETCH FAILED (GitHub would not serve $sha)"
-    return 1
+  # The clone first: `git archive` into scratch costs no store space, no
+  # download and no daemon round trip. The scratch lives under the work
+  # directory rather than in $TMPDIR, which on a big machine is often tmpfs —
+  # 32 jobs holding a 280 MB checkout each is not something to put in RAM.
+  if [ -n "$NIXPKGS" ] && git -C "$NIXPKGS" cat-file -e "$sha^{commit}" 2>/dev/null; then
+    mkdir -p "$WORK/tmp"
+    tmp=$(mktemp -d "$WORK/tmp/$sha.XXXXXX")
+    if ! git -C "$NIXPKGS" archive "$sha" 2>/dev/null | tar -x -C "$tmp"; then
+      rm -rf "$tmp"
+      echo "  $label: CHECKOUT FAILED (rev not in clone? try git fetch)"
+      return 1
+    fi
+    src="$tmp"
+  else
+    if ! src=$(nix flake prefetch --json "github:NixOS/nixpkgs/$sha" 2>/dev/null \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["storePath"])'); then
+      echo "  $label: FETCH FAILED (no clone, and GitHub would not serve $sha)"
+      return 1
+    fi
   fi
 
   for system in ${SYSTEM//,/ }; do
     eval_system "$sha" "$label" "$system" "$src" || failures=$((failures + 1))
   done
 
-  # The source is 280 MB and nothing downstream reads it again. Deletion is
-  # best-effort: another -j child evaluating the same revision, or a gc root
-  # someone else holds, makes it fail and that is fine.
-  if [ "$DROP_SOURCE" -eq 1 ]; then
-    nix store delete "$src" >/dev/null 2>&1 || true
-  fi
-
+  [ -n "$tmp" ] && rm -rf "$tmp"
   return $((failures > 0))
 }
 
