@@ -245,10 +245,11 @@ def main():
             print(f"{os.path.relpath(path, root)}: {n_before:,} -> {n_after:,} pairs")
             dump({"revisionCount": len(survivors), "attrs": out}, path)
 
-    misses_path = J(data, "misses.json")
-    if os.path.exists(misses_path):
-        misses = [p for p in load(misses_path) if tuple(p[:2]) not in vanished]
-        print(f"misses.json: {len(load(misses_path)):,} -> {len(misses):,}")
+    # One miss list per system, each row [attr, version, reason].
+    for misses_path in sorted(glob.glob(J(data, "misses-*.json"))):
+        before = load(misses_path)
+        misses = [p for p in before if tuple(p[:2]) not in vanished]
+        print(f"{os.path.basename(misses_path)}: {len(before):,} -> {len(misses):,}")
         dump(misses, misses_path)
 
     # The per-revision store-paths pickles are named by offset, so every one of

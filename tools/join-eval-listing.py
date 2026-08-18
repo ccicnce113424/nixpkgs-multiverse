@@ -192,6 +192,7 @@ def main():
         is what keeps the file the size it is."""
         row = [digest] if name == f"{attr}-{version}" else [digest, name]
         target.setdefault(attr, {})[version] = row
+
     for off in sorted(by_offset):
         pairs = by_offset[off]
 
@@ -199,14 +200,14 @@ def main():
         # what is missing from there is worth opening an evaluation for, and an
         # offset with nothing missing costs no file reads at all.
         if off < covered:
-            inherited = [p for p in pairs if p[1] in prev_closed.get(p[0], {})]
+            inherited = {p for p in pairs if p[1] in prev_closed.get(p[0], {})}
             for attr, version in inherited:
                 row = prev_closed[attr][version]
                 closed.setdefault(attr, {})[version] = row
                 if row[0] in prev_outs:
                     outs[row[0]] = prev_outs[row[0]]
                 stats["carried"] += 1
-            pairs = [p for p in pairs if p not in set(inherited)]
+            pairs = [p for p in pairs if p not in inherited]
             if not pairs:
                 continue
 
