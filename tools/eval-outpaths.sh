@@ -19,6 +19,7 @@
 #   tools/eval-outpaths.sh                        every revision, x86_64-linux
 #   tools/eval-outpaths.sh --system aarch64-linux
 #   tools/eval-outpaths.sh --offsets 1500:        offset range (python slice)
+#   tools/eval-outpaths.sh --offsets 14,154,939   named offsets, comma separated
 #   tools/eval-outpaths.sh -n 5                   first 5 revisions (smoke test)
 #   tools/eval-outpaths.sh -j 8                   that many revisions at once
 #   tools/eval-outpaths.sh --workers 4 --max-memory 4096
@@ -137,10 +138,15 @@ if [ "$SUBCOMMAND" = "eval-one" ]; then
   exit $?
 fi
 
+# --offsets is a comma-separated list of python slices and bare indices, so
+# that a validation run can name the four revisions it cares about and a
+# backfill can hand over a contiguous range.
 mapfile -t TARGETS < <(python3 -c "
 import json
-revs = json.load(open('$REVFILE'))
-sel = list(enumerate(revs))[$OFFSETS]
+revs = list(enumerate(json.load(open('$REVFILE'))))
+sel = []
+for part in '$OFFSETS'.split(','):
+    sel += revs[slice(*[int(x) if x else None for x in part.split(':')])] if ':' in part else [revs[int(part)]]
 if $LIMIT: sel = sel[:$LIMIT]
 for i, r in sel: print(r['rev'], f\"{i}:{r['date']}\")
 ")
