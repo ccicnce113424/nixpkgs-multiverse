@@ -52,8 +52,9 @@ WORK="$MT/index/.eval"
 
 # -j re-invokes this script per revision and the children re-run this parsing,
 # so every setting the child also needs is read back out of the environment the
-# parent exported it into rather than reset to the default here.
-SYSTEM="${SYSTEM:-x86_64-linux}"
+# parent exported it into rather than reset to the default here. The names are
+# namespaced because the environment they travel through is also a CI job's.
+SYSTEM="${EVAL_SYSTEM:-x86_64-linux}"
 OFFSETS=":"
 LIMIT=0
 JOBS=1
@@ -61,8 +62,8 @@ JOBS=1
 # recycles when it hits --max-memory. Six at 3 GB walks the whole top level of a
 # 2026 revision in ~50 seconds; the defaults are sized for one revision on a
 # laptop, and -j on a big machine wants them lower.
-WORKERS="${WORKERS:-6}"
-MAXMEM="${MAXMEM:-3072}"
+WORKERS="${EVAL_WORKERS:-6}"
+MAXMEM="${EVAL_MAXMEM:-3072}"
 SUBCOMMAND=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -77,7 +78,10 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-export SYSTEM WORKERS MAXMEM
+EVAL_SYSTEM="$SYSTEM"
+EVAL_WORKERS="$WORKERS"
+EVAL_MAXMEM="$MAXMEM"
+export EVAL_SYSTEM EVAL_WORKERS EVAL_MAXMEM
 
 if ! command -v nix-eval-jobs >/dev/null 2>&1; then
   echo "eval-outpaths: nix-eval-jobs is not on PATH." >&2

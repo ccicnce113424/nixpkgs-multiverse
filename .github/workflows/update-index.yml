@@ -108,7 +108,7 @@ jobs:
         id: data
         run: |
           current=$(python3 -c 'import json; print(json.load(open("index/versions.json"))["revisionCount"])')
-          rolling=$(curl -fsSL https://github.com/fzakaria/nixpkgs-multiverse/releases/download/data-rolling/tip-outpaths.json \
+          rolling=$(curl -fsSL https://github.com/fzakaria/nixpkgs-multiverse/releases/download/data-rolling/tip-outpaths-x86_64-linux.json \
             | python3 -c 'import json,sys; print(json.load(sys.stdin)["revisionCount"])' || echo 0)
           echo "index covers $current revisions; rolling data covers $rolling"
           if [ "$current" != "$rolling" ]; then
@@ -124,11 +124,19 @@ jobs:
         if: steps.data.outputs.stale == 'true'
         run: bash tools/restore-outpaths-state.sh
 
-      # Fetch the new bump's listing, close versions, resolve digests, crawl
-      # the newly matched digests and their frontier, consolidate. Every step
-      # is incremental; ~3-6 minutes on a typical bump.
+      # Fetch the new bump's listing, evaluate the new revisions for every
+      # published system, join the two into exact per-system digests, crawl the
+      # newly resolved digests and their frontier, consolidate. Every step is
+      # incremental: the evaluation covers the new bumps only, and the join
+      # carries every older pair over from the previous cut.
       - name: Update the store-path artifacts
         if: steps.data.outputs.stale == 'true'
+        # A standard runner has 4 vCPU, so the evaluation runs two
+        # nix-eval-jobs workers that recycle at 3.5 GB rather than the six the
+        # tool defaults to for a workstation.
+        env:
+          EVAL_WORKERS: 2
+          EVAL_MAXMEM: 3500
         run: nix run .#update-outpaths
 
       - name: Publish the rolling state
@@ -137,9 +145,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload data-rolling --clobber \
-            index/.outpaths/data/outpaths.json \
-            index/.outpaths/data/tip-outpaths.json \
-            index/.outpaths/data/misses.json \
+            index/.outpaths/data/outpaths-*.json \
+            index/.outpaths/data/tip-outpaths-*.json \
+            index/.outpaths/data/outs-*.json \
+            index/.outpaths/data/misses-*.json \
             index/.outpaths/graph.jsonl.gz
 
       # Piggybacked on the first data run of each UTC day: shard by closing
@@ -158,7 +167,7 @@ jobs:
           fi
           python3 tools/shard-data.py \
             --revisions revisions.json --versions index/versions.json \
-            --outpaths index/.outpaths/data/outpaths.json index/.outpaths/data/tip-outpaths.json \
+            --outpaths index/.outpaths/data/outpaths-*.json index/.outpaths/data/tip-outpaths-*.json \
             --data-dir index/.outpaths/data --out-dir index/.outpaths/data/shards
           bash tools/cut-data-release.sh "$TAG"
 
