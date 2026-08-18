@@ -30,6 +30,7 @@ Usage:
   tools/drop-release-commits.py --dry-run  # report what would change
 """
 import argparse
+import glob
 import json
 import os
 import shutil
@@ -54,7 +55,7 @@ def pack_runs(runs):
 def load_entry(entry, attr, ver):
     """An outpaths entry -> (digest, drv name, offset found at or None).
 
-    Mirrors tools/match-outpaths.py, which writes the name only when it differs
+    Mirrors tools/join-eval-listing.py, which writes the name only when it differs
     from `attr-ver` and the offset only when the digest was found at a revision
     older than the pair's own.
     """
@@ -209,9 +210,15 @@ def main():
     # digest was found at, recorded when it differs from the pair's own newest
     # revision. A listing only exists for a revision with a name, so a found
     # offset is never one of the dropped ones.
+    # One pair of files per system, plus whatever the previous cut left in
+    # data/prev for the join to carry over from.
     data = J("index/.outpaths/data")
-    for name in ("outpaths.json", "tip-outpaths.json"):
-        for path in (J(data, name), J("index/.outpaths", "prev-" + name)):
+    names = sorted(
+        os.path.basename(p)
+        for p in glob.glob(J(data, "outpaths-*.json")) + glob.glob(J(data, "tip-outpaths-*.json"))
+    )
+    for name in names:
+        for path in (J(data, name), J(data, "prev", name)):
             if not os.path.exists(path):
                 continue
             doc = load(path)

@@ -7,9 +7,9 @@
 # system is an input to it. The listing keeps its other job — deciding whether
 # Hydra built a path at all — as a membership test on the digest this produces.
 #
-# Mirrors nix/extract-versions.nix and nix/extract-names.nix in how it enters
-# nixpkgs, and differs from them in who does the forcing: those are one
-# nix-instantiate over the whole attrset, while nix-eval-jobs hands each
+# Mirrors nix/extract-versions.nix in how it enters nixpkgs, and differs from it
+# in who does the forcing: that one is a single nix-instantiate over the whole
+# attrset, while nix-eval-jobs hands each
 # top-level name to a worker that evaluates `root.<name>` by itself. Everything
 # expensive therefore has to live inside a value, never in the attrset that
 # lists them, or the parent process pays for all of nixpkgs at once.

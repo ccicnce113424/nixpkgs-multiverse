@@ -163,10 +163,17 @@ There are some differences to be aware of and they depends on the selector:
 
 | selector | class | what it promises |
 |---|---|---|
-| `fast.version` / `fast.versions` | **bit-exact** | the digest is precisely the build the eval path resolves to |
+| `fast.version` / `fast.versions` | **bit-exact** | the digest is precisely the build the eval path resolves to, for the system you asked as |
 | `fast.latest` | **bit-exact**, but see [below](#fastlatest-prefers-servable-over-newest) | the newest version that *has* a store path, which is not always the newest version |
-| `fast.at` / `fast.tip` | **version-exact**, build-canonical | the right version for that revision, as the newest build of it any listing carried |
+| `fast.at` / `fast.tip` | **version-exact**, build-canonical | the right version for that revision, as its build at the newest revision that shipped it |
 | release (`fast.at "26.05"`) | **eval-only** | refuses — the digests are keyed per version, not per branch, see [below](#why-releases-have-no-fast-path) |
+
+Bit-exact is per **system**. A store path is a function of the system it was
+evaluated for, so the artifacts are published one file per system and `fast.*`
+serves the file matching the `system` the multiverse was imported with. A
+system with no published file throws, naming the eval selector — it is never
+served another system's digests, which is what
+[#12](https://github.com/fzakaria/nixpkgs-multiverse/issues/12) was.
 
 **Note**: a "fake derivation" has no `drvPath`,
 so the CLI needs the *output*: append `.out`, `.lib`, `.bin`, etc… for multi-output
@@ -243,11 +250,15 @@ Not every attribute has a store path to substitute, so it is ineligible for the 
 2. **nixpkgs asked Hydra not to build it.** `meta.hydraPlatforms = [ ]`
    excludes an attribute from the jobset, and wrapper packages use it
    routinely to avoid rebuilding a symlink farm.
-3. **The matcher could not name it.** A pair is joined to the channel
-   listing [by derivation name](./store-paths.md#matching); a derivation
-   absent from its era's listing.
+3. **Nothing vouched for the path.** A pair's digest comes from evaluating its
+   revision, and is kept only if the channel listing or the cache
+   [holds that exact path](./store-paths.md#resolving-a-pair). An attribute
+   this evaluation builds differently from Hydra — anything that branches on
+   `allowUnfree`, say — has a path nobody built.
 4. **It is newer than the pin.** A version that first appeared in a bump
    after the last data cut has no digest yet.
+5. **Your system has no artifacts.** The files are per system; one that has
+   never been evaluated is served nothing rather than another system's paths.
 
 A helpful error message points to the [eval path](#unfree-packages-and-nixpkgs-config) when a fast selector cannot find a store path:
 
