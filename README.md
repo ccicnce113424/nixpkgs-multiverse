@@ -19,6 +19,7 @@ and pin commands, plus the full revision and release tables.
 [The `mvs` CLI](./docs/cli.md) ·
 [NixOS / nix-darwin / home-manager module](./docs/modules.md) ·
 [Replacing nixpkgs inputs](./docs/flake-inputs.md) ·
+[Without flakes](./docs/non-flake.md) ·
 [Building the index](./docs/building-the-index.md) ·
 [The store-path index](./docs/store-paths.md)
 

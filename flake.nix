@@ -76,18 +76,12 @@
 
       # `nix build .#site` assembles the exact tree the pages workflow
       # deploys; `nix run .#serve` serves it for testing.
-      packages = forAllSystems (
-        system:
-        let
-          pkgs = pkgsFor system;
-        in
-        rec {
-          site = pkgs.multiverse-site;
-          mvs = pkgs.mvs;
-          index-db = pkgs.multiverse-index-db;
-          default = site;
-        }
-      );
+      #
+      # Defined in packages.nix rather than here, because the same three
+      # derivations have to be reachable without a flake — `nix-build
+      # packages.nix -A mvs` — and one definition serving both roads is what
+      # keeps them from drifting. See docs/non-flake.md.
+      packages = forAllSystems (system: import ./packages.nix { inherit self system; });
 
       # legacyPackages is the conventional escape hatch for a non-flat package
       # set, which is exactly what a multiverse is. The demo rides here rather

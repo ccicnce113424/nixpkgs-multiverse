@@ -10,10 +10,32 @@
 # revision — so `inputs = { }` stays intact.
 { pkgs }:
 let
+  inherit (pkgs) lib;
+
   unwrapped = pkgs.rustPlatform.buildRustPackage {
     pname = "mvs";
     version = "0.1.0";
-    src = ../mvs;
+    # The four inputs the build reads, named rather than a bare `../mvs`.
+    #
+    # A flake hands nix a git-filtered tree, so `../mvs` costs nothing there.
+    # `nix-build packages.nix -A mvs` out of a working checkout has no such
+    # filter and copies whatever is lying around — mvs/target alone is hundreds
+    # of megabytes, and a stray `result` symlink or editor swap file changes the
+    # store path, which is enough to make the two roads disagree about a
+    # derivation that is supposed to be the same one. An allowlist is immune to
+    # both, and to whatever lands in the directory next. See docs/non-flake.md.
+    #
+    # build-db.py sits in mvs/ but is not part of this build: nix/index-db.nix
+    # reaches for it as its own store path.
+    src = lib.fileset.toSource {
+      root = ../mvs;
+      fileset = lib.fileset.unions [
+        ../mvs/Cargo.toml
+        ../mvs/Cargo.lock
+        ../mvs/src
+        ../mvs/tests
+      ];
+    };
     cargoLock.lockFile = ../mvs/Cargo.lock;
 
     # The unit tests run here. The differential test against

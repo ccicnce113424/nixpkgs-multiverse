@@ -19,11 +19,13 @@ line tool.
    individual packages from your system configuration.
 7. [Replacing several nixpkgs inputs](./flake-inputs.md) allows using the multiverse
    as the `nixpkgs` other flakes see.
-8. [Building the index](./building-the-index.md) explains how the data is extracted
+8. [Without flakes](./non-flake.md) wires the same API up from npins, niv or a
+   plain `fetchTarball`.
+9. [Building the index](./building-the-index.md) explains how the data is extracted
    and refreshed.
-9. [The store-path index](./store-paths.md) explains how versions are matched
-   to cache.nixos.org store paths — the data behind `fast.*`, the census, and
-   the site's dependency and liveness views.
+10. [The store-path index](./store-paths.md) explains how versions are matched
+    to cache.nixos.org store paths — the data behind `fast.*`, the census, and
+    the site's dependency and liveness views.
 
 The index itself is browsable at <https://nixmultiverse.com/>.
 
