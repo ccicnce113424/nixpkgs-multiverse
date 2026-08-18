@@ -12,12 +12,17 @@
 # directory, unlike tools/build-index.sh. Forcing `outPath` hashes the tree the
 # expression was imported from, so a temp directory whose name changes per run
 # would change the digests with it; `nix flake prefetch` gives every runner the
-# same `-source` path. Budget disk accordingly and collect garbage between
-# batches.
+# same `-source` path.
+#
+# That costs ~280 MB of store per revision, which is 430 GB across the whole
+# revision set, so a backfill wants --drop-source: every system asked for is
+# evaluated against the source while it is on disk, and the source goes as soon
+# as the last of them is done.
 #
 # Usage:
 #   tools/eval-outpaths.sh                        every revision, x86_64-linux
 #   tools/eval-outpaths.sh --system aarch64-linux
+#   tools/eval-outpaths.sh --system x86_64-linux,aarch64-linux --drop-source
 #   tools/eval-outpaths.sh --offsets 1500:        offset range (python slice)
 #   tools/eval-outpaths.sh --offsets 14,154,939   named offsets, comma separated
 #   tools/eval-outpaths.sh -n 5                   first 5 revisions (smoke test)
@@ -52,6 +57,7 @@ JOBS=1
 # laptop, and -j on a big machine wants them lower.
 WORKERS="${WORKERS:-6}"
 MAXMEM="${MAXMEM:-3072}"
+DROP_SOURCE="${DROP_SOURCE:-0}"
 SUBCOMMAND=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -60,13 +66,14 @@ while [ $# -gt 0 ]; do
     -n) LIMIT="${2:-0}"; shift 2 ;;
     -j) JOBS="${2:-1}"; shift 2 ;;
     --workers) WORKERS="$2"; shift 2 ;;
+    --drop-source) DROP_SOURCE=1; shift ;;
     --max-memory) MAXMEM="$2"; shift 2 ;;
     # Internal: how -j hands one revision to a child invocation.
     --eval-one) SUBCOMMAND=eval-one; EVAL_SHA="$2"; EVAL_LABEL="$3"; shift 3 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
-export SYSTEM WORKERS MAXMEM
+export SYSTEM WORKERS MAXMEM DROP_SOURCE
 
 if ! command -v nix-eval-jobs >/dev/null 2>&1; then
   echo "eval-outpaths: nix-eval-jobs is not on PATH." >&2
@@ -82,15 +89,61 @@ mkdir -p "$WORK"
 EVALUATOR_HASH=$(sha256sum "$NIXDIR/eval-outpaths.nix" | cut -c1-8)
 export EVALUATOR_HASH
 
-# One revision: materialise it, walk every top-level attribute, reduce the run
-# to the per-revision file. Touches no shared state, so -j can run as many of
-# these at once as the machine has memory for.
-eval_one() {
-  local sha=$1 label=$2
-  local dest="$WORK/$sha.$SYSTEM.$EVALUATOR_HASH.json"
-  local src start=$SECONDS
+# One (revision, system): walk every top-level attribute of a materialised
+# source and reduce the run to the per-revision file.
+eval_system() {
+  local sha=$1 label=$2 system=$3 src=$4
+  local dest="$WORK/$sha.$system.$EVALUATOR_HASH.json"
+  local start=$SECONDS
 
   if [ -s "$dest" ]; then
+    echo "  $label $system: cached"
+    return 0
+  fi
+
+  # nix-eval-jobs reports a failing attribute as a JSON line and carries on, so
+  # a non-zero exit here means the run itself died — a revision modern Nix
+  # cannot read at all, which keeps no file rather than a partial one.
+  if ! nix-eval-jobs \
+      --workers "$WORKERS" --max-memory-size "$MAXMEM" --no-instantiate \
+      --arg revPath "$src" --argstr system "$system" \
+      "$NIXDIR/eval-outpaths.nix" > "$dest.jsonl" 2> "$dest.err"; then
+    # The partial JSONL goes; the stderr stays, since a revision modern Nix
+    # cannot read is exactly what phase 1 of PLAN-issue12.md wants recorded.
+    rm -f "$dest.jsonl"
+    echo "  $label $system: EVAL FAILED ($((SECONDS - start))s): $(grep -m1 -o 'error:.*' "$dest.err" | head -c 55)"
+    return 1
+  fi
+
+  python3 "$HERE/reduce-eval-jobs.py" \
+    --jobs "$dest.jsonl" --rev "$sha" --system "$system" \
+    --out "$dest" --errors "$WORK/$sha.$system.$EVALUATOR_HASH.errors.json" \
+    > "$dest.count"
+  # The raw run is worth keeping only while it is unreduced: the JSONL is a
+  # few hundred MB across a backfill and the stderr trace is larger still, and
+  # the per-attribute reason survives in the errors file either way.
+  rm -f "$dest.jsonl" "$dest.err"
+
+  # One line per (revision, system), emitted whole: with -j these interleave,
+  # and a half-written line from another worker lands in the middle otherwise.
+  echo "  $label $system: $(cat "$dest.count") in $((SECONDS - start))s"
+  rm -f "$dest.count"
+  return 0
+}
+
+# One revision, for every system asked for. Touches no shared state, so -j can
+# run as many of these at once as the machine has memory for.
+eval_one() {
+  local sha=$1 label=$2
+  local src failures=0 wanted=0 system
+
+  # Nothing to materialise when every system already has its file — the
+  # difference between a resumed backfill costing a stat and costing a
+  # download.
+  for system in ${SYSTEM//,/ }; do
+    [ -s "$WORK/$sha.$system.$EVALUATOR_HASH.json" ] || wanted=1
+  done
+  if [ "$wanted" -eq 0 ]; then
     echo "  $label: cached"
     return 0
   fi
@@ -101,34 +154,18 @@ eval_one() {
     return 1
   fi
 
-  # nix-eval-jobs reports a failing attribute as a JSON line and carries on, so
-  # a non-zero exit here means the run itself died — a revision modern Nix
-  # cannot read at all, which keeps no file rather than a partial one.
-  if ! nix-eval-jobs \
-      --workers "$WORKERS" --max-memory-size "$MAXMEM" --no-instantiate \
-      --arg revPath "$src" --argstr system "$SYSTEM" \
-      "$NIXDIR/eval-outpaths.nix" > "$dest.jsonl" 2> "$dest.err"; then
-    # The partial JSONL goes; the stderr stays, since a revision modern Nix
-    # cannot read is exactly what phase 1 of PLAN-issue12.md wants recorded.
-    rm -f "$dest.jsonl"
-    echo "  $label: EVAL FAILED ($((SECONDS - start))s): $(grep -m1 -o 'error:.*' "$dest.err" | head -c 55)"
-    return 1
+  for system in ${SYSTEM//,/ }; do
+    eval_system "$sha" "$label" "$system" "$src" || failures=$((failures + 1))
+  done
+
+  # The source is 280 MB and nothing downstream reads it again. Deletion is
+  # best-effort: another -j child evaluating the same revision, or a gc root
+  # someone else holds, makes it fail and that is fine.
+  if [ "$DROP_SOURCE" -eq 1 ]; then
+    nix store delete "$src" >/dev/null 2>&1 || true
   fi
 
-  python3 "$HERE/reduce-eval-jobs.py" \
-    --jobs "$dest.jsonl" --rev "$sha" --system "$SYSTEM" \
-    --out "$dest" --errors "$WORK/$sha.$SYSTEM.$EVALUATOR_HASH.errors.json" \
-    > "$dest.count"
-  # The raw run is worth keeping only while it is unreduced: the JSONL is a
-  # few hundred MB across a backfill and the stderr trace is larger still, and
-  # the per-attribute reason survives in the errors file either way.
-  rm -f "$dest.jsonl" "$dest.err"
-
-  # One line per revision, emitted whole: with -j these interleave, and a
-  # half-written line from another worker lands in the middle otherwise.
-  echo "  $label: $(cat "$dest.count") in $((SECONDS - start))s"
-  rm -f "$dest.count"
-  return 0
+  return $((failures > 0))
 }
 
 # Re-entry point for -j: the parallel driver below runs this script once per
@@ -150,7 +187,7 @@ for part in '$OFFSETS'.split(','):
 if $LIMIT: sel = sel[:$LIMIT]
 for i, r in sel: print(r['rev'], f\"{i}:{r['date']}\")
 ")
-echo "evaluating ${#TARGETS[@]} revisions   system=$SYSTEM evaluator=$EVALUATOR_HASH"
+echo "evaluating ${#TARGETS[@]} revisions   systems=$SYSTEM evaluator=$EVALUATOR_HASH"
 
 FAILURES=0
 if [ "$JOBS" -gt 1 ]; then
