@@ -394,7 +394,8 @@ impl Index {
             "this database was built without store-path data, so `mvs path`, `size`, `deps`, \
              `rdeps` and `identify` have nothing to answer from.\nRebuild it with \
              `build-db.py <root> <out> --data-dir <dir>`, where the directory holds \
-             outpaths.json, tip-outpaths.json and the *-indexed artifacts."
+             outpaths-<system>.json, tip-outpaths-<system>.json and the *-indexed \
+             artifacts."
         ))
     }
 

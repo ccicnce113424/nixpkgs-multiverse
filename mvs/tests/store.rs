@@ -145,7 +145,7 @@ fn fixture(test: &str, store_data: StoreData) -> Option<Mvs> {
         // The closed pair carries its explicit drv name and found offset; the
         // tip pairs carry a name only where it differs from attr-version.
         write(
-            "data/outpaths.json",
+            "data/outpaths-x86_64-linux.json",
             json!({
                 "revisionCount": 3,
                 "attrs": {
@@ -154,7 +154,7 @@ fn fixture(test: &str, store_data: StoreData) -> Option<Mvs> {
             }),
         );
         write(
-            "data/tip-outpaths.json",
+            "data/tip-outpaths-x86_64-linux.json",
             json!({
                 "revisionCount": 3,
                 "attrs": {

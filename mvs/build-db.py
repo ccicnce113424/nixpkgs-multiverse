@@ -30,6 +30,10 @@ USAGE = "build-db.py <root> <out.db> [--data-dir DIR]"
 # back into its two halves.
 DIGEST_LEN = 32
 
+# Which system's store paths the database holds. The artifacts are per system
+# because a store path is, and one database describes one of them.
+DB_SYSTEM = "x86_64-linux"
+
 SCHEMA = """
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
 
@@ -221,8 +225,8 @@ def build_store(db, data_dir, attr_ids, n_revs):
         with open(os.path.join(data_dir, name)) as f:
             return json.load(f)
 
-    outpaths = load_json("outpaths.json")
-    tip_outpaths = load_json("tip-outpaths.json")
+    outpaths = load_json(f"outpaths-{DB_SYSTEM}.json")
+    tip_outpaths = load_json(f"tip-outpaths-{DB_SYSTEM}.json")
     info = load_artifact(data_dir, "info-indexed")
     refs = load_artifact(data_dir, "refs-indexed")
     closures = load_artifact(data_dir, "closures")
@@ -233,14 +237,15 @@ def build_store(db, data_dir, attr_ids, n_revs):
     # each other about how much they cover.
     if outpaths["revisionCount"] != tip_outpaths["revisionCount"]:
         sys.exit(
-            f"build-db: outpaths.json covers {outpaths['revisionCount']} revisions "
-            f"but tip-outpaths.json covers {tip_outpaths['revisionCount']}. "
+            f"build-db: outpaths-{DB_SYSTEM}.json covers "
+            f"{outpaths['revisionCount']} revisions but its tip file covers "
+            f"{tip_outpaths['revisionCount']}. "
             f"Rebuild the store-path artifacts together."
         )
     if outpaths["revisionCount"] > n_revs:
         sys.exit(
-            f"build-db: outpaths.json was built against {outpaths['revisionCount']} "
-            f"revisions but revisions.json has {n_revs}."
+            f"build-db: outpaths-{DB_SYSTEM}.json was built against "
+            f"{outpaths['revisionCount']} revisions but revisions.json has {n_revs}."
         )
 
     db.executescript(STORE_SCHEMA)

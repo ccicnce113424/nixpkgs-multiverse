@@ -3,7 +3,8 @@
 
 Usage: build-site-data.py <repo> <datadir> <out>
   repo:    the nixpkgs-multiverse checkout (revisions.json, index/)
-  datadir: outpaths.json, tip-outpaths.json, outs-indexed.json.gz, and the
+  datadir: outpaths-<system>.json, tip-outpaths-<system>.json,
+  outs-indexed.json.gz, and the
            graph artifacts either whole (info-indexed.json.gz, ...) or as
            period shards (info-indexed-2024.json.gz, ...) — every file
            matching <stem>*.json.gz is merged
@@ -45,6 +46,10 @@ REVDEP_CAP = 200
 LEADERBOARD_ROWS = 200
 
 DIGEST_LEN = 32
+
+# Which system's store paths the site shows. The artifacts are per system
+# because a store path is, and the site is a single view over them.
+SITE_SYSTEM = "x86_64-linux"
 
 repo, datadir, out = sys.argv[1:4]
 os.makedirs(out, exist_ok=True)
@@ -106,8 +111,10 @@ history_closed = close_tip(history)
 vattrs = versions_closed["attrs"]
 
 # ---- the data artifacts -----------------------------------------------------
-outpaths = load(J(datadir, "outpaths.json"))
-tips = load(J(datadir, "tip-outpaths.json"))
+# The store-path artifacts are per system (see docs/store-paths.md); the site
+# shows one, and x86_64-linux is the one every published artifact covers.
+outpaths = load(J(datadir, f"outpaths-{SITE_SYSTEM}.json"))
+tips = load(J(datadir, f"tip-outpaths-{SITE_SYSTEM}.json"))
 info = load_stem("info-indexed")
 refs = load_stem("refs-indexed")
 closures = load_stem("closures")

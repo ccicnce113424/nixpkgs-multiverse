@@ -27,14 +27,16 @@ if [ ! -d "$DATA/shards" ]; then
   exit 1
 fi
 
-# The cut's candidate set: the whole-set files the fast path and mvs fetch,
-# the tip snapshot frozen for this cut, and every period shard.
-CANDIDATES=(
-  "$DATA/outpaths.json"
-  "$DATA/tip-outpaths.json"
-  "$DATA/outs.json"
-  "$DATA/outs-indexed.json.gz"
-)
+# The cut's candidate set: the whole-set files the fast path and mvs fetch —
+# one triple per system, since a store path belongs to one — the tip snapshot
+# frozen for this cut, and every period shard.
+CANDIDATES=()
+while IFS= read -r f; do
+  CANDIDATES+=("$f")
+done < <(find "$DATA" -maxdepth 1 \
+  \( -name 'outpaths-*.json' -o -name 'tip-outpaths-*.json' -o -name 'outs-*.json' \) \
+  | sort)
+CANDIDATES+=("$DATA/outs-indexed.json.gz")
 while IFS= read -r f; do
   CANDIDATES+=("$f")
 done < <(find "$DATA/shards" -name '*.json.gz' | sort)

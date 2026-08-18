@@ -19,6 +19,13 @@ the same. --probe-cache asks cache.nixos.org directly for the paths the listing
 did not vouch for, which is a stronger proof than membership rather than a
 weaker one: the narinfo either exists or it does not.
 
+Two modes. A full run resolves every pair from the evaluations and listings on
+disk — the backfill, which wants a file per revision. An incremental run is
+handed the previous artifacts with --prev-dir, keeps every pair that closed
+before they were cut, and recomputes only what has moved since: the pairs that
+closed at a newer revision and the tip. That is what makes the hourly job need
+evaluations for the new bumps alone rather than for thirteen years.
+
 Outputs (into --out-dir), all keyed by the same `system`:
   outpaths-<system>.json      closed pairs: attr -> version -> [digest, name-if-differs]
   tip-outpaths-<system>.json  pairs still current at the newest revision indexed
@@ -133,6 +140,12 @@ def main():
     ap.add_argument("--system", required=True)
     ap.add_argument("--out-dir", required=True)
     ap.add_argument(
+        "--prev-dir",
+        help="a directory holding the previously published artifacts for this "
+        "system; pairs that closed before they were cut are carried over "
+        "instead of being resolved again",
+    )
+    ap.add_argument(
         "--probe-cache",
         action="store_true",
         help="ask cache.nixos.org about paths no listing named, and resolve the "
@@ -154,6 +167,19 @@ def main():
         for version, off in versions.items():
             by_offset[tip_offset if off is None else off].append((attr, version))
 
+    # An incremental run's inheritance. `covered` is one revision back from the
+    # previous artifacts' coverage, because a pair that was at their tip may
+    # have closed at that revision and has to be resolved again.
+    prev_closed, prev_outs, covered = {}, {}, 0
+    if args.prev_dir:
+        prev = json.load(open(f"{args.prev_dir}/outpaths-{args.system}.json"))
+        prev_closed = prev["attrs"]
+        covered = max(0, prev["revisionCount"] - 1)
+        prev_outs_path = f"{args.prev_dir}/outs-{args.system}.json"
+        if os.path.exists(prev_outs_path):
+            prev_outs = json.load(open(prev_outs_path))
+        print(f"carrying over closed pairs below offset {covered}")
+
     closed, tip, outs, misses = {}, {}, {}, []
     stats = defaultdict(int)
     # Pairs whose evaluated path the listing did not name, kept whole so that
@@ -168,6 +194,22 @@ def main():
         target.setdefault(attr, {})[version] = row
     for off in sorted(by_offset):
         pairs = by_offset[off]
+
+        # Everything this offset closed, as the previous cut resolved it. Only
+        # what is missing from there is worth opening an evaluation for, and an
+        # offset with nothing missing costs no file reads at all.
+        if off < covered:
+            inherited = [p for p in pairs if p[1] in prev_closed.get(p[0], {})]
+            for attr, version in inherited:
+                row = prev_closed[attr][version]
+                closed.setdefault(attr, {})[version] = row
+                if row[0] in prev_outs:
+                    outs[row[0]] = prev_outs[row[0]]
+                stats["carried"] += 1
+            pairs = [p for p in pairs if p not in set(inherited)]
+            if not pairs:
+                continue
+
         path = eval_file(args.eval_dir, revs[off]["rev"], args.system)
         if path is None:
             stats[NO_EVAL_FILE] += len(pairs)
@@ -259,6 +301,7 @@ def main():
         "source": "eval",
         "vouchedByListing": stats["built"],
         "vouchedByCacheProbe": stats["probed"],
+        "carriedFromPreviousCut": stats["carried"],
     }
     written = {
         f"outpaths-{args.system}.json": {**head, "attrs": dict(sorted(closed.items()))},
@@ -273,8 +316,11 @@ def main():
         os.replace(dest + ".tmp", dest)
 
     total = sum(stats.values())
-    resolved = stats["built"] + stats["probed"]
-    print(f"{args.system}: {resolved}/{total} pairs resolved ({stats['probed']} by cache probe)")
+    resolved = stats["built"] + stats["probed"] + stats["carried"]
+    print(
+        f"{args.system}: {resolved}/{total} pairs resolved "
+        f"({stats['probed']} by cache probe, {stats['carried']} carried over)"
+    )
     for reason in (NO_EVAL_FILE, NO_LISTING, NO_ATTR, NO_OUT, NOT_BUILT, NOT_CACHED):
         if stats[reason]:
             print(f"  {stats[reason]:>7} {reason}")
