@@ -11,7 +11,7 @@ multiverse.multiverse.x86_64-linux
 import nixpkgs-multiverse { system = "x86_64-linux"; }
 ```
 
-Eevery function in [the Nix API](./nix-api.md): `at`, `version`,
+Every function in [the Nix API](./nix-api.md): `at`, `version`,
 `versionsOf`, `daysBehind`, `fast`, `readLock` works.
 
 ## Pinning the repository
