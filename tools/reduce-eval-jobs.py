@@ -99,12 +99,16 @@ def main():
             "outputs": {o: encode(name, o, p) for o, p in sorted(outputs.items())},
         }
 
+    # Sorted, because nix-eval-jobs emits an attribute whenever the worker that
+    # took it finishes. Two machines evaluating the same revision otherwise
+    # produce byte-different files holding identical data, and the backfill
+    # wants those checksummable against each other.
     doc = {
         "rev": a.rev,
         "system": a.system,
         "attrCount": len(attrs),
         "errorCount": len(errors),
-        "attrs": attrs,
+        "attrs": dict(sorted(attrs.items())),
     }
     with open(a.out + ".tmp", "w") as f:
         json.dump(doc, f, separators=(",", ":"))
@@ -112,7 +116,7 @@ def main():
 
     if a.errors:
         with open(a.errors + ".tmp", "w") as f:
-            json.dump(errors, f, separators=(",", ":"), indent=0)
+            json.dump(dict(sorted(errors.items())), f, separators=(",", ":"), indent=0)
         os.replace(a.errors + ".tmp", a.errors)
 
     print(f"{len(attrs)} attrs, {len(errors)} errors")
