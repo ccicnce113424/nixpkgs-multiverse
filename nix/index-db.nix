@@ -10,7 +10,11 @@
 # $out is the file itself rather than a directory holding it, so
 # `nix build .#index-db` leaves a ./result you can hand straight to sqlite3 —
 # 13 years of nixpkgs, queryable with SQL.
-{ pkgs, self }:
+{
+  pkgs,
+  self,
+  system,
+}:
 pkgs.runCommand "multiverse.db"
   {
     nativeBuildInputs = [ pkgs.python3 ];
@@ -35,6 +39,11 @@ pkgs.runCommand "multiverse.db"
     # `mvs path`/`size`/`deps`/`rdeps`/`identify`; without it the same script
     # builds the index-only database those subcommands then decline to answer
     # from.
+    #
+    # --system is what keeps `mvs path` from answering an aarch64 user with an
+    # x86_64 path: the artifacts are per system, and this database describes the
+    # system it was built for. A system with no artifacts published yields the
+    # index-only database.
     python3 ${../mvs/build-db.py} "$root" $out \
-      --data-dir ${pkgs.multiverse-data}
+      --data-dir ${pkgs.multiverse-data} --system ${system}
   ''

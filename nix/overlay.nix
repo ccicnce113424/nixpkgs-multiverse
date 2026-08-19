@@ -26,6 +26,10 @@ final: _prev: {
   multiverse-index-db = import ./index-db.nix {
     pkgs = final;
     inherit self;
+    # The system the database describes, which is the one it is built for: the
+    # store-path artifacts are per system and `mvs path` must answer for the
+    # machine running it.
+    system = final.stdenv.hostPlatform.system;
   };
   multiverse-site-tests = import ./site-tests.nix { pkgs = final; };
   multiverse-serve = import ./serve.nix { pkgs = final; };

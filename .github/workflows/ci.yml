@@ -29,7 +29,25 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Both Linux systems the store-path artifacts are published for. A store
+    # path belongs to one system, so the fast path is now per-system data and
+    # the only way to know it holds on aarch64-linux is to evaluate it there.
+    #
+    # The aarch64 runner takes the eval checks only: compose builds three
+    # historical Pythons for real, and the site check drives a browser, neither
+    # of which is a claim about this architecture that the x86_64 job does not
+    # already make.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            system: x86_64-linux
+            full: true
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+            full: false
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -56,10 +74,28 @@ jobs:
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
       - name: Formatting
+        if: matrix.full
         run: nix fmt -- --ci
 
       - name: Tests
+        if: matrix.full
         run: nix flake check -L
+
+      # The evaluation checks, named rather than swept, because `nix flake
+      # check` would also pull in the two this runner is deliberately not
+      # asked for.
+      - name: Tests (evaluation only)
+        if: ${{ !matrix.full }}
+        run: |
+          nix build -L --no-link \
+            .#checks.${{ matrix.system }}.index \
+            .#checks.${{ matrix.system }}.history \
+            .#checks.${{ matrix.system }}.installables \
+            .#checks.${{ matrix.system }}.module \
+            .#checks.${{ matrix.system }}.minimize \
+            .#checks.${{ matrix.system }}.lock \
+            .#checks.${{ matrix.system }}.flake-at \
+            .#checks.${{ matrix.system }}.fast
 
       # `mvs`'s own suite, which flake check cannot run in full: the differential
       # test holds the version comparator against `builtins.compareVersions`

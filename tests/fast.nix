@@ -15,9 +15,11 @@
 # hello, add the new pair to
 # tests/fixtures/fast-data/tip-outpaths-x86_64-linux.json.
 #
-# The fixture holds x86_64-linux files only, which is also what makes it the
-# fixture for the unsupported-system case: aarch64-linux has no file there and
-# must therefore throw rather than hand out x86_64 digests.
+# The fixture holds one set of files per system it covers — x86_64-linux and
+# aarch64-linux, with distinct digests so a test cannot pass by reading the
+# wrong one — which is what lets this suite run unchanged on either. A system
+# it does not cover must throw rather than be handed a neighbour's digests, and
+# riscv64-linux is the fixture for that.
 #
 # No assertion forces an outPath (or any sibling output) on purpose: current
 # Nix realises `path = true` string context the moment the string is forced,
@@ -125,7 +127,7 @@ in
 assert hello.type == "derivation";
 assert hello.name == "hello-2.12.2";
 assert hello.pname == "hello" && hello.version == "2.12.2";
-assert hello.system == "x86_64-linux";
+assert hello.system == system;
 assert hello.outputs == [ "out" ];
 
 # The entry's recorded drv name wins over attr-version, and the sibling

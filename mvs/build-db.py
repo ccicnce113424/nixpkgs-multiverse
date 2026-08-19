@@ -23,16 +23,18 @@ import sys
 # The offsets in index/*.json are indices into revisions.json, so a database
 # built from files that disagree about how many revisions exist would join rows
 # that describe different revisions. Every input is checked against this.
-USAGE = "build-db.py <root> <out.db> [--data-dir DIR]"
+USAGE = "build-db.py <root> <out.db> [--data-dir DIR] [--system SYSTEM]"
 
 # A store path basename is `<digest>-<name>`: 32 characters of Nix base32,
 # a dash, the name. The digest length is what splits a reference basename
 # back into its two halves.
 DIGEST_LEN = 32
 
-# Which system's store paths the database holds. The artifacts are per system
-# because a store path is, and one database describes one of them.
-DB_SYSTEM = "x86_64-linux"
+# Which system's store paths the database holds by default. The artifacts are
+# per system because a store path is, and one database describes one of them:
+# `mvs path` run on aarch64 must not answer with an x86_64 path. nix/index-db.nix
+# passes the system it is building for.
+DEFAULT_SYSTEM = "x86_64-linux"
 
 SCHEMA = """
 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
@@ -158,20 +160,25 @@ def runs_of(value, tip):
 
 
 def parse_args(argv):
-    """`<root> <out.db>` plus an optional `--data-dir DIR` anywhere."""
+    """`<root> <out.db>` plus optional `--data-dir DIR` / `--system S` anywhere."""
     args = list(argv[1:])
 
-    data_dir = None
-    if "--data-dir" in args:
-        at = args.index("--data-dir")
+    def take(flag, default):
+        if flag not in args:
+            return default
+        at = args.index(flag)
         if at + 1 >= len(args):
             sys.exit(USAGE)
-        data_dir = args[at + 1]
+        value = args[at + 1]
         del args[at : at + 2]
+        return value
+
+    data_dir = take("--data-dir", None)
+    system = take("--system", DEFAULT_SYSTEM)
 
     if len(args) != 2:
         sys.exit(USAGE)
-    return args[0], args[1], data_dir
+    return args[0], args[1], data_dir, system
 
 
 def load_artifact(data_dir, stem):
@@ -215,7 +222,7 @@ def pair_fields(attr, version, value):
     return value[0], drv_name, found_off
 
 
-def build_store(db, data_dir, attr_ids, n_revs):
+def build_store(db, data_dir, attr_ids, n_revs, system):
     """Project the store-path artifacts into the store tables.
 
     Returns (paths, edges) counts for the summary line.
@@ -225,8 +232,8 @@ def build_store(db, data_dir, attr_ids, n_revs):
         with open(os.path.join(data_dir, name)) as f:
             return json.load(f)
 
-    outpaths = load_json(f"outpaths-{DB_SYSTEM}.json")
-    tip_outpaths = load_json(f"tip-outpaths-{DB_SYSTEM}.json")
+    outpaths = load_json(f"outpaths-{system}.json")
+    tip_outpaths = load_json(f"tip-outpaths-{system}.json")
     info = load_artifact(data_dir, "info-indexed")
     refs = load_artifact(data_dir, "refs-indexed")
     closures = load_artifact(data_dir, "closures")
@@ -237,14 +244,14 @@ def build_store(db, data_dir, attr_ids, n_revs):
     # each other about how much they cover.
     if outpaths["revisionCount"] != tip_outpaths["revisionCount"]:
         sys.exit(
-            f"build-db: outpaths-{DB_SYSTEM}.json covers "
+            f"build-db: outpaths-{system}.json covers "
             f"{outpaths['revisionCount']} revisions but its tip file covers "
             f"{tip_outpaths['revisionCount']}. "
             f"Rebuild the store-path artifacts together."
         )
     if outpaths["revisionCount"] > n_revs:
         sys.exit(
-            f"build-db: outpaths-{DB_SYSTEM}.json was built against "
+            f"build-db: outpaths-{system}.json was built against "
             f"{outpaths['revisionCount']} revisions but revisions.json has {n_revs}."
         )
 
@@ -384,7 +391,7 @@ def build_store(db, data_dir, attr_ids, n_revs):
 
 
 def main():
-    root, out, data_dir = parse_args(sys.argv)
+    root, out, data_dir, system = parse_args(sys.argv)
 
     def load(*parts):
         with open(os.path.join(root, *parts)) as f:
@@ -453,9 +460,16 @@ def main():
     # The store-path tables only exist when the artifacts were given; without
     # them the database is exactly what it always was, and `mvs` refuses the
     # store subcommands by the absence of the `store_paths` meta key.
+    #
+    # A system nobody publishes artifacts for lands here too: rather than fail,
+    # the database is built without them and `mvs` declines the store
+    # subcommands, which is the same answer it gives for a data-dir-less build.
     store_counts = None
     if data_dir is not None:
-        store_counts = build_store(db, data_dir, attr_ids, n_revs)
+        if os.path.exists(os.path.join(data_dir, f"outpaths-{system}.json")):
+            store_counts = build_store(db, data_dir, attr_ids, n_revs, system)
+        else:
+            print(f"build-db: no store-path artifacts for {system}; index only")
 
     # `built_from` names the checkout the data came from, so a database found on
     # its own can be traced back. The flake passes self.rev; a dirty tree has
