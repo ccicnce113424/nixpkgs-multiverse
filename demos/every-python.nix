@@ -6,11 +6,10 @@
 # exact derivation Hydra built at its release.
 {
   system ? builtins.currentSystem,
-  fetcher ? "github",
 }:
 
 let
-  mv = import ../multiverse.nix { inherit system fetcher; };
+  mv = import ../multiverse.nix { inherit system; };
 
   # The newest revision supplies the builder. Everything else is historical.
   host = mv.at "26.05";

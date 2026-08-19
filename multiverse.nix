@@ -2,7 +2,7 @@
 #
 # Revisions are *fetched*, not vendored. A revision fetched into the store
 # yields byte-identical derivations to a checked-out tree — store paths derive
-# from content and basename, never from location or fetcher — so everything
+# from content and basename, never from location — so everything
 # Hydra built stays a cache hit while the repo itself holds only an index.
 #
 # Two properties shape this file:
@@ -19,17 +19,6 @@
   system ? builtins.currentSystem,
   config ? { },
   overlays ? [ ],
-  # How to materialise a revision.
-  #   "github" — builtins.fetchTree against NixOS/nixpkgs, pinned by narHash.
-  #              Pure-eval safe and portable, so this is what flake.nix uses.
-  #   "local"  — builtins.fetchGit against a local clone. Fully offline, and
-  #              faster when a clone is already on disk, but an absolute path
-  #              outside the tree is rejected under pure evaluation.
-  # Both produce byte-identical derivations; verified against 25.05.
-  fetcher ? "github",
-  # Only consulted by the "local" fetcher, which cannot guess where a clone
-  # lives, so there is no default worth having.
-  nixpkgsSource ? null,
   # What `fast.*` does for a version the store-path index has no digest for.
   #   "throw" — fail loudly, naming the eval selector to use. The default:
   #             nothing called fast should quietly start a ~378 MB fetch.
@@ -201,15 +190,7 @@ let
     let
       r = revAt i;
     in
-    if fetcher == "local" && nixpkgsSource == null then
-      throw "multiverse: fetcher = \"local\" needs nixpkgsSource set to a nixpkgs clone"
-    else if fetcher == "local" then
-      builtins.fetchGit {
-        url = nixpkgsSource;
-        rev = r.rev;
-        allRefs = true;
-      }
-    else if r ? narHash then
+    if r ? narHash then
       builtins.fetchTree {
         type = "github";
         owner = "NixOS";
@@ -218,14 +199,14 @@ let
         inherit (r) narHash;
       }
     else
-      throw "multiverse: revision ${labelOf i} has no narHash; re-run tools/build-index.sh or use fetcher = \"local\"";
+      throw "multiverse: revision ${labelOf i} has no narHash; re-run tools/build-index.sh";
 
-  # Whether a revision can be turned into a tree at all. The github fetcher
-  # needs a narHash, and a revision appended by fetch-unstable-revisions.sh has
-  # none until build-index.sh reaches it. Asking for such a revision by name is
+  # Whether a revision can be turned into a tree at all. fetchTree needs a
+  # narHash, and a revision appended by fetch-unstable-revisions.sh has none
+  # until build-index.sh reaches it. Asking for such a revision by name is
   # still an error — pathFor says so plainly — but nothing should *land* on one
   # by walking off the end of the array.
-  materialisable = i: fetcher == "local" || (revAt i) ? narHash;
+  materialisable = i: (revAt i) ? narHash;
 
   newestMaterialisable = builtins.foldl' (acc: i: if materialisable i then i else acc) null offsets;
 
@@ -312,21 +293,12 @@ let
   # to download a tree just to hash it.
   pathForRelease =
     r:
-    if fetcher == "local" && nixpkgsSource == null then
-      throw "multiverse: fetcher = \"local\" needs nixpkgsSource set to a nixpkgs clone"
-    else if fetcher == "local" then
-      builtins.fetchGit {
-        url = nixpkgsSource;
-        rev = r.rev;
-        allRefs = true;
-      }
-    else
-      builtins.fetchTree {
-        type = "github";
-        owner = "NixOS";
-        repo = "nixpkgs";
-        rev = r.rev;
-      };
+    builtins.fetchTree {
+      type = "github";
+      owner = "NixOS";
+      repo = "nixpkgs";
+      rev = r.rev;
+    };
 
   # Memoised the same way as instances, and just as lazy: naming a release
   # costs a thunk, forcing one costs a fetch.
@@ -338,7 +310,7 @@ let
   # have been, had the revision been declared as a flake input. Shaped after
   # what Nix's own call-flake.nix constructs — outputs first, then sourceInfo,
   # so source metadata wins any collision, then the bookkeeping attributes.
-  # `pathFor` and `pathForRelease` both return a fetcher result, which is
+  # `pathFor` and `pathForRelease` both return a fetchTree result, which is
   # exactly the sourceInfo attrset this needs (outPath, rev, narHash,
   # lastModified, ...).
   #

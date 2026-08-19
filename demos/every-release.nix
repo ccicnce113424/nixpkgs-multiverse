@@ -6,11 +6,10 @@
 # built for that channel.
 {
   system ? builtins.currentSystem,
-  fetcher ? "github",
 }:
 
 let
-  mv = import ../multiverse.nix { inherit system fetcher; };
+  mv = import ../multiverse.nix { inherit system; };
 
   # The newest release supplies the builder. Everything else is historical.
   host = mv.at "26.05";
