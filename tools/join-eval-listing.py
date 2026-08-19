@@ -4,9 +4,9 @@
 The inverted join described in docs/store-paths.md. For every (attr, version)
 pair in the index, take the store path the pair's closing revision evaluates to
 at this system, and keep it only if that exact digest is in the listing that
-revision published. The listing is a membership test on a digest here, never a lookup by
-name — a name maps to one path per system, which is what handed x86_64 users
-aarch64 binaries.
+revision published. The listing is a membership test on a digest here, never a
+lookup by name — a name maps to one path per system, which is what handed
+x86_64 users aarch64 binaries.
 
 Nothing is guessed. A pair whose attribute did not evaluate, or whose evaluated
 path Hydra did not build for this system, carries no entry at all and lands in
@@ -88,7 +88,9 @@ def eval_file(eval_dir, rev, system):
     ]
     if not hits:
         return None
-    return os.path.join(eval_dir, max(hits, key=lambda f: os.path.getmtime(os.path.join(eval_dir, f))))
+    return os.path.join(
+        eval_dir, max(hits, key=lambda f: os.path.getmtime(os.path.join(eval_dir, f)))
+    )
 
 
 # One HTTPS connection per probing thread, kept open across digests the way
@@ -171,7 +173,9 @@ def main():
     # previous artifacts' coverage, because a pair that was at their tip may
     # have closed at that revision and has to be resolved again.
     prev_closed, prev_outs, covered = {}, {}, 0
-    prev_path = f"{args.prev_dir}/outpaths-{args.system}.json" if args.prev_dir else None
+    prev_path = (
+        f"{args.prev_dir}/outpaths-{args.system}.json" if args.prev_dir else None
+    )
     if prev_path and os.path.exists(prev_path):
         prev = json.load(open(prev_path))
         prev_closed = prev["attrs"]
@@ -278,10 +282,14 @@ def main():
     # is a stronger statement than listing membership — the path is fetchable
     # right now — so it resolves the pair; a miss is the final answer for it.
     if args.probe_cache and unvouched:
-        print(f"probing cache.nixos.org for {len(unvouched)} unvouched paths", flush=True)
+        print(
+            f"probing cache.nixos.org for {len(unvouched)} unvouched paths", flush=True
+        )
         with ThreadPoolExecutor(PROBE_THREADS) as ex:
             found = list(ex.map(lambda u: in_cache(u[3]), unvouched))
-        for (attr, version, name, digest, siblings, target), hit in zip(unvouched, found):
+        for (attr, version, name, digest, siblings, target), hit in zip(
+            unvouched, found
+        ):
             if not hit:
                 stats[NOT_CACHED] += 1
                 misses.append([attr, version, NOT_CACHED])
@@ -312,7 +320,10 @@ def main():
     }
     written = {
         f"outpaths-{args.system}.json": {**head, "attrs": dict(sorted(closed.items()))},
-        f"tip-outpaths-{args.system}.json": {**head, "attrs": dict(sorted(tip.items()))},
+        f"tip-outpaths-{args.system}.json": {
+            **head,
+            "attrs": dict(sorted(tip.items())),
+        },
         f"outs-{args.system}.json": dict(sorted(outs.items())),
         f"misses-{args.system}.json": sorted(misses),
     }
@@ -331,7 +342,9 @@ def main():
     for reason in (NO_EVAL_FILE, NO_LISTING, NO_ATTR, NO_OUT, NOT_BUILT, NOT_CACHED):
         if stats[reason]:
             print(f"  {stats[reason]:>7} {reason}")
-    print(f"  {len(closed)} attrs closed, {len(tip)} at the tip, {len(outs)} multi-output")
+    print(
+        f"  {len(closed)} attrs closed, {len(tip)} at the tip, {len(outs)} multi-output"
+    )
     return 0
 
 

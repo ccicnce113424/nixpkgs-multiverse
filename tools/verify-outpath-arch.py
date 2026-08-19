@@ -121,7 +121,9 @@ def main():
         # Five times the target, because a good share of entries carry no ELF.
         for (attr, ver, digest), arch in zip(
             pairs,
-            ex.map(lambda p: arch_of(p[2], args.max_nar_bytes), pairs[: args.count * 5]),
+            ex.map(
+                lambda p: arch_of(p[2], args.max_nar_bytes), pairs[: args.count * 5]
+            ),
         ):
             if arch:
                 classified.append((attr, ver, digest, arch))

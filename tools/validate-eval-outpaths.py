@@ -99,7 +99,9 @@ def main():
         return 1
 
     report, missing_listings = [], 0
-    print(f"{'off':>5} {'date':10} {'attrs':>7} {'built':>7} {'%':>6} {'differs':>8} {'absent':>7}")
+    print(
+        f"{'off':>5} {'date':10} {'attrs':>7} {'built':>7} {'%':>6} {'differs':>8} {'absent':>7}"
+    )
     for off in offsets:
         rev = revs[off]["rev"]
         listing = load_listing(args.paths_dir, off)
