@@ -64,6 +64,12 @@ JOBS=1
 # laptop, and -j on a big machine wants them lower.
 WORKERS="${EVAL_WORKERS:-6}"
 MAXMEM="${EVAL_MAXMEM:-3072}"
+# Nix's evaluator recursion limit, set here rather than left to whatever the
+# host's Nix defaults to: texlive's `un_adj` recursion overruns the older
+# default of 10,000 and takes the whole run down with it, so the same revision
+# resolves 16,859 attributes on one machine and none on another. An explicit
+# ceiling makes coverage a property of nixpkgs, not of the runner.
+CALLDEPTH="${EVAL_CALLDEPTH:-100000}"
 SUBCOMMAND=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -81,7 +87,8 @@ done
 EVAL_SYSTEM="$SYSTEM"
 EVAL_WORKERS="$WORKERS"
 EVAL_MAXMEM="$MAXMEM"
-export EVAL_SYSTEM EVAL_WORKERS EVAL_MAXMEM
+EVAL_CALLDEPTH="$CALLDEPTH"
+export EVAL_SYSTEM EVAL_WORKERS EVAL_MAXMEM EVAL_CALLDEPTH
 
 if ! command -v nix-eval-jobs >/dev/null 2>&1; then
   echo "eval-outpaths: nix-eval-jobs is not on PATH." >&2
@@ -114,6 +121,7 @@ eval_system() {
   # cannot read at all, which keeps no file rather than a partial one.
   if ! nix-eval-jobs \
       --workers "$WORKERS" --max-memory-size "$MAXMEM" --no-instantiate \
+      --option max-call-depth "$CALLDEPTH" \
       --arg revPath "$src" --argstr system "$system" \
       "$NIXDIR/eval-outpaths.nix" > "$dest.jsonl" 2> "$dest.err"; then
     # The partial JSONL goes; the stderr stays, since a revision modern Nix
