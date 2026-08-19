@@ -144,9 +144,9 @@
   "rev": "b6018f87da91d19d0ab4cf979885689b469cdd41"
  },
  "26.05": {
-  "build": 7984,
-  "date": "2026-08-18",
-  "name": "nixos-26.05.7984.c69ae8fb8fae",
-  "rev": "c69ae8fb8faeb3472fd11234ba55a70ac3601f9b"
+  "build": 8045,
+  "date": "2026-08-19",
+  "name": "nixos-26.05.8045.b18a4b905f8d",
+  "rev": "b18a4b905f8d028dc4476412e6d6891728695379"
  }
 }
