@@ -37,7 +37,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      # The branch tip as of now, not the commit that triggered the run. A run
+      # queued behind another by the concurrency group above starts minutes or
+      # tens of minutes after it was created, by which time the run it waited
+      # for has pushed — and checking out the triggering SHA would build on a
+      # main that no longer exists, so the push below could not fast-forward.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
       - uses: cachix/install-nix-action@v31
         with:
@@ -186,4 +193,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add revisions.json releases.json index README.md data-pins.json
           git commit -m "Index nixpkgs through ${tip}"
-          git push
+
+          # A push can still lose a race against a human, and dropping the
+          # commit is not harmless: the assets are already uploaded, and
+          # cut-data-release.sh skips a tag it has already cut, so a lost
+          # data-pins.json bump would not be regenerated until tomorrow. Rebase
+          # onto whatever landed and try once more; a conflict here is a real
+          # disagreement about generated files and should fail loudly.
+          git push || {
+            echo "push rejected; rebasing onto the current tip and retrying"
+            git pull --rebase origin "${{ github.ref_name }}"
+            git push
+          }
