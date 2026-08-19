@@ -9200,7 +9200,6 @@
  {
   "rev": "0ae2bc1419c3f345984c2629e72e7a631820fa4d",
   "date": "2026-08-18",
-  "channel": "nixos-unstable",
   "name": "nixos-26.11pre1057639.0ae2bc1419c3",
   "narHash": "sha256-vXNVDVtvfiQuXthP0NHPFdNvvMTkGpx0UP8oddIWbNk="
  }
