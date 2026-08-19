@@ -22,6 +22,13 @@ join for aarch64-linux over them resolves nothing, which is the truth.
 
 Incremental by construction: an offset whose pickle already exists is
 skipped, so the hourly job pays for exactly the bumps it has never seen.
+
+A revision whose release directory exists but holds no listing yet is not a
+failure. The archive publishes a bump's directory before it finishes uploading
+into it, and revisions.json learns about the bump from that directory, so the
+newest revision is routinely a few minutes ahead of its own store-paths.xz.
+Such an offset is reported and skipped; the next run picks it up, and the join
+resolves nothing for it meanwhile rather than guessing.
 """
 import argparse
 import bz2
@@ -40,6 +47,9 @@ STORE_PREFIX = "/nix/store/"
 DIGEST_LEN = 32
 USER_AGENT = "nixpkgs-multiverse"
 TIMEOUT_SECONDS = 120
+# What fetch() reports for a bump whose listing the archive has not uploaded
+# yet. Distinct from a failure: the run carries on and exits zero.
+UNPUBLISHED = "no listing published yet"
 
 
 def split_base(path):
@@ -135,7 +145,14 @@ def fetch(outdir, job):
             except urllib.error.HTTPError as e2:
                 if e2.code != 404:
                     raise
-                text = get(prefix + "MANIFEST").decode()
+                try:
+                    text = get(prefix + "MANIFEST").decode()
+                except urllib.error.HTTPError as e3:
+                    if e3.code != 404:
+                        raise
+                    # None of the three spellings exists: this bump has a
+                    # directory and no listing in it yet.
+                    return off, UNPUBLISHED
             m, meta, digests = parse_manifest(text)
             kind = "manifest"
     except Exception as e:
@@ -193,17 +210,24 @@ def main():
         jobs = jobs[: args.limit]
     print(f"{len(jobs)} listings to fetch", flush=True)
 
-    fails = 0
+    fails = unpublished = 0
     with ThreadPoolExecutor(args.threads) as ex:
         for i, (off, status) in enumerate(
             ex.map(lambda j: fetch(args.outdir, j), jobs)
         ):
-            if status.startswith("FAIL"):
+            if status == UNPUBLISHED:
+                unpublished += 1
+                print(f"{off} {revs[off]['name']}: {status}", flush=True)
+            elif status.startswith("FAIL"):
                 fails += 1
                 print(f"{off} {revs[off]['name']} {status}", flush=True)
             if i and i % 100 == 0:
                 print(f"... {i}/{len(jobs)}", file=sys.stderr, flush=True)
-    print(f"done: {len(jobs)} fetched, {fails} failures", flush=True)
+    print(
+        f"done: {len(jobs) - fails - unpublished} fetched, "
+        f"{unpublished} not published yet, {fails} failures",
+        flush=True,
+    )
     return 1 if fails else 0
 
 
