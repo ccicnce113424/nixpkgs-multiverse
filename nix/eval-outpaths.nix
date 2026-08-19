@@ -1,7 +1,8 @@
 # The root attrset nix-eval-jobs walks to get {attr -> output -> store path}
 # for a single vendored revision, at one explicit system.
 #
-# This is the inverted join described in PLAN-issue12.md. The channel's
+# This is the evaluation half of the inverted join in docs/store-paths.md.
+# The channel's
 # store-paths listing cannot say which system a path was built for, so it
 # cannot turn a derivation name into a digest; an evaluation can, because the
 # system is an input to it. The listing keeps its other job — deciding whether
@@ -58,8 +59,8 @@ let
   # that is what keeps `haskellPackages` and friends — every one of which sets
   # recurseForDerivations — out of a run that asked for top-level attributes.
   #
-  # A nested pass wants the value handed over unwrapped instead; it is not
-  # wired up yet, see PLAN-issue12.md phase 2.
+  # A nested pass would want the value handed over unwrapped instead. Not
+  # wired up: nothing indexes nested attributes yet.
   project =
     n:
     let

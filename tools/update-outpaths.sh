@@ -9,7 +9,7 @@
 # explicit system, and the listing is asked only whether it holds that exact
 # path. That is the whole of the issue #12 fix: a listing has no System column,
 # so looking a derivation NAME up in one cannot tell an x86_64 path from an
-# aarch64 one. See PLAN-issue12.md and docs/store-paths.md.
+# aarch64 one. See docs/store-paths.md, and issue #12 for the bug it caused.
 #
 # The whole run is incremental. Listings are fetched only for offsets with no
 # pickle on disk, revisions are evaluated only where no evaluation exists, the

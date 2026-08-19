@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Join the evaluated store paths against the channel listings, per system.
 
-The inverted join of PLAN-issue12.md. For every (attr, version) pair in the
-index, take the store path the pair's closing revision evaluates to at this
-system, and keep it only if that exact digest is in the listing that revision
-published. The listing is a membership test on a digest here, never a lookup by
+The inverted join described in docs/store-paths.md. For every (attr, version)
+pair in the index, take the store path the pair's closing revision evaluates to
+at this system, and keep it only if that exact digest is in the listing that
+revision published. The listing is a membership test on a digest here, never a lookup by
 name — a name maps to one path per system, which is what handed x86_64 users
 aarch64 binaries.
 

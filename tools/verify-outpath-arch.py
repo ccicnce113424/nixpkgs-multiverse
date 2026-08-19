@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sample an artifact's digests and read the machine architecture out of them.
 
-The acceptance check for PLAN-issue12.md: every digest in
+The acceptance check for the per-system artifacts: every digest in
 outpaths-x86_64-linux.json must be an x86_64-linux path, and every digest in
 the aarch64-linux file an aarch64-linux one. Nothing in the pipeline can assert
 that from the inside — the listing has no System column, which is the whole

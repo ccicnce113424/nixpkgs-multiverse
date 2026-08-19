@@ -4,9 +4,9 @@
 # One file per (revision, system) under index/.eval, holding every top-level
 # attribute's outputs. This is the digest source the store-path artifacts are
 # joined from: the channel listing says what Hydra built, and an evaluation at
-# an explicit `system` says which path that is — see PLAN-issue12.md, where the
-# name-keyed listing lookup this replaces is measured handing x86_64 users
-# aarch64 binaries for two thirds of the index.
+# an explicit `system` says which path that is. The name-keyed listing lookup
+# this replaces handed x86_64 users aarch64 binaries for two thirds of the
+# index (issue #12); see docs/store-paths.md.
 #
 # Revisions are checked out with `git archive` into a scratch directory, the
 # way tools/build-index.sh does, and never enter the store. That the digests
@@ -117,7 +117,7 @@ eval_system() {
       --arg revPath "$src" --argstr system "$system" \
       "$NIXDIR/eval-outpaths.nix" > "$dest.jsonl" 2> "$dest.err"; then
     # The partial JSONL goes; the stderr stays, since a revision modern Nix
-    # cannot read is exactly what phase 1 of PLAN-issue12.md wants recorded.
+    # cannot read is worth keeping the trace of.
     rm -f "$dest.jsonl"
     echo "  $label $system: EVAL FAILED ($((SECONDS - start))s): $(grep -m1 -o 'error:.*' "$dest.err" | head -c 55)"
     return 1

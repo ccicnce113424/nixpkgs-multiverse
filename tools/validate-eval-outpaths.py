@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check evaluated store paths against the channel listing that shipped them.
 
-Phase 1 of PLAN-issue12.md: before spending a machine on the backfill, confirm
+Before spending a machine on a backfill, confirm
 that evaluating a revision at an explicit system lands on paths the channel
 actually published. Every attribute an evaluation resolved falls into one of
 three buckets against its revision's listing:

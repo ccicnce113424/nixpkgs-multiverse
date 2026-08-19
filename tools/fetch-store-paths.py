@@ -10,7 +10,8 @@ Two files come out of each offset. `<off>.pkl` is the {drv name -> digest}
 map the name-keyed matcher reads, and `<off>.digests.pkl` is the set of every
 digest the listing holds, which is what the evaluation-driven join uses
 instead: a listing cannot say which system a path belongs to, so it can only
-be asked whether a digest it was handed is one Hydra built (PLAN-issue12.md).
+be asked whether a digest it was handed is one Hydra built. See
+docs/store-paths.md.
 
 MANIFEST-era files also carry NarSize/Size/References/System per path; those
 are saved alongside so the old era needs no narinfo crawl at all. Only
