@@ -34,6 +34,11 @@ Outputs (into --out-dir), all keyed by the same `system`:
                               path rather than by a derivation name that several
                               packages can claim
   misses-<system>.json        [attr, version, reason] for every pair with no entry
+  manifest-meta.pkl           digest -> {narSize, fileSize, narUrl, refs} for the
+                              2012-2013 bumps, whose MANIFEST carries what a
+                              narinfo would and whose paths cache.nixos.org no
+                              longer serves. Written once, not per system: it is
+                              keyed by digest like the graph it feeds.
 """
 import argparse
 import http.client
@@ -60,6 +65,20 @@ USER_AGENT = "nixpkgs-multiverse"
 TIMEOUT_SECONDS = 30
 PROBE_RETRIES = 3
 PROBE_THREADS = 32
+
+
+def load_listing_meta(paths_dir, off):
+    """The per-path metadata a MANIFEST-era listing carries, or {}.
+
+    Those 2012-2013 bumps predate the binary cache's narinfos, and the paths
+    they name are long gone from it, so this is the only place their sizes and
+    references exist. Newer listings carry no such column and yield nothing.
+    """
+    path = f"{paths_dir}/{off}.pkl"
+    if not os.path.exists(path):
+        return {}
+    with open(path, "rb") as f:
+        return pickle.load(f).get("meta") or {}
 
 
 def load_digests(paths_dir, off):
@@ -190,7 +209,7 @@ def main():
         # rather than failing on the missing file.
         print(f"no {os.path.basename(prev_path)} to carry over from; resolving in full")
 
-    closed, tip, outs, misses = {}, {}, {}, []
+    closed, tip, outs, misses, manifest_meta = {}, {}, {}, [], {}
     stats = defaultdict(int)
     # Pairs whose evaluated path the listing did not name, kept whole so that
     # --probe-cache can ask the cache about them once the walk is done.
@@ -234,6 +253,9 @@ def main():
             continue
 
         evaluated = json.load(open(path))["attrs"]
+        # Only the oldest era has any, and only for the digests resolved here.
+        listing_meta = load_listing_meta(args.paths_dir, off)
+
         # A version still current at the tip is what tip-outpaths.json holds;
         # everything else has closed and belongs in outpaths.json.
         target = tip if off == tip_offset else closed
@@ -271,6 +293,8 @@ def main():
 
             emit(target, attr, version, name, digest)
             stats["built"] += 1
+            if digest in listing_meta:
+                manifest_meta[digest] = listing_meta[digest]
 
             # Siblings are membership-tested one by one: a package whose `out`
             # Hydra built and whose `-doc` it did not must not advertise the doc.
@@ -345,6 +369,18 @@ def main():
         with open(dest + ".tmp", "w") as f:
             json.dump(doc, f, separators=(",", ":"))
         os.replace(dest + ".tmp", dest)
+
+    # Merged rather than overwritten: the file is shared by every system, and
+    # the second system's run must not drop the first's digests.
+    if manifest_meta:
+        dest = os.path.join(args.out_dir, "manifest-meta.pkl")
+        if os.path.exists(dest):
+            with open(dest, "rb") as f:
+                manifest_meta = pickle.load(f) | manifest_meta
+        with open(dest + ".tmp", "wb") as f:
+            pickle.dump(manifest_meta, f, protocol=4)
+        os.replace(dest + ".tmp", dest)
+        print(f"  {len(manifest_meta)} MANIFEST-era paths carry their own metadata")
 
     total = sum(stats.values())
     resolved = stats["built"] + stats["probed"] + stats["carried"]
