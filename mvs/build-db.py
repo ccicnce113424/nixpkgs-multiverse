@@ -482,6 +482,10 @@ def main():
     }
     if store_counts is not None:
         meta["store_paths"] = "1"
+        # A store path belongs to one system, so a database holding them has to
+        # say which — otherwise `mvs path` is an unlabelled claim about
+        # somebody's machine.
+        meta["system"] = system
     if os.environ.get("MVS_BUILT_FROM"):
         meta["built_from"] = os.environ["MVS_BUILT_FROM"]
     db.executemany("INSERT INTO meta(key, value) VALUES (?,?)", meta.items())

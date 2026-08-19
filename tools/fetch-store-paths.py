@@ -17,6 +17,8 @@ MANIFEST-era files also carry NarSize/Size/References/System per path; those
 are saved alongside so the old era needs no narinfo crawl at all. Only
 x86_64-linux entries are kept from manifests — the one era where the listing
 does carry a System column, and the one era the name map is therefore honest.
+Those bumps (2012-2013) predate every other Linux system in the channel, so a
+join for aarch64-linux over them resolves nothing, which is the truth.
 
 Incremental by construction: an offset whose pickle already exists is
 skipped, so the hourly job pays for exactly the bumps it has never seen.

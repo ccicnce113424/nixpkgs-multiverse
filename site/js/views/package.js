@@ -128,7 +128,7 @@ function VersionRow({
         html`
           <${Cmd}
             text=${`nix-store --realise ${storePathOf(attr, v, entry)}`}
-            caption="materialize with zero evaluation — substituted straight from cache.nixos.org"
+            caption="materialize with zero evaluation — the x86_64-linux build, substituted straight from cache.nixos.org"
           />
           <${CacheBadge} entry=${entry} />
         `}
@@ -140,10 +140,10 @@ function VersionRow({
         ${metaReady &&
         !entry &&
         html`<div class="capt">
-          no store path is known for this version — it never appeared in a
-          channel's store-paths listing (Hydra does not build unfree or broken
-          packages), or its derivation name has drifted from the attribute name
-          — so cache size, dependency and closure data are unavailable
+          no store path is known for this version on x86_64-linux — either
+          Hydra never built it (it does not build unfree or broken packages),
+          or the attribute does not evaluate at the revision that closed it —
+          so cache size, dependency and closure data are unavailable
         </div>`}
         ${entry &&
         !entry.r &&

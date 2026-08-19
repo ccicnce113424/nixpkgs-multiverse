@@ -40,10 +40,15 @@ jobs:
       - name: Restore the outpaths state
         run: bash tools/restore-outpaths-state.sh
 
+      # Every system's artifacts, because the census is about digests and a
+      # digest is a digest whichever system evaluated it — but an aarch64 path
+      # dying is exactly as interesting as an x86_64 one, and only the seeds
+      # decide which get looked at.
       - name: Take the census
         run: |
           python3 tools/census.py \
-            --seeds index/.outpaths/data/outpaths.json index/.outpaths/data/tip-outpaths.json \
+            --seeds index/.outpaths/data/prev/outpaths-*.json \
+                    index/.outpaths/data/prev/tip-outpaths-*.json \
             --out census-results.json \
             --graph index/.outpaths/graph.jsonl.gz \
             --date "$(date -u +%F)"
