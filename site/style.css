@@ -749,10 +749,22 @@ footer {
 /* The system picker sits with "expand all" on the package heading. Buttons
    rather than a select: two options, and the current one has to read as
    chosen at a glance. */
+/* The controls hold their place while the heading text beside them changes:
+   switching system adds or drops "· cache data for N of M versions", and
+   buttons that move under the cursor are worse than a line that reflows.
+   The title yields space instead of pushing them to a second row — flex-basis
+   0 with min-width 0 lets its text wrap inside itself. */
+.bulkline-title {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .bulkline-controls {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
+  margin-left: auto;
 }
 
 .syspick {

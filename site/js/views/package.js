@@ -14,6 +14,7 @@ import {
   useShard,
   useSystems,
   metaDirFor,
+  revdepsDirFor,
   useWholeShard,
   useHistory,
   useVersions,
@@ -263,18 +264,11 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
   const [system, setSystem] = useState(null);
   const shown = system ?? systems?.[0] ?? null;
 
-  const metaFile = useWholeShard(Shard.META, attr);
-  // Null until a reader picks an alternate, which is what keeps the second
-  // system's shards off the wire for everyone who never asks.
-  const altFile = useWholeShard(
-    shown && systems && shown !== systems[0]
-      ? metaDirFor(shown, systems)
-      : null,
-    attr,
-  );
-  const storeFile =
-    shown && systems && shown !== systems[0] ? altFile : metaFile;
-  const revdeps = useShard(Shard.REVDEPS, attr);
+  // Both directories follow the picked system, so switching fetches that
+  // system's shards and nothing else is ever requested: a reader who never
+  // switches asks for exactly what they asked for before the picker existed.
+  const storeFile = useWholeShard(metaDirFor(shown, systems), attr);
+  const revdeps = useShard(revdepsDirFor(shown, systems), attr);
   const [bulk, bulkButton] = useBulk();
   const [openVers, setOpenVers] = useState(() => new Set());
   // Read inside toggleVer without making it depend on the set, so the callback
@@ -372,7 +366,7 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
 
   return html`
     <h2 class="bulkline">
-      <span>
+      <span class="bulkline-title">
         <code>${attr}</code>
         <span class="muted">· ${lifetime}</span>
       </span>

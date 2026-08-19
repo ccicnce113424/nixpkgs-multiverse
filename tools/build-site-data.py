@@ -14,7 +14,9 @@ Emits, beside whatever the rest of the site build produces:
   meta/<shard>.json      per-attr store entries: digest, liveness, sizes,
                          closure, interned direct deps, sibling outputs
   revdeps/<shard>.json   reverse dependencies, capped per version
-  identify/<xx>.json     digest -> [attr, version], sharded by digest prefix
+  identify/<xx>.json     digest -> [attr, version], sharded by digest prefix,
+                         and covering every system: a digest names one path on
+                         one system, so there is nothing to disambiguate
   census.json            the aliveness census aggregates the stats page draws
   universe.bin           every measured version as one dot (see below)
 
@@ -268,32 +270,52 @@ revdeps = defaultdict(lambda: defaultdict(set))  # tattr -> tver -> {(a,v)}
 n_shards = build_meta_shards(pairs, by_digest, by_name, J(out, "meta"), revdeps)
 print(f"meta ({SITE_SYSTEM}): {n_shards} shards")
 
-# The other systems, store metadata only. The page fetches one of these
-# directories only when a reader switches to that system, so the cost of
+
+def dump_revdeps(revdeps, out_dir):
+    """Who depends on each version of an attribute, capped per version."""
+    buckets = defaultdict(dict)
+    for tattr, tvers in revdeps.items():
+        buckets[shard_key(tattr)][tattr] = {
+            tver: {"c": len(deps), "l": [list(d) for d in sorted(deps)[:REVDEP_CAP]]}
+            for tver, deps in tvers.items()
+        }
+    os.makedirs(out_dir, exist_ok=True)
+    for key, attrs in buckets.items():
+        dump({"attrs": attrs}, J(out_dir, key + ".json"))
+    return len(buckets)
+
+
+# The other systems: store metadata and the reverse dependencies that go with
+# it, since "used by 42 package versions" is a claim about one system's
+# dependency graph and would be a lie told under another. The page fetches
+# either directory only when a reader switches to that system, so the cost of
 # publishing them is disk here, not bandwidth there.
+# Every system's digests, for the identify shards below: a digest belongs to
+# exactly one system, so pasting an aarch64 store path into the search box has
+# an unambiguous answer and should get it.
+all_by_digest = dict(by_digest)
+
 for system in alt_systems:
-    alt = index_pairs(
+    alt_pairs, alt_by_digest, alt_by_name = index_pairs(
         load(J(datadir, f"outpaths-{system}.json")),
         load(J(datadir, f"tip-outpaths-{system}.json")),
     )
-    n_shards = build_meta_shards(*alt, J(out, f"meta-{system}"))
-    print(f"meta ({system}): {n_shards} shards, {len(alt[0])} pairs")
+    alt_revdeps = defaultdict(lambda: defaultdict(set))
+    n_shards = build_meta_shards(
+        alt_pairs, alt_by_digest, alt_by_name, J(out, f"meta-{system}"), alt_revdeps
+    )
+    n_rd = dump_revdeps(alt_revdeps, J(out, f"revdeps-{system}"))
+    # The primary system wins a collision, which only happens for paths with
+    # no machine code in them — the same (attr, version) either way.
+    all_by_digest = {**alt_by_digest, **all_by_digest}
+    print(f"meta ({system}): {n_shards} shards, {len(alt_pairs)} pairs, {n_rd} revdeps")
 
 # ---- revdeps shards --------------------------------------------------------
-rd_buckets = defaultdict(dict)
-for tattr, tvers in revdeps.items():
-    rd_buckets[shard_key(tattr)][tattr] = {
-        tver: {"c": len(deps), "l": [list(d) for d in sorted(deps)[:REVDEP_CAP]]}
-        for tver, deps in tvers.items()
-    }
-os.makedirs(J(out, "revdeps"), exist_ok=True)
-for key, attrs in rd_buckets.items():
-    dump({"attrs": attrs}, J(out, "revdeps", key + ".json"))
-print(f"revdeps: {len(rd_buckets)} shards")
+print(f"revdeps ({SITE_SYSTEM}): {dump_revdeps(revdeps, J(out, 'revdeps'))} shards")
 
 # ---- identify shards -------------------------------------------------------
 id_buckets = defaultdict(dict)
-for digest, (attr, ver) in by_digest.items():
+for digest, (attr, ver) in all_by_digest.items():
     id_buckets[digest[:2]][digest] = [attr, ver]
 os.makedirs(J(out, "identify"), exist_ok=True)
 for key, entries in id_buckets.items():

@@ -12,10 +12,12 @@ import { test, expect } from "@playwright/test";
 // quickly. The same attribute the other package tests drive.
 const ATTR = "ripgrep";
 
-// Where the alternate system's store metadata lives, as built by
-// tools/build-site-data.py. The default system keeps the unsuffixed directory.
+// Where the alternate system's data lives, as built by
+// tools/build-site-data.py. The default system keeps the unsuffixed
+// directories. Both are per system for the same reason: a store path and the
+// set of packages depending on it are both properties of one architecture.
 const ALT_SYSTEM = "aarch64-linux";
-const ALT_SHARD = `**/meta-${ALT_SYSTEM}/**`;
+const ALT_SHARDS = [`**/meta-${ALT_SYSTEM}/**`, `**/revdeps-${ALT_SYSTEM}/**`];
 
 // The store path line of the first expanded version, as text.
 const storePathOf = (page) =>
@@ -41,25 +43,34 @@ test("the picker offers both systems and defaults to the aggregated one", async 
 test("the alternate system's shards are not fetched until it is picked", async ({
   page,
 }) => {
-  let altRequests = 0;
-  await page.route(ALT_SHARD, (route) => {
-    altRequests += 1;
-    return route.continue();
-  });
+  const asked = new Set();
+  for (const pattern of ALT_SHARDS) {
+    await page.route(pattern, (route) => {
+      asked.add(new URL(route.request().url()).pathname.split("/")[1]);
+      return route.continue();
+    });
+  }
 
   await page.goto(`/?pkg=${ATTR}`);
-  await expect(page.locator(".row.cols-ver").first()).toBeVisible();
-  // The default system's store data has landed by now: if the page fetched
-  // both, it would have fetched them together.
+  const first = page.locator(".row.cols-ver").first();
+  await expect(first).toBeVisible();
+
+  // Expanded, so the default system's store data has demonstrably landed: if
+  // the page fetched both systems it would have fetched them together, and
+  // this is the moment that would show.
+  await first.click();
   await expect(
     page.locator(".cmd", { hasText: "nix-store --realise" }).first(),
   ).toBeVisible();
-  expect(altRequests).toBe(0);
+  expect([...asked]).toEqual([]);
 
+  // Picking it fetches both of that system's directories, and only then.
   await page.locator(".syspick button", { hasText: ALT_SYSTEM }).click();
   await expect
-    .poll(() => altRequests, { message: "picking a system fetches its shard" })
-    .toBeGreaterThan(0);
+    .poll(() => [...asked].sort(), {
+      message: "picking a system fetches its shards",
+    })
+    .toEqual([`meta-${ALT_SYSTEM}`, `revdeps-${ALT_SYSTEM}`]);
 });
 
 test("switching system changes the store paths", async ({ page }) => {

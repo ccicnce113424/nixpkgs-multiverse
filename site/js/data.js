@@ -73,6 +73,7 @@ export function useShard(dir, attr) {
   useEffect(() => {
     let live = true;
     setData(null);
+    if (!dir) return;
     loadShard(dir, attr)
       .then((d) => live && setData(d.attrs[attr] ?? {}))
       .catch(() => live && setData(SHARD_ERROR));
@@ -139,10 +140,19 @@ export function useSystems() {
 
 export const useMeta = (attr) => useWholeShard(Shard.META, attr);
 
-// Where one system's store metadata lives. The first entry of systems.json is
-// the one the site aggregates and keeps in the unsuffixed directory.
+// Where one system's store data lives. The first entry of systems.json is the
+// one the site aggregates and keeps in the unsuffixed directories; the others
+// are published beside them and fetched only when a reader picks that system.
+//
+// Reverse dependencies are per system for the same reason the paths are: "used
+// by 42 package versions" describes one system's dependency graph.
+const dirFor = (base, system, systems) =>
+  !systems || system === systems[0] ? base : `${base}-${system}`;
+
 export const metaDirFor = (system, systems) =>
-  !systems || system === systems[0] ? Shard.META : `meta-${system}`;
+  dirFor(Shard.META, system, systems);
+export const revdepsDirFor = (system, systems) =>
+  dirFor(Shard.REVDEPS, system, systems);
 export const useRevdeps = (attr) => useShard(Shard.REVDEPS, attr);
 
 // A reference entry out of the meta shard's intern table: [name] for a path
