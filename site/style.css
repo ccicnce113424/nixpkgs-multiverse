@@ -828,6 +828,31 @@ footer {
     padding: 0.75rem;
   }
 
+  /* The controls take a row of their own, above the heading text rather than
+     below it. Beside it they squeeze "19 versions · first packaged 2012-07-05
+     · cache data for 16 of 19 versions" into a column a few words wide; below
+     it they would sit at a height that depends on how many lines that text
+     wraps to, which changes when the system is switched — so the buttons would
+     move out from under the thumb that just tapped them. Above, they hold
+     still and the text gets the full width. */
+  .bulkline-title {
+    flex: 1 1 100%;
+  }
+  .bulkline-controls {
+    order: -1;
+    width: 100%;
+    margin-left: 0;
+  }
+  /* A segmented control across the width: two system names do not fit beside
+     each other at a comfortable tap size otherwise. */
+  .syspick {
+    flex: 1;
+  }
+  .syspick button {
+    flex: 1;
+    padding: 0.35rem 0.5rem;
+  }
+
   /* The fixed tracks are the thing that overflows, so drop them: a row becomes
      a line of cells that wraps. The header row names tracks that no longer
      exist, so it goes with them. */
