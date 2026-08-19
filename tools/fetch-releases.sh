@@ -37,7 +37,7 @@ MT="${MULTIVERSE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 NIXPKGS="${NIXPKGS:-}"
 
 python3 - "$MT/releases.json" "$NIXPKGS" <<'PY'
-import json, os, re, subprocess, sys, urllib.parse, urllib.request
+import json, os, re, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 
 relfile, nixpkgs = sys.argv[1], sys.argv[2]
 BASE = 'https://nix-releases.s3.amazonaws.com/'
@@ -53,6 +53,35 @@ RELEASE = re.compile(r'^\d\d\.\d\d$')
 # repositories and carry two hashes, neither unambiguously a nixpkgs commit.
 OLDEST = '13.10'
 
+# A run makes one listing per release plus one for the bucket root — several
+# dozen requests, each paying its own TLS handshake because urlopen keeps no
+# connection alive. S3 resets one of those handshakes every so often
+# (ConnectionResetError out of do_handshake), which says nothing about the
+# request and is answered by making it again.
+RETRIES = 3
+RETRY_BACKOFF_SECONDS = 0.5
+
+
+def get(target):
+    """urlopen with retries, returning the body.
+
+    Retries the transport, never a verdict: an HTTP status below 500 is the
+    server's considered answer — 404, or the 422 GitHub returns for a short
+    hash that is ambiguous across the fork network — and asking again only
+    spends rate limit to hear it a second time.
+    """
+    for attempt in range(RETRIES):
+        try:
+            with urllib.request.urlopen(target, timeout=90) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == RETRIES - 1:
+                raise
+        except Exception:
+            if attempt == RETRIES - 1:
+                raise
+        time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+
 
 def prefixes(prefix):
     """Every immediate child 'directory' of an S3 prefix."""
@@ -62,8 +91,9 @@ def prefixes(prefix):
             'delimiter': '/', 'prefix': prefix,
             'max-keys': '1000', 'marker': marker,
         })
-        with urllib.request.urlopen(BASE + '?' + q, timeout=90) as r:
-            xml = r.read().decode()
+        # One page is the retried unit, so a failed attempt leaves neither
+        # `out` nor `marker` advanced and the walk resumes where it was.
+        xml = get(BASE + '?' + q).decode()
         got = re.findall(r'<Prefix>' + re.escape(prefix) + r'([^<]+)/</Prefix>', xml)
         if not got:
             break
@@ -102,8 +132,7 @@ def expand(short):
     token = os.environ.get('GITHUB_TOKEN')
     if token:
         req.add_header('Authorization', f'Bearer {token}')
-    with urllib.request.urlopen(req, timeout=90) as r:
-        commit = json.load(r)
+    commit = json.loads(get(req))
     return commit['sha'], commit['commit']['committer']['date'][:10]
 
 
@@ -121,10 +150,20 @@ for name in names:
         continue                                  # betas only: not shipped yet
 
     build, short = max(published)
+    prior = known.get(name)
+
+    # <build> is a Hydra evaluation id, so a channel tip only ever moves
+    # forward. Backwards means the listing above came back short — a truncated
+    # page is a smaller set of bumps, not an error — and recording it would
+    # publish an older commit as an advance. Refuse the whole run instead:
+    # nothing is written until every release has been listed.
+    if prior and prior.get('build') is not None and build < prior['build']:
+        sys.exit(f"releases.json: {name} moved backwards, build "
+                 f"{prior['build']} -> {build}. The bucket listing was "
+                 f"truncated; nothing written.")
 
     # An unchanged channel costs nothing: the short hash already on file
     # identifies the same commit, so neither the API nor a rewrite is needed.
-    prior = known.get(name)
     if prior and prior['rev'].startswith(short) and prior.get('build') == build:
         out[name] = prior
         held += 1

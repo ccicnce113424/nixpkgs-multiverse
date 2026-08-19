@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
 done
 
 python3 - "$NIXPKGS" "$MIN_YEAR" "$MT/revisions.json" "$ALLOW_REORDER" <<'PY'
-import json, os, re, subprocess, sys, urllib.parse, urllib.request
+import json, os, re, subprocess, sys, time, urllib.error, urllib.parse, urllib.request
 
 nixpkgs, min_year, revfile = sys.argv[1], int(sys.argv[2]), sys.argv[3]
 allow_reorder = sys.argv[4] == '1'
@@ -57,9 +57,38 @@ API = 'https://api.github.com/repos/NixOS/nixpkgs/commits/'
 # hour's rate limit finding out.
 MAX_API_LOOKUPS = 50
 
+# S3 resets a TLS handshake every so often (ConnectionResetError out of
+# do_handshake), which says nothing about the request and is answered by making
+# it again. Worth having here even though the listing is a handful of pages,
+# because a reset on page three of the walk below loses the whole run.
+RETRIES = 3
+RETRY_BACKOFF_SECONDS = 0.5
+
 # The clone is optional. Without one — CI, or a fresh checkout — every lookup
 # goes through the API instead.
 have_clone = bool(nixpkgs) and os.path.isdir(os.path.join(nixpkgs, '.git'))
+
+
+def get(target):
+    """urlopen with retries, returning the body.
+
+    Retries the transport, never a verdict: an HTTP status below 500 is the
+    server's considered answer — including the 422 GitHub returns for a short
+    hash that is ambiguous across the fork network, which the callers below
+    read as "unresolvable" and must keep reading that way.
+    """
+    for attempt in range(RETRIES):
+        try:
+            with urllib.request.urlopen(target, timeout=90) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == RETRIES - 1:
+                raise
+        except Exception:
+            if attempt == RETRIES - 1:
+                raise
+        time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+
 
 names, marker = [], ''
 while True:
@@ -67,8 +96,9 @@ while True:
         'delimiter': '/', 'prefix': 'nixos/unstable/',
         'max-keys': '1000', 'marker': marker,
     })
-    with urllib.request.urlopen(BASE + '?' + q, timeout=90) as r:
-        xml = r.read().decode()
+    # One page is the retried unit, so a failed attempt leaves neither `names`
+    # nor `marker` advanced and the walk resumes where it was.
+    xml = get(BASE + '?' + q).decode()
     got = re.findall(r'<Prefix>nixos/unstable/([^<]+)/</Prefix>', xml)
     if not got:
         break
