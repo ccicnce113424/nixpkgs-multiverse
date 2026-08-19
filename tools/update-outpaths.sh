@@ -71,7 +71,14 @@ mkdir -p "$PATHS" "$DATA" "$EVAL"
 MINOFF=0
 FIRST_SYSTEM="${SYSTEMS%%,*}"
 PREV="$DATA/prev/outpaths-$FIRST_SYSTEM.json"
-if [ "$MODE" = incremental ] && [ -s "$PREV" ]; then
+# An incremental run with nothing to start from would evaluate every revision
+# ever indexed, which is the backfill and does not belong on an hourly runner.
+if [ "$MODE" = incremental ] && [ ! -s "$PREV" ]; then
+  echo "update-outpaths: no previous artifacts in $DATA/prev to update." >&2
+  echo "Seed them from the latest release, or run with --full." >&2
+  exit 1
+fi
+if [ "$MODE" = incremental ]; then
   # One revision back from the previous coverage, so the revision the last tip
   # was resolved against is on disk for the moved-from-tip entries.
   MINOFF=$(python3 -c '

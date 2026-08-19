@@ -171,14 +171,20 @@ def main():
     # previous artifacts' coverage, because a pair that was at their tip may
     # have closed at that revision and has to be resolved again.
     prev_closed, prev_outs, covered = {}, {}, 0
-    if args.prev_dir:
-        prev = json.load(open(f"{args.prev_dir}/outpaths-{args.system}.json"))
+    prev_path = f"{args.prev_dir}/outpaths-{args.system}.json" if args.prev_dir else None
+    if prev_path and os.path.exists(prev_path):
+        prev = json.load(open(prev_path))
         prev_closed = prev["attrs"]
         covered = max(0, prev["revisionCount"] - 1)
         prev_outs_path = f"{args.prev_dir}/outs-{args.system}.json"
         if os.path.exists(prev_outs_path):
             prev_outs = json.load(open(prev_outs_path))
         print(f"carrying over closed pairs below offset {covered}")
+    elif prev_path:
+        # A system published for the first time has nothing to carry over, and
+        # resolving it from scratch is the only correct thing to do — so say so
+        # rather than failing on the missing file.
+        print(f"no {os.path.basename(prev_path)} to carry over from; resolving in full")
 
     closed, tip, outs, misses = {}, {}, {}, []
     stats = defaultdict(int)
