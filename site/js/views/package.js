@@ -320,10 +320,10 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
       No attribute named <code>${attr}</code> in the index.
     </div>`;
   // The table is a join against revisions.json: every row names the revision
-  // that shipped its version, and the lifetime line below reads dates out of
-  // it by offset. The shard is 11 KB and revisions.json is 342 KB, so the
-  // shard now routinely wins the race that used to be impossible — versions
-  // arrived behind revisions when both came out of one sequential chain.
+  // that shipped its version, read out by offset. The shard is 11 KB and
+  // revisions.json is 342 KB, so the shard now routinely wins the race that
+  // used to be impossible — versions arrived behind revisions when both came
+  // out of one sequential chain.
   if (!revisions.length)
     return html`<div id="status" class="muted">Loading revisions…</div>`;
 
@@ -339,37 +339,17 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
     storeFile && storeFile !== SHARD_ERROR ? storeFile.paths : null;
   const rds = revdeps && revdeps !== SHARD_ERROR ? revdeps : null;
 
-  // Something the table does not already say: when this package entered
-  // nixpkgs, and whether it is still there. "newest first, click to expand"
-  // described the widget; this describes the package.
   // `hist` is the sentinel string "error" when the shard failed to load.
   // Treating that as data walks its characters and ends at revisions[NaN].date,
   // which throws — so everything below reads `history`, which is null instead.
   const history = hist && hist !== "error" ? hist : null;
-  const offs = history
-    ? Object.values(history).flatMap((v) => runsOf(v).flat())
-    : [];
-  const gone = offs.length && Math.max(...offs) < revisions.length - 1;
-  // How much of this package the cache could measure, so a row without a
-  // badge reads as a stated limit rather than a silent absence.
-  const covered = meta ? vers.filter(([v]) => meta[v]).length : null;
-  const coverage =
-    covered != null && covered < vers.length
-      ? ` · cache data for ${covered} of ${vers.length} versions`
-      : "";
-  const lifetime =
-    (!offs.length
-      ? `${vers.length} versions`
-      : `${vers.length} versions · first packaged ${revisions[Math.min(...offs)].date}` +
-        (gone ? ` · gone since ${revisions[Math.max(...offs)].date}` : "")) +
-    coverage;
 
+  // No heading: the search box directly above already holds the attribute, the
+  // oldest row already dates its first packaging, and the document title names
+  // the package for tabs and search engines. What is left is the controls, so
+  // the row holds only those.
   return html`
-    <h2 class="bulkline">
-      <span class="bulkline-title">
-        <code>${attr}</code>
-        <span class="muted">· ${lifetime}</span>
-      </span>
+    <div class="bulkline pkgcontrols">
       <span class="bulkline-controls">
         <${SystemPicker}
           systems=${systems}
@@ -378,7 +358,7 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
         />
         ${bulkButton}
       </span>
-    </h2>
+    </div>
     <${Timeline}
       attr=${attr}
       hist=${hist}

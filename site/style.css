@@ -749,14 +749,11 @@ footer {
 /* The system picker sits with "expand all" on the package heading. Buttons
    rather than a select: two options, and the current one has to read as
    chosen at a glance. */
-/* The controls hold their place while the heading text beside them changes:
-   switching system adds or drops "· cache data for N of M versions", and
-   buttons that move under the cursor are worse than a line that reflows.
-   The title yields space instead of pushing them to a second row — flex-basis
-   0 with min-width 0 lets its text wrap inside itself. */
-.bulkline-title {
-  flex: 1 1 0;
-  min-width: 0;
+/* The package view's row holds nothing but the controls, so they sit at the
+   right edge where "expand all" has always been — and the row carries the
+   spacing the heading used to, since it replaced one. */
+.pkgcontrols {
+  margin: 1rem 0 0.3rem;
 }
 
 .bulkline-controls {
@@ -782,6 +779,9 @@ footer {
   font-size: 0.8rem;
   padding: 0.15rem 0.5rem;
   cursor: pointer;
+  /* "x86_64-linux" breaks after the hyphen given half a chance, which makes
+     the control twice as tall as everything beside it. */
+  white-space: nowrap;
 }
 
 .syspick button:hover {
@@ -828,23 +828,11 @@ footer {
     padding: 0.75rem;
   }
 
-  /* The controls take a row of their own, above the heading text rather than
-     below it. Beside it they squeeze "19 versions · first packaged 2012-07-05
-     · cache data for 16 of 19 versions" into a column a few words wide; below
-     it they would sit at a height that depends on how many lines that text
-     wraps to, which changes when the system is switched — so the buttons would
-     move out from under the thumb that just tapped them. Above, they hold
-     still and the text gets the full width. */
-  .bulkline-title {
-    flex: 1 1 100%;
-  }
+  /* A segmented control across the width: two system names beside each other
+     leave each button too narrow for a comfortable tap otherwise. */
   .bulkline-controls {
-    order: -1;
     width: 100%;
-    margin-left: 0;
   }
-  /* A segmented control across the width: two system names do not fit beside
-     each other at a comfortable tap size otherwise. */
   .syspick {
     flex: 1;
   }
