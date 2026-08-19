@@ -100,9 +100,7 @@ FORMATTER = HtmlFormatter(nowrap=True)
 # cmark-gfm renders a fenced block with an info string as
 # `<pre><code class="language-nix">`. Its contents are HTML-escaped, so the
 # closing tag is unambiguous.
-CODE_BLOCK = re.compile(
-    r'<pre><code class="language-([^"]+)">(.*?)</code></pre>', re.S
-)
+CODE_BLOCK = re.compile(r'<pre><code class="language-([^"]+)">(.*?)</code></pre>', re.S)
 
 
 # The prompts these docs actually use, and what follows each one.
@@ -217,10 +215,7 @@ def highlight_code(body):
         marked = highlight(code, lexer, FORMATTER)
         if lang in SHELL_LANGS:
             marked = drop_builtins(marked)
-        return (
-            f'<pre><code class="language-{lang} highlight">'
-            f"{marked}</code></pre>"
-        )
+        return f'<pre><code class="language-{lang} highlight">' f"{marked}</code></pre>"
 
     return CODE_BLOCK.sub(replace, body)
 
@@ -280,7 +275,7 @@ def sidebar(pages, current):
     """Every page, with the current page's own h2 headings nested underneath."""
     out = ['<nav class="doc-nav" aria-label="Documentation">', "<ul>"]
     for name, title, toc in pages:
-        active = " class=\"active\"" if name == current else ""
+        active = ' class="active"' if name == current else ""
         href = "./" if name == "index" else f"./{name}"
         out.append(f'<li><a{active} href="{href}">{html.escape(title)}</a>')
         if name == current and toc:
@@ -305,7 +300,7 @@ def provenance(commit, store_path):
     out = []
     if commit:
         out.append(
-            f' ·\n      <span>built from\n'
+            f" ·\n      <span>built from\n"
             f'        <a href="{REPO}/commit/{commit}">'
             f"<code>{commit[:REV_ABBREV]}</code></a></span>"
         )
@@ -426,9 +421,7 @@ def main():
     on_disk = {f[:-3] for f in os.listdir(docs_dir) if f.endswith(".md")}
     missing = on_disk - set(names)
     if missing:
-        sys.exit(
-            "render-docs: not listed in index.md: " + ", ".join(sorted(missing))
-        )
+        sys.exit("render-docs: not listed in index.md: " + ", ".join(sorted(missing)))
 
     pages = [(n, rendered[n][2], rendered[n][1]) for n in names]
     for name in names:
@@ -448,9 +441,7 @@ def main():
     # names for one link to work in both readers.
     assets = [f for f in sorted(os.listdir(docs_dir)) if not f.endswith(".md")]
     for asset in assets:
-        shutil.copyfile(
-            os.path.join(docs_dir, asset), os.path.join(out_dir, asset)
-        )
+        shutil.copyfile(os.path.join(docs_dir, asset), os.path.join(out_dir, asset))
 
     print(f"rendered {len(names)} docs pages, copied {len(assets)} assets")
 

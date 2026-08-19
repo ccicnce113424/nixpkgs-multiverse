@@ -183,9 +183,7 @@ def main():
     for d in idx:
         if d in refs:
             refs_indexed[d] = [
-                f"{r}-{name_of[r]}" if r in name_of else r
-                for r in refs[d]
-                if r != d
+                f"{r}-{name_of[r]}" if r in name_of else r for r in refs[d] if r != d
             ]
         elif d in prev_refs:
             refs_indexed[d] = prev_refs[d]

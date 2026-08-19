@@ -4,14 +4,13 @@ Several tools in the Nix ecosystem look adjacent to this one, and a few share
 its mechanism outright. The useful way to tell them apart is to ask what
 question each one indexes an answer to.
 
-
-| | indexes | across | data lives | needs a nixpkgs? |
-|---|---|---|---|---|
-| nix-index / comma | file → attribute | one channel snapshot | downloaded database | no, to query |
-| fastpkgs | attribute → store path | the current tree | release assets, pinned | no |
-| devbox / Nixhub | version → commit, store path | nixpkgs history | hosted API | no, to resolve |
-| flox | version → commit | nixpkgs history | hosted catalog | no, to resolve |
-| **multiverse** | version → revision, store path | 13 years of unstable | JSON in the flake | no, on the fast road |
+|                   | indexes                        | across               | data lives             | needs a nixpkgs?     |
+| ----------------- | ------------------------------ | -------------------- | ---------------------- | -------------------- |
+| nix-index / comma | file → attribute               | one channel snapshot | downloaded database    | no, to query         |
+| fastpkgs          | attribute → store path         | the current tree     | release assets, pinned | no                   |
+| devbox / Nixhub   | version → commit, store path   | nixpkgs history      | hosted API             | no, to resolve       |
+| flox              | version → commit               | nixpkgs history      | hosted catalog         | no, to resolve       |
+| **multiverse**    | version → revision, store path | 13 years of unstable | JSON in the flake      | no, on the fast road |
 
 ## nix-index and comma
 
@@ -27,8 +26,8 @@ revision.
 Neither answers the other's question. `nix-locate` cannot tell you which revision had ripgrep 13, and `mvs query search` cannot tell you that the
 binary you want is called `rg` and lives in `ripgrep`.
 
-They compose in the obvious direction: comma answers *what provides this
-command*, and the answer is an attribute name, which is exactly what
+They compose in the obvious direction: comma answers _what provides this
+command_, and the answer is an attribute name, which is exactly what
 [`mvs`](./cli.md) takes as input.
 
 ```console
@@ -42,11 +41,10 @@ $ mvs run ripgrep@13.0.0
 
 The version comma gives you is whichever one its database's channel carries.
 
-
 ## fastpkgs
 
 [fastpkgs](https://github.com/tomberek/fastpkgs) is the closest relative by
-*mechanism*, and this project takes its fast path from it directly. It scrapes
+_mechanism_, and this project takes its fast path from it directly. It scrapes
 `nix-eval-jobs` over nixpkgs, keeps the entries the binary cache actually has,
 and rebuilds them as **fake derivations**, so Nix treats them as substitutable without
 evaluating anything.
@@ -63,13 +61,14 @@ graph between the paths, which is what makes `mvs deps`, `mvs size` and
 
 ## devbox and Nixhub
 
-[devbox](https://www.jetify.com/devbox) is the closest relative by *intent*.
+[devbox](https://www.jetify.com/devbox) is the closest relative by _intent_.
 `devbox add python@3.8` resolves the version through
 [Nixhub](https://www.nixhub.io/), Jetify's index built from Hydra's build outputs.
 
 Where they differ:
-* Nixhub is a service. `mvs` resolves from JSON that works offline.
-* devbox is an environment manager.
+
+- Nixhub is a service. `mvs` resolves from JSON that works offline.
+- devbox is an environment manager.
 
 ## flox
 
@@ -80,22 +79,22 @@ plus publishing and sharing on top.
 The interesting overlap is **package groups** which is what [`mvs solve`](./cli.md#the-fewest-revisions-for-several-packages) computes.
 
 Where they differ:
-* flox is a service. `mvs` resolves from JSON that works offline.
-* flox is an environment manager.
-* `mvs solve` returns the *fewest* revisions rather than one or nothing, and
-  proves the count is minimal — see [Minimising](./design.md#minimising).
 
+- flox is a service. `mvs` resolves from JSON that works offline.
+- flox is an environment manager.
+- `mvs solve` returns the _fewest_ revisions rather than one or nothing, and
+  proves the count is minimal — see [Minimising](./design.md#minimising).
 
 ## What this is not
 
-* **Not an environment manager.** No activation, no services, no shell to
+- **Not an environment manager.** No activation, no services, no shell to
   enter, no containers. `mvs shell` is a thin wrapper over `nix shell`, and for
   a development environment `solve` gives you a revision to pin, not a runtime.
-* **Not a build service.** Nothing here compiles anything: every version the
+- **Not a build service.** Nothing here compiles anything: every version the
   store-path index matched is a [cache.nixos.org](https://cache.nixos.org)
   hit that Hydra produced when it was current. Unfree and broken attributes
   are the ones Hydra never built, so they have no store path and [no fast
   path](./nix-api.md#attributes-with-no-fast-path) however the eval path still
   serves them, given the `config` to allow it.
-* **Not a file index.** "Which package has this binary" is nix-index's purpose.
-* **Only nixos-unstable.** The revision list is computed from the unstable channel's bump. Release branches appear as [releases](./nix-api.md#releases-move-revisions-do-not), which are moving tips rather than indexed history. They are served by the eval path only: the store-path index is keyed per version rather than per branch, and a release builds nearly every package to a different path than unstable does. See [why releases have no fast path](./nix-api.md#why-releases-have-no-fast-path).
+- **Not a file index.** "Which package has this binary" is nix-index's purpose.
+- **Only nixos-unstable.** The revision list is computed from the unstable channel's bump. Release branches appear as [releases](./nix-api.md#releases-move-revisions-do-not), which are moving tips rather than indexed history. They are served by the eval path only: the store-path index is keyed per version rather than per branch, and a release builds nearly every package to a different path than unstable does. See [why releases have no fast path](./nix-api.md#why-releases-have-no-fast-path).

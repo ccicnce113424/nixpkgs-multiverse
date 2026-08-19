@@ -62,7 +62,6 @@ Against a pinned source rather than a checkout:
 $ nix-build -E 'import (import ./npins).nixpkgs-multiverse { }' -A latest.hello
 ```
 
-
 The `nix-shell` is also supported:
 
 ```nix
@@ -92,10 +91,10 @@ $ ./result/bin/mvs query versions python3
 
 Two things, both about the CLI rather than the API:
 
-* `nix run github:fzakaria/nixpkgs-multiverse#<selector>` with nothing checked
+- `nix run github:fzakaria/nixpkgs-multiverse#<selector>` with nothing checked
   out and nothing pinned. Every example in these docs that starts that way is
   a convenience, not a dependency.
-* `flakeAt`, which hands back a revision shaped like the `nixpkgs` *flake* —
+- `flakeAt`, which hands back a revision shaped like the `nixpkgs` _flake_ —
   the attrset carrying `lib.nixosSystem`. It exists on the non-flake road too
   and returns the same value, but what it is for is
   [building a system at the flake level](./flake-inputs.md#what-about-inputsnixpkgsfollows).

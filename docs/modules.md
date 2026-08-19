@@ -52,7 +52,7 @@ serve it, which is often one or two.
 
 The versions installed are identical either way — minimising decides which
 revision serves a version, never which version is served, and a pin can never
-leave the run of the version it names. What it does change is which *build* of
+leave the run of the version it names. What it does change is which _build_ of
 that version you get: a pin can land on an older revision inside its run, and
 so carries that revision's closure. Set `minimize = false` to put every pin
 back on the newest revision shipping it, one fetch each.
@@ -132,7 +132,7 @@ deliberate since home-manager discards every `nixpkgs.*` definition when
 `home-manager.useGlobalPkgs = true`, so a module that set overlays would
 silently do nothing in the most common home-manager deployment.
 
-If you want a pin to be visible to *every* other module, apply the overlay
+If you want a pin to be visible to _every_ other module, apply the overlay
 yourself, at the layer that honours it:
 
 ```nix

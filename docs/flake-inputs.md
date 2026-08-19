@@ -40,18 +40,18 @@ becomes one nixpkgs plus multiverse:
 Every use of the second input has a replacement that costs nothing until it is
 forced:
 
-| before | after |
-|---|---|
-| `nixpkgs-unstable.legacyPackages.${system}.ripgrep` | `mv.tip.ripgrep` |
-| a second input pinned to another release | `mv.at "24.11"` |
-| a third input pinned to a commit for one package | `mv.version "ripgrep" "13.0.0"` |
-| a pin nobody remembers the reason for | `mv.at "2022-03-15"` |
+| before                                              | after                           |
+| --------------------------------------------------- | ------------------------------- |
+| `nixpkgs-unstable.legacyPackages.${system}.ripgrep` | `mv.tip.ripgrep`                |
+| a second input pinned to another release            | `mv.at "24.11"`                 |
+| a third input pinned to a commit for one package    | `mv.version "ripgrep" "13.0.0"` |
+| a pin nobody remembers the reason for               | `mv.at "2022-03-15"`            |
 
 ## What about `inputs.nixpkgs.follows`?
 
 You must still keep **one** real `nixpkgs` input and follow that.
 
-`follows` rewires one flake input to another *flake input*, and the target has to be shaped like nixpkgs. home-manager's own `flake.nix` evaluates `nixpkgs.lib` and `nixpkgs.legacyPackages.${system}` while producing its outputs.
+`follows` rewires one flake input to another _flake input_, and the target has to be shaped like nixpkgs. home-manager's own `flake.nix` evaluates `nixpkgs.lib` and `nixpkgs.legacyPackages.${system}` while producing its outputs.
 
 `nixpkgs-multiverse.legacyPackages.${system}` is the multiverse API, not a package set.
 
@@ -86,7 +86,7 @@ branch, or no older, on master. `mv.tip` and date selectors are the ones that
 trip it. To select freely, pass `enableNixpkgsReleaseCheck = false` alongside
 `pkgs`; `darwinSystem` forwards the argument untouched.
 
-NixOS needs one more step: `nixosSystem` lives on the nixpkgs *flake*, a
+NixOS needs one more step: `nixosSystem` lives on the nixpkgs _flake_, a
 package set's `lib` does not have it, so build the system from `flakeAt`:
 
 ```nix

@@ -23,18 +23,18 @@ the same answers.
 
 ## Reading the index
 
-| command | answers |
-|---|---|
-| `mvs query versions <attr>` | every version, oldest first, with its lifetime |
-| `mvs query when <attr> <ver>` | first and last sighting, every run, the gaps |
-| `mvs query at <sel> <attr>` | the version that revision shipped |
-| `mvs query gone <attr>` | last sighting, or still current |
-| `mvs query rev <sel>` | resolve any selector to commit, date and label |
-| `mvs query search <pattern>` | attribute search |
-| `mvs query diff <a> <b>` | added / removed / upgraded / downgraded |
-| `mvs query stats` | headline numbers |
+| command                       | answers                                        |
+| ----------------------------- | ---------------------------------------------- |
+| `mvs query versions <attr>`   | every version, oldest first, with its lifetime |
+| `mvs query when <attr> <ver>` | first and last sighting, every run, the gaps   |
+| `mvs query at <sel> <attr>`   | the version that revision shipped              |
+| `mvs query gone <attr>`       | last sighting, or still current                |
+| `mvs query rev <sel>`         | resolve any selector to commit, date and label |
+| `mvs query search <pattern>`  | attribute search                               |
+| `mvs query diff <a> <b>`      | added / removed / upgraded / downgraded        |
+| `mvs query stats`             | headline numbers                               |
 
-A *selector* is the same vocabulary `at` takes: `tip`, a release (`26.05`), a
+A _selector_ is the same vocabulary `at` takes: `tip`, a release (`26.05`), a
 date (`2022-03-15`), a commit prefix, or a revision label.
 
 `query at` is the one that cannot be done any other way. It says what nixpkgs
@@ -62,7 +62,7 @@ RUN  FIRST                    LAST                     REVS
 
 ## The fewest revisions for several packages
 
-Composing versions from *different* revisions gives complete closure down to
+Composing versions from _different_ revisions gives complete closure down to
 the `libc`. That is fine for a leaf command-line tool and wrong for anything
 that links — and every extra revision is another nixpkgs to fetch and evaluate.
 `solve` answers both at once: the smallest set of revisions that ships every
@@ -80,7 +80,7 @@ nodejs   14.17.3  967d40bec14b  2021-07-18  160 days (86 revs)
 
 `MOVED` is the price of sharing: nodejs 14.17.3 was current for another 160
 days after python3 3.8 ended, so grouping it with python3 puts it on an older
-build of the same version. Nothing here changes which *version* you get.
+build of the same version. Nothing here changes which _version_ you get.
 
 Constraints that never overlapped are not an error — they are two revisions,
 and the pair that could not be reconciled is what proves two is the minimum:
@@ -98,8 +98,8 @@ ripgrep  14.1.1   544961dfcce8  2025-10-15
 ```
 
 The `minimal:` line is a certificate, not a remark. Each revision in a plan is
-forced by one pin, and those pins never overlap each other, so *k* of them need
-*k* revisions — you can check the claim from the dates without trusting the
+forced by one pin, and those pins never overlap each other, so _k_ of them need
+_k_ revisions — you can check the claim from the dates without trusting the
 search. To demand a single revision, assert on the answer:
 
 ```console
@@ -257,7 +257,6 @@ One thing to know before hand-editing: only `rev` decides what gets built.
 `label`, `version` and `date` are decoration for you and for
 `mvs lock status`, so changing a version string there changes what the table
 reports and not what you get. Use `mvs lock update <attr>` to move a pin.
-
 
 Please see [the module documentation](./modules.md) for how to
 use it in your system configuration.

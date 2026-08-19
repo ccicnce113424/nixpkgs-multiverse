@@ -6,9 +6,9 @@ possible, and what the site's cache-liveness, dependency and closure views
 draw from.
 
 Two sources answer two different questions. **Evaluating** nixpkgs at a
-revision and an explicit `system` says what the store path *is*; every
+revision and an explicit `system` says what the store path _is_; every
 nixos-unstable channel bump's published listing (`store-paths.xz`, or a
-`MANIFEST` for the 2012-2013 bumps) says whether Hydra *built* it. Join the
+`MANIFEST` for the 2012-2013 bumps) says whether Hydra _built_ it. Join the
 two and every historical version gets a concrete
 `/nix/store/<digest>-<name>` that [cache.nixos.org](https://cache.nixos.org)
 can still serve.
@@ -25,11 +25,11 @@ once**.
 /nix/store/zlyg48yqjd4jwz5yz3zhrnac81qgy7mh-hugo-0.164.0   <- x86_64-linux
 ```
 
-So a listing cannot be asked *"which digest goes with this name"* — there is no
+So a listing cannot be asked _"which digest goes with this name"_ — there is no
 answer to that question, and the index used to take whichever path sorted first
-and hand x86_64 users aarch64 binaries about half the time
+and hand x86*64 users aarch64 binaries about half the time
 ([#12](https://github.com/fzakaria/nixpkgs-multiverse/issues/12)). It can only
-be asked *"is this exact digest one you hold"*, which is a question with an
+be asked *"is this exact digest one you hold"\_, which is a question with an
 answer.
 
 The artifacts are therefore **per system**: `outpaths-x86_64-linux.json`,
@@ -71,7 +71,7 @@ bit-exact, while revision selectors are version-exact but build-canonical
 (the right version, as its newest build, which may come from a slightly
 newer revision than the one named).
 
-It is not per *branch* either, which is why releases does not work.
+It is not per _branch_ either, which is why releases does not work.
 Everything here is joined against nixos-unstable listings,
 and a `(attribute, version)` pair names a different build on every branch.
 
@@ -92,7 +92,7 @@ artifacts so the site and `fast.*` stop advertising them.
 
 ## Multi-output packages
 
-The listings record each derivation's *default* output. But consumers
+The listings record each derivation's _default_ output. But consumers
 reference the other outputs (`ffmpeg-7.1-lib`, `ffmpeg-7.1-bin`), so the
 dependency crawl already fetched their narinfos; joining them back gives
 every multi-output package its sibling outputs with sizes and references.
@@ -147,7 +147,7 @@ statement about which revision is current. The dated cut happens on the
 first data run of each UTC day and is skipped for the rest of it, so the
 snapshot's own `revisionCount` falls behind `revisions.json` within hours.
 Selectors resolve against `revisions.json`; this file only answers "do you
-have a digest for this exact pair". An artifact claiming *more* revisions
+have a digest for this exact pair". An artifact claiming _more_ revisions
 than `revisions.json` holds is refused outright, since it cannot be
 describing the same history.
 

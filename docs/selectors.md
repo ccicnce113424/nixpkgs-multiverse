@@ -11,20 +11,20 @@ $ nix run github:fzakaria/nixpkgs-multiverse#mvs -- query at 2022-03-15 hello
 
 ## The five forms
 
-| selector | example | resolves to |
-|---|---|---|
-| `tip` | `tip` | the newest indexed revision that can be materialised |
-| release | `26.05` | that channel's current tip, it **moves** |
-| date | `2022-03-15` | the newest indexed revision on or before that date |
-| label | `2021-07-18-967d40bec14b` | the revision that commit names |
-| commit | `967d40bec14b` | the revision that commit names |
+| selector | example                   | resolves to                                          |
+| -------- | ------------------------- | ---------------------------------------------------- |
+| `tip`    | `tip`                     | the newest indexed revision that can be materialised |
+| release  | `26.05`                   | that channel's current tip, it **moves**             |
+| date     | `2022-03-15`              | the newest indexed revision on or before that date   |
+| label    | `2021-07-18-967d40bec14b` | the revision that commit names                       |
+| commit   | `967d40bec14b`            | the revision that commit names                       |
 
 They are tried in that order, which is what settles the cases where a string
 could be read two ways.
 
 ### Tip
 
-The newest revision the *index* knows is the `tip`. It is
+The newest revision the _index_ knows is the `tip`. It is
 frozen at whatever the last indexing run captured and drifts further behind the
 live channel until the index is rebuilt.
 
@@ -65,7 +65,7 @@ nix-repl> multiverse.x86_64-linux.revOf "python3" "3.8.9"
 
 Only the commit half is a search key. The date half is decoration for the
 reader and is ignored when resolving, so a label whose date is wrong still
-resolves, and a label whose *commit* is unknown is an error even if the date
+resolves, and a label whose _commit_ is unknown is an error even if the date
 is fine.
 
 ### Commits
@@ -87,20 +87,20 @@ above:
 
 - **A release beats a commit.** `26.05` is checked against the release table
   before anything else, so it is the channel. A bare `26` is not a release
-  name, and *is* valid hex, so it is a commit prefix search.
+  name, and _is_ valid hex, so it is a commit prefix search.
 - **A label beats a date.** `2021-07-18-967d40bec14b` starts with something
   that looks like a date, but the label shape is tested first, so the trailing
   commit is what resolves it.
 
 ## Where releases are not accepted
 
-Anything that reads *history* rejects a release selector. A release tip is a
+Anything that reads _history_ rejects a release selector. A release tip is a
 moving channel head and not a revision the index holds an offset for.
 
-| accepts releases | rejects releases |
-|---|---|
-| `at`, `flakeAt`, `daysBehind` (as an anchor) | `versionAt`, `fast.*` |
-| `mvs query rev` | `mvs query at`, `mvs query diff` |
+| accepts releases                             | rejects releases                 |
+| -------------------------------------------- | -------------------------------- |
+| `at`, `flakeAt`, `daysBehind` (as an anchor) | `versionAt`, `fast.*`            |
+| `mvs query rev`                              | `mvs query at`, `mvs query diff` |
 
 `fast.*` refuses for its own reason, which is not that the paths are missing â€”
 release channels publish listings just as unstable does. The store-path index
@@ -120,7 +120,7 @@ Its head as of 2026-08-12 is 9f78f44a8794. Select by date or by commit instead â
 
 ## Selectors as an anchor
 
-`daysBehind` takes any selector `at` takes, but uses it only for its *date*:
+`daysBehind` takes any selector `at` takes, but uses it only for its _date_:
 
 ```nix
 mv.daysBehind "26.05" 7

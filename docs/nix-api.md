@@ -89,7 +89,6 @@ nix-repl> multiverse.x86_64-linux.releases
 [ "13.10" "14.04" … "26.05" ]
 ```
 
-
 **Note**: Enumerating versions fetches nothing as it reads an index file only. A revision is materialised the first time you force a derivation.
 
 ## Several pins, as few revisions as possible
@@ -134,17 +133,17 @@ what the grouping costs.
 
 ## The fast path
 
-Everything above hands back *real* derivations, which means fetching a
+Everything above hands back _real_ derivations, which means fetching a
 ~378 MB nixpkgs tree and evaluating it the first time one is forced. The
 `fast` attrset skips both: the [store-path index](./store-paths.md) already
 knows the `/nix/store` path Hydra built for every matched version, so `fast`
-builds a *fake* derivation around that path, many thanks to
+builds a _fake_ derivation around that path, many thanks to
 [tomberek](https://github.com/tomberek)'s
 [fastpkgs](https://github.com/tomberek/fastpkgs) trick, and Nix substitutes
 it, full closure included, straight from [cache.nixos.org](https://cache.nixos.org).
 **No nixpkgs fetch, no evaluation, no experimental features.**
 
-The selector grammar is the same, with only the terminal step swapped. 
+The selector grammar is the same, with only the terminal step swapped.
 
 ```nix
 # a specific version, zero-eval
@@ -161,12 +160,12 @@ mv.fast."967d40bec14b".python3
 
 There are some differences to be aware of and they depends on the selector:
 
-| selector | class | what it promises |
-|---|---|---|
-| `fast.version` / `fast.versions` | **bit-exact** | the digest is precisely the build the eval path resolves to, for the system you asked as |
-| `fast.latest` | **bit-exact**, but see [below](#fastlatest-prefers-servable-over-newest) | the newest version that *has* a store path, which is not always the newest version |
-| `fast.at` / `fast.tip` | **version-exact**, build-canonical | the right version for that revision, as its build at the newest revision that shipped it |
-| release (`fast.at "26.05"`) | **eval-only** | refuses — the digests are keyed per version, not per branch, see [below](#why-releases-have-no-fast-path) |
+| selector                         | class                                                                    | what it promises                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `fast.version` / `fast.versions` | **bit-exact**                                                            | the digest is precisely the build the eval path resolves to, for the system you asked as                  |
+| `fast.latest`                    | **bit-exact**, but see [below](#fastlatest-prefers-servable-over-newest) | the newest version that _has_ a store path, which is not always the newest version                        |
+| `fast.at` / `fast.tip`           | **version-exact**, build-canonical                                       | the right version for that revision, as its build at the newest revision that shipped it                  |
+| release (`fast.at "26.05"`)      | **eval-only**                                                            | refuses — the digests are keyed per version, not per branch, see [below](#why-releases-have-no-fast-path) |
 
 Bit-exact is per **system**. A store path is a function of the system it was
 evaluated for, so the artifacts are published one file per system and `fast.*`
@@ -176,7 +175,7 @@ served another system's digests, which is what
 [#12](https://github.com/fzakaria/nixpkgs-multiverse/issues/12) was.
 
 **Note**: a "fake derivation" has no `drvPath`,
-so the CLI needs the *output*: append `.out`, `.lib`, `.bin`, etc… for multi-output
+so the CLI needs the _output_: append `.out`, `.lib`, `.bin`, etc… for multi-output
 packages:
 
 ```console
@@ -184,7 +183,6 @@ $ nix shell 'github:fzakaria/nixpkgs-multiverse#fast.versions.python3."3.8.9".ou
 $ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
 $ nix build 'github:fzakaria/nixpkgs-multiverse#fast.latest.ffmpeg.lib'
 ```
-
 
 Every fake carries a lazy `.eval` holding the real, revision-exact
 derivation for everything a fake cannot do: `override`, `nix develop`,
@@ -227,7 +225,7 @@ $ nix run 'github:fzakaria/nixpkgs-multiverse#fast.latest.hello.out'
 error: attribute 'legacyPackages.x86_64-linux.fast.latest.hello.out.type' does not exist
 ```
 
-To *run* a fast package, use a shell, or [`mvs run`](./cli.md#running-a-version),
+To _run_ a fast package, use a shell, or [`mvs run`](./cli.md#running-a-version),
 which takes the store-path road by default:
 
 ```console
@@ -246,7 +244,7 @@ Not every attribute has a store path to substitute, so it is ineligible for the 
    `allowUnfree = false`, so an unfree package never reaches
    [cache.nixos.org](https://cache.nixos.org).
    `vscode`, `steam` and `discord` have no store path at
-   *any* version. Broken and unsupported-platform attributes land here too.
+   _any_ version. Broken and unsupported-platform attributes land here too.
 2. **nixpkgs asked Hydra not to build it.** `meta.hydraPlatforms = [ ]`
    excludes an attribute from the jobset, and wrapper packages use it
    routinely to avoid rebuilding a symlink farm.
@@ -276,13 +274,13 @@ pin). Use the eval path: (at "tip").vscode
 
 ### `fast.latest` prefers servable over newest
 
-`latest` means *the newest version that has a store path*, not the newest
+`latest` means _the newest version that has a store path_, not the newest
 version that exists. Where the two differ, the servable one wins, so that
 `latest` keeps its promise of resolving instantly.
 
 The cost is that `fast.latest` can be far behind. Several hundred attributes
 currently resolve to an older version than the index's newest, many of them
-by a whole major version or more. 
+by a whole major version or more.
 
 For instance, `neovim`:
 
@@ -373,7 +371,7 @@ nix-repl> (mv.at "26.05").multiverse
 
 ## Releases move, revisions do not
 
-`at "26.05"` is a *channel*, not a snapshot. Backports land on `release-26.05` for the whole life of the release, and `at` follows them, exactly as `github:NixOS/nixpkgs/nixos-26.05` does:
+`at "26.05"` is a _channel_, not a snapshot. Backports land on `release-26.05` for the whole life of the release, and `at` follows them, exactly as `github:NixOS/nixpkgs/nixos-26.05` does:
 
 ```console
 # the channel tip, refreshed hourly
@@ -407,7 +405,6 @@ All 25 releases the archive holds are tracked, back to `13.10`:
 nix-repl> (mv.at "13.10").hello.name
 "hello-2.8"
 ```
-
 
 ## The revision data at a glance
 

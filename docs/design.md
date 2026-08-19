@@ -1,6 +1,6 @@
 # Design
 
-Nixpkgs history *already is* the multiverse. Every version that ever existed is
+Nixpkgs history _already is_ the multiverse. Every version that ever existed is
 already built, already cached, already reachable, it was just addressed by
 commit hash instead of by version number, which is exactly backwards from how
 anyone thinks about it.
@@ -47,7 +47,7 @@ The second half is that the work is already done. We purposefully only leverage
 bumps to Nix's unstable channel. Hydra built these revisions
 when they were current and pushed them to [cache.nixos.org](https://cache.nixos.org), where they remain. Every version this index names is a cache hit.
 
-So the missing piece was never building or storing. It was *addressing*: a way
+So the missing piece was never building or storing. It was _addressing_: a way
 to say "python3 3.6.2" instead of "nixpkgs at 967d40bec14b", and to say it
 without paying for the other revisions you did not ask about — 1,531 of
 them, as of 2026-08-16.
@@ -75,7 +75,7 @@ revision, reading a lifetime is a Nix evaluation over JSON that ships with the
 flake. It fetches nothing. A revision becomes a real tree only when you force
 a derivation out of it.
 
-Cost is therefore per *revision touched*, not per package. Revisions are
+Cost is therefore per _revision touched_, not per package. Revisions are
 memoised, so three packages from one revision cost what one package costs;
 three packages from three revisions cost three fetches. Each revision actually
 used is a one-time ~378 MB which is the size of the Nixpkgs tree.
@@ -127,7 +127,7 @@ revision that shipped it:
 ```
 
 `null` is not "unknown" — it is the newest revision the file covers,
-`revisionCount - 1`, and it is how the file says a version is *still current*.
+`revisionCount - 1`, and it is how the file says a version is _still current_.
 See [the open tip](#the-open-tip) for why it is not written out.
 
 Storing one integer rather than every revision a version appeared in is what
@@ -135,11 +135,11 @@ keeps the file flat as revisions accumulate; otherwise a package that never
 changes version gains an entry per revision forever. Measured across encodings
 at 109 revisions:
 
-| encoding | size | grows with revision count? |
-|---|---|---|
-| full revision list, names | 63.9 MB | yes |
-| `[first, last]`, offsets | 4.1 MB | no |
-| newest only, offset | **3.3 MB** | no |
+| encoding                  | size       | grows with revision count? |
+| ------------------------- | ---------- | -------------------------- |
+| full revision list, names | 63.9 MB    | yes                        |
+| `[first, last]`, offsets  | 4.1 MB     | no                         |
+| newest only, offset       | **3.3 MB** | no                         |
 
 Newest is also the build-correct choice: it is the most patched build of that
 version, and the one Hydra produced most recently, so the most likely to still
@@ -154,7 +154,15 @@ each version's lifetime as runs of revision offsets, nesting only when a version
 left and came back:
 
 ```json
-{ "hello": { "2.12.3": [1495, null], "2.10": [[1, 723], [728, 728]] } }
+{
+  "hello": {
+    "2.12.3": [1495, null],
+    "2.10": [
+      [1, 723],
+      [728, 728]
+    ]
+  }
+}
 ```
 
 A run that is still open ends in `null`, the same claim `versions.json` makes
@@ -163,7 +171,7 @@ with a null offset: this version is current as of `revisionCount - 1`.
 ### The open tip
 
 Both files are appended to hourly, and both are in git, so what matters is not
-only how large they are but how much of them a single revision *changes*.
+only how large they are but how much of them a single revision _changes_.
 
 Closing those runs literally — writing `[1495, 1539]` and bumping it to
 `[1495, 1540]` next hour — makes an append rewrite the entry of every version
@@ -175,12 +183,12 @@ about 3 KB of real news, scattered as thousands of four-byte edits across a
 Leaving the tip open costs a subtraction at read time and takes the two files
 from ~284 KB of pack per indexed revision to ~6 KB:
 
-| | pack growth per revision |
-|---|---|
-| `versions.json`, tip written out | 141 KiB |
-| `versions.json`, tip left open | **3 KiB** |
-| `history.json`, tip written out | 143 KiB |
-| `history.json`, tip left open | **3 KiB** |
+|                                  | pack growth per revision |
+| -------------------------------- | ------------------------ |
+| `versions.json`, tip written out | 141 KiB                  |
+| `versions.json`, tip left open   | **3 KiB**                |
+| `history.json`, tip written out  | 143 KiB                  |
+| `history.json`, tip left open    | **3 KiB**                |
 
 Readers resolve a null against the `revisionCount` of the file that carries it,
 never against `length revisions`. The two disagree in the ordinary window
@@ -201,7 +209,7 @@ revisions they can share might be two. `mvs solve`, `mv.solvePins` and
 smallest set of revisions that ships every version asked for?**
 
 Every pin is one contiguous block on the revision axis — the stretch of
-revisions where nixpkgs shipped exactly that version. A revision *serves* a pin
+revisions where nixpkgs shipped exactly that version. A revision _serves_ a pin
 if it lies inside that pin's block. So the question is: fewest points touching
 every block.
 
@@ -217,14 +225,14 @@ Let `A` be the pin whose block ends earliest, at `l(A)`. Every valid plan holds
 some revision `q` inside `A`'s block. Swap `q` for `l(A)`: any pin `B` that `q`
 served has `first(B) ≤ q ≤ last(B)`, and since `l(A)` is the smallest endpoint
 of anything left, `last(B) ≥ l(A)`; combined with `first(B) ≤ q ≤ l(A)`, the
-point `l(A)` is inside `B` too. Nothing is lost by the swap, so *some* optimal
+point `l(A)` is inside `B` too. Nothing is lost by the swap, so _some_ optimal
 plan contains `l(A)`. Fix it, delete what it serves, and the argument repeats
 on what is left. Sort plus one pass: **O(n log n)**.
 
 You do not have to take that on trust. For each revision it places, the sweep
-names the pin that forced it, and those pins are pairwise disjoint — pin *j*'s
-block must start after pin *i*'s ended, or *i*'s endpoint would already have
-served it. *k* disjoint blocks need *k* distinct revisions, so the plan carries
+names the pin that forced it, and those pins are pairwise disjoint — pin _j_'s
+block must start after pin _i_'s ended, or _i_'s endpoint would already have
+served it. _k_ disjoint blocks need _k_ distinct revisions, so the plan carries
 its own proof that nothing smaller exists. That is what `certificate` and `why`
 report, and it is checkable from the dates alone:
 
@@ -241,7 +249,7 @@ The swap above needed `first(B) ≤ l(A) ≤ last(B)` to imply that `l(A)` serve
 `B`, which holds only because `B` is one unbroken block.
 
 Versions do not always come in one block. A version can leave nixpkgs and come
-back. Let a pin be served by *any* of its blocks and the problem stops being interval
+back. Let a pin be served by _any_ of its blocks and the problem stops being interval
 stabbing and becomes hitting set over unions of intervals, which is NP-hard:
 lay a graph's vertices on the line, turn each edge `{u, v}` into a pin served
 by exactly revisions `u` and `v`, and hitting every pin is a minimum vertex
@@ -262,7 +270,7 @@ inside its own version's run: the same version, an older build of it, carrying
 that revision's closure.
 
 Two details keep that cost as low as it can be. Each revision the sweep places
-is the *newest* one that can serve its whole group, and each pin then joins the
+is the _newest_ one that can serve its whole group, and each pin then joins the
 newest placed revision that serves it rather than the first. `pinPlan` and
 `mvs solve` report the displacement per pin, in days and in revisions, before
 anything is fetched.

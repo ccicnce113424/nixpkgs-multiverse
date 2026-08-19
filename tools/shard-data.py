@@ -31,7 +31,9 @@ def main():
     ap.add_argument("--revisions", required=True, help="revisions.json")
     ap.add_argument("--versions", required=True, help="index/versions.json")
     ap.add_argument(
-        "--outpaths", nargs="+", required=True,
+        "--outpaths",
+        nargs="+",
+        required=True,
         help="outpaths.json and tip-outpaths.json",
     )
     ap.add_argument(

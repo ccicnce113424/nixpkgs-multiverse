@@ -4,7 +4,6 @@ Every nixpkgs revision, reachable from a single evaluation. These pages cover
 the two ways to use the index: as Nix expressions, and as the `mvs` command
 line tool.
 
-
 1. [Design](./design.md) explains why this exists, and why Nix makes it
    possible in the first place.
 2. [Comparisons](./comparisons.md) places this next to nix-index, comma,

@@ -34,8 +34,19 @@ from collections import defaultdict
 # Multi-output suffixes recognised when resolving a reference like
 # ffmpeg-7.1-lib back to the indexed ffmpeg 7.1.
 OUTPUT_SUFFIXES = {
-    "lib", "bin", "dev", "out", "doc", "man", "info", "data", "debug",
-    "static", "terminfo", "py", "dist",
+    "lib",
+    "bin",
+    "dev",
+    "out",
+    "doc",
+    "man",
+    "info",
+    "data",
+    "debug",
+    "static",
+    "terminfo",
+    "py",
+    "dist",
 }
 
 # How many reverse dependencies a version keeps in its shard; the count is
@@ -155,6 +166,7 @@ def resolve(digest, name):
 
 
 print(f"{len(pairs)} pairs with digests, {len(by_digest)} distinct digests")
+
 
 # ---- meta shards -----------------------------------------------------------
 # Per shard: an interned table of reference targets and per-version entries.

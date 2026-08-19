@@ -323,7 +323,9 @@ def build_store(db, data_dir, attr_ids, n_revs, system):
     def attr_id(name):
         if name not in attr_ids:
             attr_ids[name] = len(attr_ids) + 1
-            db.execute("INSERT INTO attrs(id, name) VALUES (?,?)", (attr_ids[name], name))
+            db.execute(
+                "INSERT INTO attrs(id, name) VALUES (?,?)", (attr_ids[name], name)
+            )
         return attr_ids[name]
 
     db.executemany(
@@ -455,7 +457,9 @@ def main():
                 for first, last in runs_of(value, tip):
                     yield (attr_id, version, first, last)
 
-    db.executemany("INSERT INTO runs(attr_id, version, first, last) VALUES (?,?,?,?)", all_runs())
+    db.executemany(
+        "INSERT INTO runs(attr_id, version, first, last) VALUES (?,?,?,?)", all_runs()
+    )
 
     # The store-path tables only exist when the artifacts were given; without
     # them the database is exactly what it always was, and `mvs` refuses the

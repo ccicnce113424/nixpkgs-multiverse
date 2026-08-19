@@ -42,7 +42,11 @@ def parse_narinfo(text):
         out[k] = v
     refs = [base[:DIGEST_LEN] for base in out.get("References", "").split()]
     sp = out.get("StorePath", "")
-    name = sp[len("/nix/store/") + DIGEST_LEN + 1 :] if sp.startswith("/nix/store/") else None
+    name = (
+        sp[len("/nix/store/") + DIGEST_LEN + 1 :]
+        if sp.startswith("/nix/store/")
+        else None
+    )
     return {
         "name": name,
         "ns": int(out["NarSize"]) if out.get("NarSize") else None,

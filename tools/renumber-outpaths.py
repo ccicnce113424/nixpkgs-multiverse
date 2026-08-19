@@ -49,11 +49,14 @@ def entry_of(attr, ver, digest, name, found_off, own_off):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
-        "--from", dest="before", required=True,
+        "--from",
+        dest="before",
+        required=True,
         help="revisions.json as it was before the insert",
     )
     ap.add_argument(
-        "--root", default=os.path.join(os.path.dirname(__file__), ".."),
+        "--root",
+        default=os.path.join(os.path.dirname(__file__), ".."),
     )
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
@@ -115,7 +118,9 @@ def main():
             if not args.dry_run:
                 json.dump(
                     {"revisionCount": len(after), "attrs": out},
-                    open(path, "w"), separators=(",", ":"), sort_keys=True,
+                    open(path, "w"),
+                    separators=(",", ":"),
+                    sort_keys=True,
                 )
 
     # The listing pickles move with their revision. Renamed in descending order
@@ -128,7 +133,9 @@ def main():
                 print(f"  leaving {off}.pkl: no revision held that offset before")
                 continue
             if not args.dry_run and newof[off] != off:
-                shutil.move(J(paths_dir, f"{off}.pkl"), J(paths_dir, f"{newof[off]}.pkl"))
+                shutil.move(
+                    J(paths_dir, f"{off}.pkl"), J(paths_dir, f"{newof[off]}.pkl")
+                )
         print(f"paths/: {len(pkls)} pickles renumbered")
 
     if args.dry_run:

@@ -109,9 +109,7 @@ def main():
             base: {suffix: digest for suffix, digest, _, _ in lst}
             for base, lst in outs.items()
         }
-        json.dump(
-            slim, open(args.plain, "w"), separators=(",", ":"), sort_keys=True
-        )
+        json.dump(slim, open(args.plain, "w"), separators=(",", ":"), sort_keys=True)
         print(f"{args.plain}: {os.path.getsize(args.plain):,} bytes", flush=True)
 
 
