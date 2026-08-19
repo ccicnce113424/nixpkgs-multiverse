@@ -44,11 +44,23 @@ jobs:
       # digest is a digest whichever system evaluated it — but an aarch64 path
       # dying is exactly as interesting as an x86_64 one, and only the seeds
       # decide which get looked at.
+      #
+      # 128 threads rather than the tool's 32. This is latency-bound work and
+      # nothing throttles it: measured over disjoint cold samples, 32 threads
+      # gave 177 digests/s, 64 gave 327, 96 gave 486 and 128 gave 610, with
+      # zero retries at every level. The cost per digest is dominated by the
+      # HEAD on its NAR — narinfos are edge-cached and answer in ~9 ms from a
+      # runner, NAR objects are not — which is the shape concurrency fixes.
+      #
+      # It stops at 128 for politeness rather than capacity: the runner is idle
+      # either way, but cache.nixos.org is a shared resource and the crawl in
+      # the hourly job already asks it for 3,500 narinfos a second.
       - name: Take the census
         run: |
           python3 tools/census.py \
             --seeds index/.outpaths/data/prev/outpaths-*.json \
                     index/.outpaths/data/prev/tip-outpaths-*.json \
+            --threads 128 \
             --out census-results.json \
             --graph index/.outpaths/graph.jsonl.gz \
             --date "$(date -u +%F)"

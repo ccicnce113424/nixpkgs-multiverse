@@ -138,12 +138,15 @@ jobs:
       # carries every older pair over from the previous cut.
       - name: Update the store-path artifacts
         if: steps.data.outputs.stale == 'true'
-        # A standard runner has 4 vCPU, so the evaluation runs two
-        # nix-eval-jobs workers that recycle at 3.5 GB rather than the six the
-        # tool defaults to for a workstation.
+        # A standard runner has 4 vCPU and 16 GB, so one worker per core, each
+        # recycling at 2.5 GB — 10 GB at peak. The evaluation is the slow half
+        # of this job (~6 minutes for two revisions across two systems at two
+        # workers) and it is CPU-bound, so the cores are what buys it back.
+        # More HTTP concurrency would do nothing here; the crawl in this job
+        # already runs at ~3,500 narinfos/s.
         env:
-          EVAL_WORKERS: 2
-          EVAL_MAXMEM: 3500
+          EVAL_WORKERS: 4
+          EVAL_MAXMEM: 2500
         run: nix run .#update-outpaths
 
       - name: Publish the rolling state

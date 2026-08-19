@@ -27,6 +27,9 @@ from queue import Queue
 CACHE_HOST = "cache.nixos.org"
 USER_AGENT = "nixpkgs-multiverse-census"
 RETRIES = 3
+# Between attempts, multiplied by the attempt number. Every retry pays this on
+# top of a fresh TLS handshake, which is why they are counted above.
+RETRY_BACKOFF_SECONDS = 0.5
 TIMEOUT_SECONDS = 30
 
 
@@ -65,11 +68,24 @@ class Worker(threading.Thread):
                 if r.status in (200, 404):
                     return r.status, body
                 # transient (429/5xx): retry on a fresh connection
+                self.note_retry(f"HTTP {r.status}")
                 self.connect()
-            except Exception:
+            except Exception as e:
+                self.note_retry(type(e).__name__)
                 self.connect()
-            time.sleep(0.5 * (attempt + 1))
+            time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
         return None, b""
+
+    def note_retry(self, reason):
+        """Count what forced a retry.
+
+        A retry that eventually succeeds is recorded as a plain success, so
+        without this the sleeps below are invisible — and at a few percent of
+        requests they are the difference between a census that takes minutes
+        and one that takes an hour.
+        """
+        with self.stats["lock"]:
+            self.stats["retries"][reason] = self.stats["retries"].get(reason, 0) + 1
 
     def check(self, digest):
         status, body = self.request("GET", f"/{digest}.narinfo")
@@ -118,7 +134,12 @@ def main():
     digests = sorted(load_seeds(args.seeds))
     print(f"{len(digests)} digests to check", flush=True)
 
-    stats = {"done": 0, "lock": threading.Lock(), "t0": time.time()}
+    stats = {
+        "done": 0,
+        "retries": {},
+        "lock": threading.Lock(),
+        "t0": time.time(),
+    }
     results = []
     q = Queue(maxsize=args.threads * 4)
     workers = [Worker(q, results, stats) for _ in range(args.threads)]
@@ -134,6 +155,17 @@ def main():
     # A digest that timed out through every retry is unknown, not dead; it is
     # excluded from the missing lists so a flaky hour cannot declare a
     # massacre, and the count is reported so a flaky hour is still visible.
+    elapsed = time.time() - stats["t0"]
+    print(
+        f"checked {len(results)} in {elapsed / 60:.1f} min "
+        f"({len(results) / elapsed:.0f}/s)",
+        flush=True,
+    )
+    if stats["retries"]:
+        total = sum(stats["retries"].values())
+        detail = ", ".join(f"{n}x {why}" for why, n in sorted(stats["retries"].items()))
+        print(f"retried {total} requests: {detail}", flush=True)
+
     errors = [r for r in results if r.get("err")]
     checked = [r for r in results if not r.get("err")]
     missing_narinfo = sorted(r["d"] for r in checked if not r["narinfo"])
