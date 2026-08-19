@@ -107,6 +107,15 @@ jobs:
       - name: Refresh the README status block
         run: nix run .#update-readme-status
 
+      # A backstop, not a formality. README.md is the one file this job writes
+      # that a formatter also owns, so a generator whose output drifts from
+      # prettier's taste lands a commit here and fails `nix fmt --ci` in the
+      # next CI run — a failure in a different workflow, about a file nobody
+      # touched. Formatting rather than checking keeps that self-healing; the
+      # commit step below adds paths explicitly, so nothing else can ride along.
+      - name: Keep the tree formatted
+        run: nix fmt
+
       # The rolling tip file carries the revisionCount it was built against;
       # when it matches the index just updated above, the channel has not
       # moved since the last data run and every data step below is skipped.

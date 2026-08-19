@@ -65,7 +65,11 @@ current.append(f" · [`{channel}`]({CHANNEL_URL}{tip['name']}/)")
 # No line for revisions that are on file but unindexed. build-index.sh fails
 # rather than half-finish an incremental run, so the update job never commits
 # that pair, and both numbers above stay true of what the repo actually ships.
-lines = [BEGIN, coverage, ''.join(current), END]
+#
+# The blank line after the marker is what `nix fmt` wants: prettier separates a
+# list from the HTML comment above it, and without it every hourly commit lands
+# a README the next CI run refuses.
+lines = [BEGIN, '', coverage, ''.join(current), END]
 
 text = open(readme).read()
 if BEGIN not in text or END not in text:
