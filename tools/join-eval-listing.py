@@ -287,6 +287,22 @@ def main():
         )
         with ThreadPoolExecutor(PROBE_THREADS) as ex:
             found = list(ex.map(lambda u: in_cache(u[3]), unvouched))
+
+        # The siblings of everything that came back, in one pass rather than a
+        # pool per package: three quarters of the aarch64 backfill's probes were
+        # hits, and a thread pool spun up per hit is what turned that join into
+        # an hour of mostly thread setup.
+        hits = [u for u, hit in zip(unvouched, found) if hit]
+        sibling_digests = sorted({d for u in hits for d in u[4].values()})
+        with ThreadPoolExecutor(PROBE_THREADS) as ex:
+            cached_siblings = {
+                digest
+                for digest, hit in zip(
+                    sibling_digests, ex.map(in_cache, sibling_digests)
+                )
+                if hit
+            }
+
         for (attr, version, name, digest, siblings, target), hit in zip(
             unvouched, found
         ):
@@ -296,12 +312,9 @@ def main():
                 continue
             emit(target, attr, version, name, digest)
             stats["probed"] += 1
-            if siblings:
-                with ThreadPoolExecutor(PROBE_THREADS) as ex:
-                    ok = list(ex.map(in_cache, siblings.values()))
-                vouched = {o: d for (o, d), h in zip(siblings.items(), ok) if h}
-                if vouched:
-                    outs[digest] = vouched
+            vouched = {o: d for o, d in siblings.items() if d in cached_siblings}
+            if vouched:
+                outs[digest] = vouched
     else:
         stats[NOT_BUILT] = len(unvouched)
         for attr, version, _name, _digest, _siblings, _target in unvouched:
