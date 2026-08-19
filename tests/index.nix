@@ -49,15 +49,14 @@ assert builtins.all (
 ) (builtins.genList (i: i) (builtins.length mv.revisions - 1));
 
 # Every revision is a nixos-unstable channel bump that Hydra published, so
-# every revision carries the channel name the nix-releases archive filed it
-# under. The exceptions used to be the 22 release branch-off commits, which
-# were on no channel at all and so had no name: they were dropped from the
-# index rather than special-cased, because a nameless revision has no
-# store-paths listing, and every consumer of `name` -- the store-path fetch,
-# the archive links on the site, the build counter in stats -- had to carry a
-# branch for a revision that could never answer them.
+# every revision carries the name the nix-releases archive filed it under. The
+# exceptions used to be the 22 release branch-off commits, which were on no
+# channel at all and so had no name: they were dropped from the index rather
+# than special-cased, because a nameless revision has no store-paths listing,
+# and every consumer of `name` -- the store-path fetch, the archive links on
+# the site, the build counter in stats -- had to carry a branch for a revision
+# that could never answer them.
 assert builtins.all (r: r ? name && r.name != "") mv.revisions;
-assert builtins.all (r: r.channel == "nixos-unstable") mv.revisions;
 
 # Every committed file covers exactly the same revisions.
 #

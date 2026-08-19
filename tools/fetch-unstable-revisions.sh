@@ -187,7 +187,7 @@ for name in names:
     full, date = got
     if int(date[:4]) < min_year:
         continue
-    entry = {"rev": full, "date": date, "channel": "nixos-unstable", "name": name}
+    entry = {"rev": full, "date": date, "name": name}
     revs.append(entry)
     for n in range(7, 13):
         by_prefix[full[:n]] = entry

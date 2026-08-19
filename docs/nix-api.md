@@ -427,7 +427,7 @@ mv.releases
 mv.releaseTips
 # every revision label, oldest first
 mv.revs
-# the raw {rev, date, channel, narHash, name} array
+# the raw {rev, date, narHash, name} array
 mv.revisions
 ```
 
