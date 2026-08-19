@@ -144,7 +144,7 @@ function VersionRow({
         ${metaReady &&
         !entry &&
         html`<div class="capt">
-          no store path is known for this version on x86_64-linux — either Hydra
+          no store path is known for this version on ${system} — either Hydra
           never built it (it does not build unfree or broken packages), or the
           attribute does not evaluate at the revision that closed it — so cache
           size, dependency and closure data are unavailable

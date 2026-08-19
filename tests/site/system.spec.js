@@ -16,6 +16,7 @@ const ATTR = "ripgrep";
 // tools/build-site-data.py. The default system keeps the unsuffixed
 // directories. Both are per system for the same reason: a store path and the
 // set of packages depending on it are both properties of one architecture.
+const DEFAULT_SYSTEM = "x86_64-linux";
 const ALT_SYSTEM = "aarch64-linux";
 const ALT_SHARDS = [`**/meta-${ALT_SYSTEM}/**`, `**/revdeps-${ALT_SYSTEM}/**`];
 
@@ -96,4 +97,27 @@ test("switching system changes the store paths", async ({ page }) => {
   await expect(
     page.locator(".capt", { hasText: `the ${ALT_SYSTEM} build` }),
   ).toBeVisible();
+});
+
+test("no caption on the page names a system other than the picked one", async ({
+  page,
+}) => {
+  // The bug this catches: captions that interpolate the system and captions
+  // that hardcode it look identical until you switch, and only some rows carry
+  // the ones that would show it — a version missing on aarch64 says so in a
+  // sentence that named x86_64-linux for a week.
+  await page.goto(`/?pkg=${ATTR}`);
+  await expect(page.locator(".row.cols-ver").first()).toBeVisible();
+
+  await page.locator(".syspick button", { hasText: ALT_SYSTEM }).click();
+  await page.locator("button.bulk").click();
+
+  // Every caption at once, so a row type that only appears for some versions
+  // is still covered. The picker's own buttons are not captions, which is why
+  // this can assert on the other system's name at all.
+  const captions = page.locator(".capt");
+  await expect.poll(() => captions.count()).toBeGreaterThan(0);
+  for (const text of await captions.allInnerTexts()) {
+    expect(text).not.toContain(DEFAULT_SYSTEM);
+  }
 });
