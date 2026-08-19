@@ -29,7 +29,9 @@ export const Shard = {
   VERSIONS: "versions",
   HISTORY: "history",
   // Per-version store metadata: digest, sizes, closure, liveness, direct
-  // references (interned in the shard's own "paths" table).
+  // references (interned in the shard's own "paths" table). One directory per
+  // system, because a store path belongs to one: META is the system the site
+  // aggregates, metaDirFor names the others.
   META: "meta",
   // Inverted references: who depended on each version of this attribute.
   REVDEPS: "revdeps",
@@ -89,11 +91,20 @@ export const useVersions = (attr) => useShard(Shard.VERSIONS, attr);
 // The whole shard file rather than one attribute's slice: the meta shard
 // carries a "paths" intern table beside "attrs" and every reference is an
 // index into it, so a consumer needs both halves.
+/**
+ * A whole shard, or nothing at all when `dir` is null.
+ *
+ * The null case is what makes a second system lazy: the package view calls
+ * this for the alternate system's meta directory on every render, and until a
+ * reader actually switches system there is no directory to read and no
+ * request goes out.
+ */
 export function useWholeShard(dir, attr) {
   const [data, setData] = useState(null);
   useEffect(() => {
     let live = true;
     setData(null);
+    if (!dir) return;
     loadShard(dir, attr)
       .then((d) => live && setData(d))
       .catch(() => live && setData(SHARD_ERROR));
@@ -104,7 +115,34 @@ export function useWholeShard(dir, attr) {
   return data;
 }
 
+/**
+ * The systems the site publishes store paths for, newest build first in the
+ * file: the one every aggregate view is built from, then the alternates.
+ *
+ * Fetched once per page load and shared, since every package view asks.
+ */
+let systemsPromise = null;
+export function useSystems() {
+  const [systems, setSystems] = useState(null);
+  useEffect(() => {
+    let live = true;
+    systemsPromise ??= fetch("systems.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .catch(() => []);
+    systemsPromise.then((s) => live && setSystems(s));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return systems;
+}
+
 export const useMeta = (attr) => useWholeShard(Shard.META, attr);
+
+// Where one system's store metadata lives. The first entry of systems.json is
+// the one the site aggregates and keeps in the unsuffixed directory.
+export const metaDirFor = (system, systems) =>
+  !systems || system === systems[0] ? Shard.META : `meta-${system}`;
 export const useRevdeps = (attr) => useShard(Shard.REVDEPS, attr);
 
 // A reference entry out of the meta shard's intern table: [name] for a path

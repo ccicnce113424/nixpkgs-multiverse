@@ -37,6 +37,12 @@ The artifacts are therefore **per system**: `outpaths-x86_64-linux.json`,
 files. A system with no artifacts is not served a neighbour's — `fast.*` throws
 and names the eval selector instead.
 
+The site follows the same rule. Its aggregate views — reverse dependencies, the
+census, the universe map — are built from one system, and a package page shows
+that system's store paths with a picker to switch. The alternate system's
+metadata lives in its own `meta-<system>/` shards and is fetched only when a
+reader picks it, so a page nobody switches costs exactly what it did before.
+
 ## Resolving a pair
 
 For each `(attribute, version)` pair, at the newest revision that shipped it:

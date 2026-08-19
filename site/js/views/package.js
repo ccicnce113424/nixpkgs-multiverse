@@ -12,6 +12,8 @@ import { storePathOf } from "../cache.js";
 import {
   Shard,
   useShard,
+  useSystems,
+  metaDirFor,
   useWholeShard,
   useHistory,
   useVersions,
@@ -100,6 +102,7 @@ function VersionRow({
   prevEntry,
   rd,
   metaReady,
+  system,
 }) {
   const { open, ref, toggle } = useLinkableRow(
     selected,
@@ -128,7 +131,7 @@ function VersionRow({
         html`
           <${Cmd}
             text=${`nix-store --realise ${storePathOf(attr, v, entry)}`}
-            caption="materialize with zero evaluation — the x86_64-linux build, substituted straight from cache.nixos.org"
+            caption=${`materialize with zero evaluation — the ${system} build, substituted straight from cache.nixos.org`}
           />
           <${CacheBadge} entry=${entry} />
         `}
@@ -225,10 +228,52 @@ function VersionRow({
   `;
 }
 
+/* One control per page rather than per row: the store paths on this page all
+ * come from one system's artifacts, and switching fetches that system's shard
+ * for this attribute — which is why nothing is fetched until it is clicked.
+ *
+ * Absent until systems.json says there is more than one system to pick. */
+function SystemPicker({ systems, shown, onPick }) {
+  if (!systems || systems.length < 2) return null;
+  return html`
+    <span class="syspick" role="group" aria-label="store paths for">
+      ${systems.map(
+        (s) => html`
+          <button
+            key=${s}
+            class=${s === shown ? "syspick-on" : ""}
+            aria-pressed=${s === shown}
+            onClick=${() => onPick(s)}
+          >
+            ${s}
+          </button>
+        `,
+      )}
+    </span>
+  `;
+}
+
 export function PackageDetail({ attr, route, revisions, navigate }) {
   const versions = useVersions(attr);
   const hist = useHistory(attr);
+  // Which system's store paths this page is showing. A store path belongs to
+  // one system, so the digests, sizes and closures all change with it; the
+  // versions and their history do not.
+  const systems = useSystems();
+  const [system, setSystem] = useState(null);
+  const shown = system ?? systems?.[0] ?? null;
+
   const metaFile = useWholeShard(Shard.META, attr);
+  // Null until a reader picks an alternate, which is what keeps the second
+  // system's shards off the wire for everyone who never asks.
+  const altFile = useWholeShard(
+    shown && systems && shown !== systems[0]
+      ? metaDirFor(shown, systems)
+      : null,
+    attr,
+  );
+  const storeFile =
+    shown && systems && shown !== systems[0] ? altFile : metaFile;
   const revdeps = useShard(Shard.REVDEPS, attr);
   const [bulk, bulkButton] = useBulk();
   const [openVers, setOpenVers] = useState(() => new Set());
@@ -295,9 +340,9 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
   // Store metadata, when the shard has landed: per-version meta entries, the
   // shard's intern table for references, and this attr's reverse deps.
   const meta =
-    metaFile && metaFile !== SHARD_ERROR ? metaFile.attrs?.[attr] : null;
+    storeFile && storeFile !== SHARD_ERROR ? storeFile.attrs?.[attr] : null;
   const metaPaths =
-    metaFile && metaFile !== SHARD_ERROR ? metaFile.paths : null;
+    storeFile && storeFile !== SHARD_ERROR ? storeFile.paths : null;
   const rds = revdeps && revdeps !== SHARD_ERROR ? revdeps : null;
 
   // Something the table does not already say: when this package entered
@@ -331,7 +376,14 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
         <code>${attr}</code>
         <span class="muted">· ${lifetime}</span>
       </span>
-      ${bulkButton}
+      <span class="bulkline-controls">
+        <${SystemPicker}
+          systems=${systems}
+          shown=${shown}
+          onPick=${setSystem}
+        />
+        ${bulkButton}
+      </span>
     </h2>
     <${Timeline}
       attr=${attr}
@@ -366,7 +418,8 @@ export function PackageDetail({ attr, route, revisions, navigate }) {
           paths=${metaPaths}
           prevEntry=${meta?.[vers[i + 1]?.[0]]}
           rd=${rds?.[v]}
-          metaReady=${!!(metaFile && metaFile !== SHARD_ERROR)}
+          metaReady=${!!(storeFile && storeFile !== SHARD_ERROR)}
+          system=${shown}
         />
       `;
     })}

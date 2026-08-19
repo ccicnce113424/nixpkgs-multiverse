@@ -10,15 +10,22 @@ import { test, expect } from "@playwright/test";
 
 const ATTR = "ripgrep";
 
-// Exactly what a package URL is allowed to ask this origin for. The two whole
-// files the shell needs, and one shard each of the four sharded indexes —
-// "ri" being the first two characters of the attribute above.
+// Exactly what a package URL is allowed to ask this origin for. The three
+// whole files the shell needs, and one shard each of the four sharded indexes
+// — "ri" being the first two characters of the attribute above.
+//
+// systems.json is the list of systems store paths are published for, and it is
+// here rather than in a shard because the page needs it before it can name the
+// system it is showing. The alternate system's own meta directory is
+// deliberately absent: it is fetched only when a reader picks that system,
+// which system.spec.js asserts from the other side.
 const PACKAGE_PAGE_FILES = [
   "history/ri.json",
   "meta/ri.json",
   "revdeps/ri.json",
   "revisions.json",
   "stats.json",
+  "systems.json",
   "versions/ri.json",
 ];
 

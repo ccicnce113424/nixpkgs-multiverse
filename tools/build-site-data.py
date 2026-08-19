@@ -122,8 +122,18 @@ history_closed = close_tip(history)
 vattrs = versions_closed["attrs"]
 
 # ---- the data artifacts -----------------------------------------------------
-# The store-path artifacts are per system (see docs/store-paths.md); the site
-# shows one, and x86_64-linux is the one every published artifact covers.
+# The store-path artifacts are per system (see docs/store-paths.md). Everything
+# the site aggregates — reverse dependencies, the census, the universe map — is
+# built from SITE_SYSTEM, the one every published artifact covers. The others
+# get store metadata only, written to meta-<system>/ and fetched by the page
+# only when a reader asks for that system.
+alt_systems = sorted(
+    os.path.basename(p)[len("outpaths-") : -len(".json")]
+    for p in glob.glob(J(datadir, "outpaths-*.json"))
+    if os.path.basename(p) != f"outpaths-{SITE_SYSTEM}.json"
+)
+dump([SITE_SYSTEM, *alt_systems], J(out, "systems.json"))
+
 outpaths = load(J(datadir, f"outpaths-{SITE_SYSTEM}.json"))
 tips = load(J(datadir, f"tip-outpaths-{SITE_SYSTEM}.json"))
 info = load_stem("info-indexed")
@@ -132,40 +142,6 @@ closures = load_stem("closures")
 # drv name -> [[suffix, digest, narSize, [ref basenames]], ...]: the sibling
 # outputs of multi-output packages, recovered from consumers' closures.
 outs = load_stem("outs-indexed")
-
-# digest -> (attr, ver). Aliased attrs share a digest; the shortest name is
-# the closest thing to canonical.
-by_digest = {}
-by_name = {}
-pairs = {}  # (attr, ver) -> (digest, name, is_tip)
-for src, is_tip in ((outpaths, False), (tips, True)):
-    for attr, vers in src["attrs"].items():
-        for ver, entry in vers.items():
-            digest = entry[0]
-            name = entry[1] if len(entry) > 1 else f"{attr}-{ver}"
-            pairs[(attr, ver)] = (digest, name, is_tip)
-            for table, key in ((by_digest, digest), (by_name, name)):
-                cur = table.get(key)
-                if cur is None or len(attr) < len(cur[0]):
-                    table[key] = (attr, ver)
-
-
-def resolve(digest, name):
-    """A reference back to an indexed (attr, version). Exact digest first —
-    then by derivation name, which also catches the SAME version built at a
-    different revision (consumers link the build from their own revision, not
-    the newest one this index records) — then by name with a multi-output
-    suffix stripped, so a ref to ffmpeg-7.1-lib still reads as ffmpeg 7.1."""
-    hit = by_digest.get(digest) or by_name.get(name)
-    if hit:
-        return hit
-    base, _, suffix = name.rpartition("-")
-    if suffix in OUTPUT_SUFFIXES:
-        return by_name.get(base)
-    return None
-
-
-print(f"{len(pairs)} pairs with digests, {len(by_digest)} distinct digests")
 
 
 # ---- meta shards -----------------------------------------------------------
@@ -177,65 +153,131 @@ class MetaShard:
         self.attrs = defaultdict(dict)
 
 
-meta_buckets = defaultdict(MetaShard)
+def index_pairs(outpaths, tips):
+    """(pairs, by_digest, by_name) for one system's store-path artifacts.
+
+    A digest belongs to one system, so these tables are per system too: the
+    same attribute and version resolve to different paths on x86_64-linux and
+    aarch64-linux, and a reference must be looked up in the tables of the
+    system it came from.
+    """
+    # digest -> (attr, ver). Aliased attrs share a digest; the shortest name is
+    # the closest thing to canonical.
+    by_digest, by_name, pairs = {}, {}, {}
+    for src, is_tip in ((outpaths, False), (tips, True)):
+        for attr, vers in src["attrs"].items():
+            for ver, entry in vers.items():
+                digest = entry[0]
+                name = entry[1] if len(entry) > 1 else f"{attr}-{ver}"
+                pairs[(attr, ver)] = (digest, name, is_tip)
+                for table, key in ((by_digest, digest), (by_name, name)):
+                    cur = table.get(key)
+                    if cur is None or len(attr) < len(cur[0]):
+                        table[key] = (attr, ver)
+    return pairs, by_digest, by_name
+
+
+def build_meta_shards(pairs, by_digest, by_name, meta_dir, revdeps=None):
+    """Write one system's meta/<shard>.json, and collect its reverse deps.
+
+    `revdeps` is passed only for SITE_SYSTEM: the reverse-dependency shards,
+    like the census and the universe map, describe the system the site
+    aggregates, and an alternate system contributes store metadata only.
+    """
+
+    def resolve(digest, name):
+        """A reference back to an indexed (attr, version). Exact digest first —
+        then by derivation name, which also catches the SAME version built at a
+        different revision (consumers link the build from their own revision,
+        not the newest one this index records) — then by name with a
+        multi-output suffix stripped, so a ref to ffmpeg-7.1-lib still reads as
+        ffmpeg 7.1."""
+        hit = by_digest.get(digest) or by_name.get(name)
+        if hit:
+            return hit
+        base, _, suffix = name.rpartition("-")
+        if suffix in OUTPUT_SUFFIXES:
+            return by_name.get(base)
+        return None
+
+    buckets = defaultdict(MetaShard)
+    for (attr, ver), (digest, name, _is_tip) in pairs.items():
+        b = buckets[shard_key(attr)]
+        inf = info.get(digest)
+        cl = closures.get(digest)
+        entry = {"d": digest}
+        if name != f"{attr}-{ver}":
+            entry["n"] = name
+        if inf:
+            ok, ns, fs = inf[0], inf[1], inf[2]
+            entry["ok"] = ok
+            if ns:
+                entry["ns"] = ns
+            if fs:
+                entry["fs"] = fs
+        if cl:
+            entry["cs"], entry["cn"] = cl[0], cl[1]
+
+        def add_refs(rlist):
+            r_idx = []
+            for base in rlist:
+                rd, rn = base[:DIGEST_LEN], (
+                    base[DIGEST_LEN + 1 :] or base[:DIGEST_LEN]
+                )
+                hit = resolve(rd, rn)
+                key = (rn, hit[0] if hit else None, hit[1] if hit else None)
+                i = b.idx.get(key)
+                if i is None:
+                    i = len(b.paths)
+                    b.idx[key] = i
+                    b.paths.append([rn, *hit] if hit else [rn])
+                r_idx.append(i)
+                if revdeps is not None and hit and hit != (attr, ver):
+                    revdeps[hit[0]][hit[1]].add((attr, ver))
+            return r_idx
+
+        rlist = refs.get(digest)
+        if rlist:
+            entry["r"] = add_refs(rlist)
+
+        # Multi-output packages: surface the sibling outputs, and when the
+        # default output is an empty stub (ffmpeg's 96-byte `out`), borrow the
+        # richest sibling's references so the page still shows real deps.
+        sibs = outs.get(name)
+        if sibs:
+            entry["o"] = [[s, sz] for s, _, sz, _ in sibs]
+            if not rlist:
+                richest = max(sibs, key=lambda x: len(x[3]))
+                own = {name} | {f"{name}-{s}" for s, _, _, _ in sibs}
+                sib_refs = [x for x in richest[3] if x[DIGEST_LEN + 1 :] not in own]
+                if sib_refs:
+                    entry["r"] = add_refs(sib_refs)
+                    entry["rsrc"] = richest[0]
+        b.attrs[attr][ver] = entry
+
+    os.makedirs(meta_dir, exist_ok=True)
+    for key, b in buckets.items():
+        dump({"paths": b.paths, "attrs": b.attrs}, J(meta_dir, key + ".json"))
+    return len(buckets)
+
+
+pairs, by_digest, by_name = index_pairs(outpaths, tips)
+print(f"{len(pairs)} pairs with digests, {len(by_digest)} distinct digests")
+
 revdeps = defaultdict(lambda: defaultdict(set))  # tattr -> tver -> {(a,v)}
+n_shards = build_meta_shards(pairs, by_digest, by_name, J(out, "meta"), revdeps)
+print(f"meta ({SITE_SYSTEM}): {n_shards} shards")
 
-for (attr, ver), (digest, name, is_tip) in pairs.items():
-    b = meta_buckets[shard_key(attr)]
-    inf = info.get(digest)
-    cl = closures.get(digest)
-    entry = {"d": digest}
-    if name != f"{attr}-{ver}":
-        entry["n"] = name
-    if inf:
-        ok, ns, fs = inf[0], inf[1], inf[2]
-        entry["ok"] = ok
-        if ns:
-            entry["ns"] = ns
-        if fs:
-            entry["fs"] = fs
-    if cl:
-        entry["cs"], entry["cn"] = cl[0], cl[1]
-
-    def add_refs(rlist):
-        r_idx = []
-        for base in rlist:
-            rd, rn = base[:DIGEST_LEN], (base[DIGEST_LEN + 1 :] or base[:DIGEST_LEN])
-            hit = resolve(rd, rn)
-            key = (rn, hit[0] if hit else None, hit[1] if hit else None)
-            i = b.idx.get(key)
-            if i is None:
-                i = len(b.paths)
-                b.idx[key] = i
-                b.paths.append([rn, *hit] if hit else [rn])
-            r_idx.append(i)
-            if hit and hit != (attr, ver):
-                revdeps[hit[0]][hit[1]].add((attr, ver))
-        return r_idx
-
-    rlist = refs.get(digest)
-    if rlist:
-        entry["r"] = add_refs(rlist)
-
-    # Multi-output packages: surface the sibling outputs, and when the
-    # default output is an empty stub (ffmpeg's 96-byte `out`), borrow the
-    # richest sibling's references so the page still shows real deps.
-    sibs = outs.get(name)
-    if sibs:
-        entry["o"] = [[s, sz] for s, _, sz, _ in sibs]
-        if not rlist:
-            richest = max(sibs, key=lambda x: len(x[3]))
-            own = {name} | {f"{name}-{s}" for s, _, _, _ in sibs}
-            sib_refs = [x for x in richest[3] if x[DIGEST_LEN + 1 :] not in own]
-            if sib_refs:
-                entry["r"] = add_refs(sib_refs)
-                entry["rsrc"] = richest[0]
-    b.attrs[attr][ver] = entry
-
-os.makedirs(J(out, "meta"), exist_ok=True)
-for key, b in meta_buckets.items():
-    dump({"paths": b.paths, "attrs": b.attrs}, J(out, "meta", key + ".json"))
-print(f"meta: {len(meta_buckets)} shards")
+# The other systems, store metadata only. The page fetches one of these
+# directories only when a reader switches to that system, so the cost of
+# publishing them is disk here, not bandwidth there.
+for system in alt_systems:
+    alt = index_pairs(
+        load(J(datadir, f"outpaths-{system}.json")),
+        load(J(datadir, f"tip-outpaths-{system}.json")),
+    )
+    n_shards = build_meta_shards(*alt, J(out, f"meta-{system}"))
+    print(f"meta ({system}): {n_shards} shards, {len(alt[0])} pairs")
 
 # ---- revdeps shards --------------------------------------------------------
 rd_buckets = defaultdict(dict)
