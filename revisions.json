@@ -9208,5 +9208,11 @@
   "date": "2026-08-19",
   "name": "nixos-26.11pre1058091.ffb3c9b700e7",
   "narHash": "sha256-RD2kNWCG+Bjo6h+JVjWVNntZs2GtRoeY2xHjts/FNkA="
+ },
+ {
+  "rev": "2c423e03bbafcff28bfadc6781a4a8257f205cb5",
+  "date": "2026-08-22",
+  "name": "nixos-26.11pre1059570.2c423e03bbaf",
+  "narHash": "sha256-dt4WdcvsA8/RCe+VZZwqU0X+XMM3wBbGCWA0/sFWzGo="
  }
 ]
