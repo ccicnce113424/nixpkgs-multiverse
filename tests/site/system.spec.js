@@ -1,11 +1,12 @@
 // The store paths a package page shows belong to one system, and the reader
 // picks which.
 //
-// Three claims are worth a browser to check: that the picker offers exactly
-// the systems the build published, that switching actually changes the paths,
-// and that an alternate system costs nothing until it is asked for. A picker
-// wired to a stale list, or to nothing at all, looks identical to a correct
-// one from the outside.
+// Four claims are worth a browser to check: that the picker offers exactly the
+// systems the build published, that switching actually changes the paths, that
+// the pick lands in the URL so it can be shared and walked back, and that an
+// alternate system costs nothing until it is asked for. A picker wired to a
+// stale list, or to nothing at all, looks identical to a correct one from the
+// outside.
 
 import { test, expect } from "@playwright/test";
 
@@ -151,4 +152,58 @@ test("no caption on the page names a system other than the picked one", async ({
     // Collapse again, so the next system starts from the same page state.
     await page.locator("button.bulk").click();
   }
+});
+
+test("the picked system is in the URL, shareable and reversible", async ({
+  page,
+}) => {
+  const [primary, alt] = await publishedSystems(page);
+  test.skip(!alt, "only one system is published");
+
+  await page.goto(`/?pkg=${ATTR}`);
+  await expect(page.locator(".syspick select")).toBeVisible();
+
+  // The default stays out of the URL, so every link that predates the picker
+  // is still spelled the way it was.
+  expect(new URL(page.url()).searchParams.get("sys")).toBe(null);
+
+  await pick(page, alt);
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("sys"))
+    .toBe(alt);
+
+  // Replace, not push: switching refines this page, so Back leaves the
+  // package rather than undoing one toggle at a time.
+  await page.goBack();
+  expect(new URL(page.url()).searchParams.get("pkg")).not.toBe(ATTR);
+
+  // A pasted link opens on that system, which is the whole point of putting
+  // it in the URL.
+  await page.goto(`/?pkg=${ATTR}&sys=${alt}`);
+  await expect(page.locator(".syspick select")).toHaveValue(alt);
+
+  // Picking the default again clears it rather than spelling it out.
+  await pick(page, primary);
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("sys"))
+    .toBe(null);
+});
+
+test("a sys the build does not publish falls back to the default", async ({
+  page,
+}) => {
+  // A hand-edited URL, or a link from a build that published more systems than
+  // this one. The failure it prevents is a page quietly fetching meta-<junk>/
+  // and rendering every version as having no store path.
+  const [primary] = await publishedSystems(page);
+
+  await page.goto(`/?pkg=${ATTR}&sys=sparc64-tru64`);
+  await expect(page.locator(".syspick select")).toHaveValue(primary);
+
+  const first = page.locator(".row.cols-ver").first();
+  await expect(first).toBeVisible();
+  await first.click();
+  await expect(
+    page.locator(".cmd", { hasText: "nix-store --realise" }).first(),
+  ).toBeVisible();
 });

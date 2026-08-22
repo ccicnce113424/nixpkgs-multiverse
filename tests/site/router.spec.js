@@ -65,6 +65,13 @@ test("each route describes itself to a crawler", async ({ page }) => {
   await expect(page).toHaveTitle(`${ATTR} — ${SITE_NAME}`);
   expect(await canonicalOf(page)).toContain(`?pkg=${ATTR}`);
 
+  // The three system views are one document about one package, differing only
+  // in which store paths it shows, so they consolidate onto one canonical
+  // instead of competing as near-duplicates.
+  await page.goto(`/?pkg=${ATTR}&sys=aarch64-linux`);
+  expect(await canonicalOf(page)).toContain(`?pkg=${ATTR}`);
+  expect(await canonicalOf(page)).not.toContain("sys=");
+
   // The bare page restores what index.html shipped, rather than keeping the
   // last route's copy.
   await page.goto("/");

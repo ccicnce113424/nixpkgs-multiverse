@@ -18,6 +18,7 @@ export const Nav = { PUSH: "push", REPLACE: "replace" };
  * so every view is a shareable link:
  *   ?pkg=ripgrep                  a package's version table
  *   ?pkg=ripgrep&ver=14.1.0       …with one version row open
+ *   ?pkg=ripgrep&sys=aarch64-darwin   …showing that system's store paths
  *   ?q=python                     a search
  *   ?view=revisions&rev=<sha>     the revisions tab with one revision open
  *   ?view=releases&release=26.05  the releases tab with one release open
@@ -26,7 +27,7 @@ export const Nav = { PUSH: "push", REPLACE: "replace" };
 // Every query parameter a route can carry beyond `view`. A route object
 // always holds all of them, so a partial patch merges cleanly and a link
 // target can be spelled out in full.
-const ROUTE_PARAMS = ["q", "pkg", "ver", "rev", "release"];
+const ROUTE_PARAMS = ["q", "pkg", "ver", "rev", "release", "sys"];
 
 function readRoute() {
   const p = new URLSearchParams(location.search);
@@ -46,6 +47,10 @@ function routeToQuery(route) {
   if (route.view === "packages" && route.pkg) {
     p.set("pkg", route.pkg);
     if (route.ver) p.set("ver", route.ver);
+    // Only when it is not the system the page defaults to, which the picker
+    // signals by clearing it — so every URL that predates the picker, and
+    // every link to the default view, is spelled exactly as it always was.
+    if (route.sys) p.set("sys", route.sys);
   } else if (route.view === "packages" && route.q) p.set("q", route.q);
   if (route.view === "revisions" && route.rev) p.set("rev", route.rev);
   if (route.view === "releases" && route.release)
@@ -221,6 +226,11 @@ export function Link({ to, navigate, children, ...rest }) {
     ver: "",
     rev: "",
     release: "",
+    // Not cleared with the rest: which system's store paths a reader wants is
+    // a fact about the reader, not about the package they happen to be on, so
+    // it survives a link the way it survives a scroll. Read from the URL
+    // rather than from the route object so the href and the click agree.
+    sys: readRoute().sys,
     ...to,
   };
   const onClick = (e) => {
@@ -284,7 +294,10 @@ export function useRouter() {
     // The canonical URL is the whole point of the rewrite: index.html's is
     // hardcoded to the homepage, so without this every route consolidates
     // into "/" and only the homepage is ever indexed.
-    const canonical = SITE_ORIGIN + routeToHref(route);
+    // Without `sys`: the three system views are one document about one
+    // package, differing only in which store paths it shows, so they
+    // consolidate rather than compete.
+    const canonical = SITE_ORIGIN + routeToHref({ ...route, sys: "" });
     headCanonical().href = canonical;
 
     // The share card follows the same route, so a pasted package link
