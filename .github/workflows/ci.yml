@@ -29,14 +29,16 @@ permissions:
 
 jobs:
   test:
-    # Both Linux systems the store-path artifacts are published for. A store
-    # path belongs to one system, so the fast path is now per-system data and
-    # the only way to know it holds on aarch64-linux is to evaluate it there.
+    # Every system the store-path artifacts are published for. A store path
+    # belongs to one system, so the fast path is per-system data and the only
+    # way to know it holds on aarch64-darwin is to evaluate it there.
     #
-    # The aarch64 runner takes the eval checks only: compose builds three
-    # historical Pythons for real, and the site check drives a browser, neither
-    # of which is a claim about this architecture that the x86_64 job does not
-    # already make.
+    # The two non-x86_64 runners take the eval checks only: compose builds
+    # three historical Pythons for real, and the site check drives a browser,
+    # neither of which is a claim about this architecture that the x86_64 job
+    # does not already make. macOS drops `mvs` too — a Rust version comparator
+    # with nothing per-architecture in it, and the priciest runner should spend
+    # its minutes on macOS.
     strategy:
       fail-fast: false
       matrix:
@@ -44,11 +46,21 @@ jobs:
           - runner: ubuntu-latest
             system: x86_64-linux
             full: true
+            cargo: true
           - runner: ubuntu-24.04-arm
             system: aarch64-linux
             full: false
+            cargo: true
+          # macos-latest has been Apple silicon since macos-14, which is the
+          # only darwin the artifacts cover.
+          - runner: macos-latest
+            system: aarch64-darwin
+            full: false
+            cargo: false
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    # Raised for macOS, which installs Nix onto a fresh volume before it can
+    # start, on top of the handful of ~378 MB trees every runner fetches.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -103,4 +115,5 @@ jobs:
       # inside the build sandbox there is none, so it skips there. Everything
       # downstream of that comparator is only as trustworthy as this step.
       - name: mvs
+        if: matrix.cargo
         run: nix develop .#mvs -c cargo test --manifest-path mvs/Cargo.toml

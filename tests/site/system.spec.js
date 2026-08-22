@@ -1,52 +1,61 @@
 // The store paths a package page shows belong to one system, and the reader
 // picks which.
 //
-// Two claims are worth a browser to check. That switching actually changes the
-// paths — a picker wired to nothing looks identical to a working one — and
-// that the second system costs nothing until it is asked for, since the whole
-// design of the alternate shards is that they sit on disk unfetched.
+// Three claims are worth a browser to check: that the picker offers exactly
+// the systems the build published, that switching actually changes the paths,
+// and that an alternate system costs nothing until it is asked for. A picker
+// wired to a stale list, or to nothing at all, looks identical to a correct
+// one from the outside.
 
 import { test, expect } from "@playwright/test";
 
-// Long-lived, built for both systems, and small enough that its shard loads
+// Long-lived, built for every system, and small enough that its shard loads
 // quickly. The same attribute the other package tests drive.
 const ATTR = "ripgrep";
 
-// Where the alternate system's data lives, as built by
-// tools/build-site-data.py. The default system keeps the unsuffixed
-// directories. Both are per system for the same reason: a store path and the
-// set of packages depending on it are both properties of one architecture.
-const DEFAULT_SYSTEM = "x86_64-linux";
-const ALT_SYSTEM = "aarch64-linux";
-const ALT_SHARDS = [`**/meta-${ALT_SYSTEM}/**`, `**/revdeps-${ALT_SYSTEM}/**`];
+// Read from the site rather than hard-coded: the list grows by one with every
+// system backfilled. The first entry keeps the unsuffixed directories; the
+// rest are published beside it. See tools/build-site-data.py.
+async function publishedSystems(page) {
+  const res = await page.request.get("/systems.json");
+  expect(res.ok()).toBe(true);
+  return res.json();
+}
 
-// The store path line of the first expanded version, as text.
-const storePathOf = (page) =>
-  page.locator(".cmd", { hasText: "nix-store --realise" }).first().innerText();
+// Every store-path line on the page, not one row's: a system carries digests
+// only for the versions it was built for, so no single row has one on all of
+// them.
+const storePathsOf = (page) =>
+  page.locator(".cmd", { hasText: "nix-store --realise" }).allInnerTexts();
 
-test("the picker offers both systems and defaults to the aggregated one", async ({
+// Pick a system by name in the select.
+const pick = (page, system) =>
+  page.locator(".syspick select").selectOption(system);
+
+test("the picker offers every published system and defaults to the aggregated one", async ({
   page,
 }) => {
+  const systems = await publishedSystems(page);
   await page.goto(`/?pkg=${ATTR}`);
 
-  const picker = page.locator(".syspick");
-  await expect(picker).toBeVisible();
-  await expect(picker.locator("button")).toHaveCount(2);
+  const select = page.locator(".syspick select");
+  await expect(select).toBeVisible();
+  await expect(select.locator("option")).toHaveText(systems);
 
   // The first system in systems.json is the one every other view is built
   // from, so it is what the page shows before anyone chooses.
-  await expect(picker.locator("button").first()).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(select).toHaveValue(systems[0]);
 });
 
-test("the alternate system's shards are not fetched until it is picked", async ({
+test("an alternate system's shards are not fetched until it is picked", async ({
   page,
 }) => {
+  const [primary, alt] = await publishedSystems(page);
+  test.skip(!alt, "only one system is published");
+
   const asked = new Set();
-  for (const pattern of ALT_SHARDS) {
-    await page.route(pattern, (route) => {
+  for (const dir of ["meta", "revdeps"]) {
+    await page.route(`**/${dir}-${alt}/**`, (route) => {
       asked.add(new URL(route.request().url()).pathname.split("/")[1]);
       return route.continue();
     });
@@ -57,46 +66,59 @@ test("the alternate system's shards are not fetched until it is picked", async (
   await expect(first).toBeVisible();
 
   // Expanded, so the default system's store data has demonstrably landed: if
-  // the page fetched both systems it would have fetched them together, and
+  // the page fetched every system it would have fetched them together, and
   // this is the moment that would show.
   await first.click();
   await expect(
     page.locator(".cmd", { hasText: "nix-store --realise" }).first(),
   ).toBeVisible();
   expect([...asked]).toEqual([]);
+  expect(primary).not.toBe(alt);
 
   // Picking it fetches both of that system's directories, and only then.
-  await page.locator(".syspick button", { hasText: ALT_SYSTEM }).click();
+  await pick(page, alt);
   await expect
     .poll(() => [...asked].sort(), {
       message: "picking a system fetches its shards",
     })
-    .toEqual([`meta-${ALT_SYSTEM}`, `revdeps-${ALT_SYSTEM}`]);
+    .toEqual([`meta-${alt}`, `revdeps-${alt}`]);
 });
 
-test("switching system changes the store paths", async ({ page }) => {
+test("switching to any system changes the store paths", async ({ page }) => {
+  const systems = await publishedSystems(page);
+  test.skip(systems.length < 2, "only one system is published");
+
   await page.goto(`/?pkg=${ATTR}`);
+  await expect(page.locator(".row.cols-ver").first()).toBeVisible();
 
-  const first = page.locator(".row.cols-ver").first();
-  await expect(first).toBeVisible();
-  await first.click();
+  // Every version at once: darwin's coverage starts where the channel started
+  // building it, so a test pinned to one row fails the day that row is a miss.
+  await page.locator("button.bulk").click();
 
-  const before = await storePathOf(page);
-  expect(before).toContain("/nix/store/");
+  // Every system, not just the first alternate: a picker can be wired for two
+  // and hand the third whatever the second left behind.
+  const seen = new Map();
+  for (const system of systems) {
+    await pick(page, system);
+    await expect
+      .poll(() => storePathsOf(page).then((p) => p.length), {
+        message: `${system} shows store paths`,
+      })
+      .toBeGreaterThan(0);
 
-  await page.locator(".syspick button", { hasText: ALT_SYSTEM }).click();
+    const paths = await storePathsOf(page);
+    for (const [other, otherPaths] of seen) {
+      expect(
+        paths.join("\n"),
+        `${system} and ${other} show the same store paths`,
+      ).not.toBe(otherPaths.join("\n"));
+    }
+    seen.set(system, paths);
 
-  // Same version, same page, different architecture: the digest has to move.
-  // Polled rather than awaited once, because the shard is fetched on click.
-  await expect
-    .poll(() => storePathOf(page), {
-      message: "the store path follows the picked system",
-    })
-    .not.toBe(before);
-
-  await expect(
-    page.locator(".capt", { hasText: `the ${ALT_SYSTEM} build` }),
-  ).toBeVisible();
+    await expect(
+      page.locator(".capt", { hasText: `the ${system} build` }).first(),
+    ).toBeVisible();
+  }
 });
 
 test("no caption on the page names a system other than the picked one", async ({
@@ -104,20 +126,29 @@ test("no caption on the page names a system other than the picked one", async ({
 }) => {
   // The bug this catches: captions that interpolate the system and captions
   // that hardcode it look identical until you switch, and only some rows carry
-  // the ones that would show it — a version missing on aarch64 says so in a
+  // the ones that would show it — a version missing on aarch64 said so in a
   // sentence that named x86_64-linux for a week.
+  const systems = await publishedSystems(page);
+  test.skip(systems.length < 2, "only one system is published");
+
   await page.goto(`/?pkg=${ATTR}`);
   await expect(page.locator(".row.cols-ver").first()).toBeVisible();
 
-  await page.locator(".syspick button", { hasText: ALT_SYSTEM }).click();
-  await page.locator("button.bulk").click();
+  for (const picked of systems.slice(1)) {
+    await pick(page, picked);
+    await page.locator("button.bulk").click();
 
-  // Every caption at once, so a row type that only appears for some versions
-  // is still covered. The picker's own buttons are not captions, which is why
-  // this can assert on the other system's name at all.
-  const captions = page.locator(".capt");
-  await expect.poll(() => captions.count()).toBeGreaterThan(0);
-  for (const text of await captions.allInnerTexts()) {
-    expect(text).not.toContain(DEFAULT_SYSTEM);
+    // Every caption at once, so a row type that only appears for some
+    // versions is still covered.
+    const captions = page.locator(".capt");
+    await expect.poll(() => captions.count()).toBeGreaterThan(0);
+    for (const text of await captions.allInnerTexts()) {
+      for (const other of systems) {
+        if (other === picked) continue;
+        expect(text).not.toContain(other);
+      }
+    }
+    // Collapse again, so the next system starts from the same page state.
+    await page.locator("button.bulk").click();
   }
 });

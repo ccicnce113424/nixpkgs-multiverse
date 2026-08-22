@@ -2,22 +2,26 @@
 """Sample an artifact's digests and read the machine architecture out of them.
 
 The acceptance check for the per-system artifacts: every digest in
-outpaths-x86_64-linux.json must be an x86_64-linux path, and every digest in
-the aarch64-linux file an aarch64-linux one. Nothing in the pipeline can assert
-that from the inside — the listing has no System column, which is the whole
-bug — so this asks the payload.
+outpaths-<system>.json must be a path for that system. Nothing in the pipeline
+can assert that from the inside — the listing has no System column, which is
+the whole bug — so this asks the payload.
 
-Each sampled entry's NAR is fetched from cache.nixos.org and scanned for ELF
-headers; `e_machine` at offset 18 separates x86-64 (0x3e) from AArch64 (0xb7).
-Every header in the NAR votes, since a store path is single-architecture in
-practice and the vote makes a stray cross-compiled artefact harmless.
+Each sampled entry's NAR is fetched from cache.nixos.org and scanned for
+executable headers. ELF `e_machine` (byte 18) and Mach-O `cputype` (byte 4)
+give the architecture; the format itself gives the OS, and it has to, since
+aarch64-linux and aarch64-darwin differ only in container. Reading `e_machine`
+alone would call them the same thing and pass a darwin artifact full of Linux
+paths.
 
-Entries carrying no ELF at all — a man page, a data-only output, a static Go
-binary in an unusual format — are skipped rather than counted, so the sample
-walks until it has classified --count of them.
+Every header in the NAR votes, since a store path is single-system in practice
+and the vote makes a stray cross-compiled artefact harmless.
 
-  tools/verify-outpath-arch.py --artifact .../tip-outpaths-x86_64-linux.json \\
-      --expect x86_64
+Entries carrying no executable at all — a man page, a data-only output, a
+static Go binary in an unusual format — are skipped rather than counted, so the
+sample walks until it has classified --count of them.
+
+  tools/verify-outpath-arch.py --artifact .../tip-outpaths-aarch64-darwin.json \\
+      --expect aarch64-darwin
 """
 import argparse
 import concurrent.futures as cf
@@ -31,8 +35,27 @@ import urllib.request
 CACHE = "https://cache.nixos.org"
 USER_AGENT = "nixpkgs-multiverse"
 TIMEOUT_SECONDS = 90
-# ELF e_machine values, at byte 18 of the header.
-E_MACHINE = {0x03: "i686", 0x3E: "x86_64", 0xB7: "aarch64", 0x28: "arm", 0xF3: "riscv"}
+
+# Anything in this index carrying an ELF is a Linux path: the channel builds no
+# other ELF platform.
+ELF_MAGIC = b"\x7fELF"
+ELF_MACHINE = {
+    0x03: "i686-linux",
+    0x3E: "x86_64-linux",
+    0xB7: "aarch64-linux",
+    0x28: "armv7l-linux",
+    0xF3: "riscv64-linux",
+}
+
+# The 64-bit magic as it sits on disk. The 32-bit magic and the fat-binary
+# container are deliberately unread — nothing the channel builds for darwin is
+# either, and guessing would be the kind of claim this file exists to avoid.
+MACHO_MAGIC_64 = b"\xcf\xfa\xed\xfe"
+MACHO_CPUTYPE = {
+    0x01000007: "x86_64-darwin",
+    0x0100000C: "aarch64-darwin",
+}
+
 # Big NARs are slow to fetch and no more informative than small ones, so the
 # sampler skips them by default and walks further instead. --max-nar-bytes
 # raises the ceiling when a specific path has to be settled — a Go binary is
@@ -55,8 +78,22 @@ def narinfo(digest):
     return dict(line.partition(": ")[::2] for line in text.splitlines())
 
 
-def arch_of(digest, max_bytes=MAX_FILE_BYTES):
-    """The architecture of the ELF files inside a path, or None."""
+def count_systems(raw, magic, header_len, read_system):
+    """One vote per header of a single format found anywhere in a NAR."""
+    votes = {}
+    at = 0
+    while True:
+        at = raw.find(magic, at)
+        if at < 0:
+            return votes
+        system = read_system(raw[at : at + header_len])
+        if system:
+            votes[system] = votes.get(system, 0) + 1
+        at += len(magic)
+
+
+def system_of(digest, max_bytes=MAX_FILE_BYTES):
+    """The system of the executables inside a path, or None."""
     info = narinfo(digest)
     if not info or int(info.get("FileSize", "0")) > max_bytes:
         return None
@@ -69,24 +106,27 @@ def arch_of(digest, max_bytes=MAX_FILE_BYTES):
     elif info["URL"].endswith(".zst"):
         raw = subprocess.run(["zstd", "-dc"], input=raw, capture_output=True).stdout
 
-    votes = {}
-    at = 0
-    while True:
-        at = raw.find(b"\x7fELF", at)
-        if at < 0:
-            break
-        machine = int.from_bytes(raw[at + 18 : at + 20], "little")
-        if machine in E_MACHINE:
-            name = E_MACHINE[machine]
-            votes[name] = votes.get(name, 0) + 1
-        at += 4
+    # Both formats over the same NAR rather than one tried first, so a path
+    # holding both is settled by weight of evidence.
+    votes = count_systems(
+        raw,
+        ELF_MAGIC,
+        20,
+        lambda h: ELF_MACHINE.get(int.from_bytes(h[18:20], "little")),
+    )
+    votes |= count_systems(
+        raw,
+        MACHO_MAGIC_64,
+        8,
+        lambda h: MACHO_CPUTYPE.get(int.from_bytes(h[4:8], "little")),
+    )
     return max(votes, key=votes.get) if votes else None
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--artifact", help="an outpaths-<system>.json")
-    ap.add_argument("--expect", required=True, help="x86_64 or aarch64")
+    ap.add_argument("--expect", required=True, help="the system, e.g. aarch64-darwin")
     ap.add_argument("--count", type=int, default=120, help="entries to classify")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--max-nar-bytes", type=int, default=MAX_FILE_BYTES)
@@ -102,9 +142,9 @@ def main():
     if args.digest:
         wrong = 0
         for digest in args.digest:
-            arch = arch_of(digest, args.max_nar_bytes)
-            print(f"  {digest} -> {arch}")
-            wrong += arch != args.expect
+            system = system_of(digest, args.max_nar_bytes)
+            print(f"  {digest} -> {system}")
+            wrong += system != args.expect
         return 1 if wrong else 0
 
     if not args.artifact:
@@ -118,25 +158,26 @@ def main():
 
     classified = []
     with cf.ThreadPoolExecutor(THREADS) as ex:
-        # Five times the target, because a good share of entries carry no ELF.
-        for (attr, ver, digest), arch in zip(
+        # Five times the target, because a good share of entries carry no
+        # executable.
+        for (attr, ver, digest), system in zip(
             pairs,
             ex.map(
-                lambda p: arch_of(p[2], args.max_nar_bytes), pairs[: args.count * 5]
+                lambda p: system_of(p[2], args.max_nar_bytes), pairs[: args.count * 5]
             ),
         ):
-            if arch:
-                classified.append((attr, ver, digest, arch))
+            if system:
+                classified.append((attr, ver, digest, system))
             if len(classified) >= args.count:
                 break
 
     wrong = [c for c in classified if c[3] != args.expect]
     n = len(classified)
     print(f"{args.artifact}: classified {n} sampled entries")
-    print(f"  {args.expect:>8}: {n - len(wrong)}")
-    print(f"  other   : {len(wrong)}")
-    for attr, ver, digest, arch in wrong[:15]:
-        print(f"    {attr} {ver} -> /nix/store/{digest}-... [{arch}]")
+    print(f"  {args.expect:>16}: {n - len(wrong)}")
+    print(f"  other{' ':>11}: {len(wrong)}")
+    for attr, ver, digest, system in wrong[:15]:
+        print(f"    {attr} {ver} -> /nix/store/{digest}-... [{system}]")
     if not n:
         print("nothing classified; is the artifact empty?", file=sys.stderr)
         return 1

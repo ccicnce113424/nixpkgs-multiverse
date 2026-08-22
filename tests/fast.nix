@@ -12,14 +12,14 @@
 # revisions.json and index/history.json — that is the whole point of `tip`
 # being a selector. So the tip fixture must carry a digest for whatever
 # version of `hello` the newest indexed revision ships; when nixpkgs bumps
-# hello, add the new pair to
-# tests/fixtures/fast-data/tip-outpaths-x86_64-linux.json.
+# hello, add the new pair to every
+# tests/fixtures/fast-data/tip-outpaths-<system>.json.
 #
-# The fixture holds one set of files per system it covers — x86_64-linux and
-# aarch64-linux, with distinct digests so a test cannot pass by reading the
-# wrong one — which is what lets this suite run unchanged on either. A system
-# it does not cover must throw rather than be handed a neighbour's digests, and
-# riscv64-linux is the fixture for that.
+# The fixture holds one set of files per system it covers — x86_64-linux,
+# aarch64-linux and aarch64-darwin, with distinct digests so a test cannot pass
+# by reading the wrong one — which is what lets this suite run unchanged on any
+# of them. A system it does not cover must throw rather than be handed a
+# neighbour's digests, and riscv64-linux is the fixture for that.
 #
 # No assertion forces an outPath (or any sibling output) on purpose: current
 # Nix realises `path = true` string context the moment the string is forced,

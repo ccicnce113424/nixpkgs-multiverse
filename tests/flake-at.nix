@@ -18,9 +18,15 @@ let
   tipFlake = mv.flakeAt "tip";
   releaseFlake = mv.flakeAt newestRelease;
 
+  # The one system every revision in the index has always had. The pre-flake
+  # case below is asked of it rather than of this host: a 2019 nixpkgs cannot be
+  # evaluated for aarch64-darwin at all, and what that case tests is the
+  # synthesised-outputs fallback, not which platforms nixpkgs supported in 2019.
+  alwaysBuilt = "x86_64-linux";
+
   # Old enough that the tree predates nixpkgs' own flake.nix (20.03), so this
   # lands on the synthesised-outputs fallback.
-  preFlake = mv.flakeAt "2019-01-01";
+  preFlake = (import ../multiverse.nix { system = alwaysBuilt; }).flakeAt "2019-01-01";
 in
 
 # flakeAt "tip" resolves to the same revision as `tip` itself.
@@ -50,7 +56,7 @@ assert (mv.flakeAt tipFlake.multiverse.label).rev == tipFlake.rev;
 # A pre-flake tree still yields lib and a package set — just none of the
 # outputs only nixpkgs' flake.nix could have provided.
 assert preFlake._type == "flake";
-assert builtins.isString preFlake.legacyPackages.${system}.hello.name;
+assert builtins.isString preFlake.legacyPackages.${alwaysBuilt}.hello.name;
 assert !(preFlake ? nixosModules);
 
 {

@@ -206,10 +206,11 @@ mkMultiverse {
 }
 ```
 
-The index covers x86_64-linux; other systems throw
-rather than substitute foreign binaries. Data arrives through
-`data-pins.json` lazily: nothing is fetched until the first `fast.*` value
-is forced.
+The index covers **x86_64-linux, aarch64-linux and aarch64-darwin**; other
+systems throw rather than substitute foreign binaries, and darwin's coverage
+starts in 2021 ([why](./store-paths.md#a-path-belongs-to-one-system)). Data
+arrives through `data-pins.json` lazily: nothing is fetched until the first
+`fast.*` value is forced, and only your own system's file is fetched.
 
 ### `nix run` cannot take a fake
 

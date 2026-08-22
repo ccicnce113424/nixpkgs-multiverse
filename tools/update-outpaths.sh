@@ -11,6 +11,10 @@
 # so looking a derivation NAME up in one cannot tell an x86_64 path from an
 # aarch64 one. See docs/store-paths.md, and issue #12 for the bug it caused.
 #
+# The listings are nixos-unstable's, so they name no darwin path: 23 of
+# aarch64-darwin's 16,545 paths at the 2026-08-17 tip. Darwin is carried by the
+# join's cache probe instead, which is the stronger proof of the two.
+#
 # The whole run is incremental. Listings are fetched only for offsets with no
 # pickle on disk, revisions are evaluated only where no evaluation exists, the
 # join carries over every pair that closed before the previous artifacts were
@@ -53,7 +57,7 @@ SHARD=0
 # Every system the artifacts are published for. A system listed here without an
 # evaluation simply produces no entries, so adding one is a matter of running
 # the backfill for it.
-SYSTEMS="x86_64-linux,aarch64-linux"
+SYSTEMS="x86_64-linux,aarch64-linux,aarch64-darwin"
 while [ $# -gt 0 ]; do
   case "$1" in
     --full) MODE=full; shift ;;

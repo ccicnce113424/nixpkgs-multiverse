@@ -33,13 +33,19 @@ be asked *"is this exact digest one you hold"\_, which is a question with an
 answer.
 
 The artifacts are therefore **per system**: `outpaths-x86_64-linux.json`,
-`outpaths-aarch64-linux.json`, and the same for the tip and sibling-output
-files. A system with no artifacts is not served a neighbour's — `fast.*` throws
-and names the eval selector instead.
+`outpaths-aarch64-linux.json`, `outpaths-aarch64-darwin.json`, and the same for
+the tip and sibling-output files. A system with no artifacts is not served a
+neighbour's — `fast.*` throws and names the eval selector instead.
+
+The listings come from **nixos**-unstable, so they hold Linux paths and nothing
+else: at the 2026-08-17 tip they named 23 of aarch64-darwin's 16,545 evaluated
+paths, against 93.6% of x86_64-linux's. Darwin is carried entirely by the cache
+probe below, and its coverage starts in 2021 — a 2019 nixpkgs cannot be
+evaluated for `aarch64-darwin` at all.
 
 The site follows the same rule. Its aggregate views — reverse dependencies, the
 census, the universe map — are built from one system, and a package page shows
-that system's store paths with a picker to switch. The alternate system's
+that system's store paths with a picker to switch between all of them. The alternate system's
 metadata lives in its own `meta-<system>/` shards and is fetched only when a
 reader picks it, so a page nobody switches costs exactly what it did before.
 
@@ -53,12 +59,13 @@ For each `(attribute, version)` pair, at the newest revision that shipped it:
 2. keep the digest if the revision's listing holds it;
 3. otherwise ask cache.nixos.org directly, since a listing describes one
    evaluation while the cache is the union of every jobset Hydra ever ran —
-   `firefox` at the tip is in the cache and not in the listing;
+   `firefox` at the tip is in the cache and not in the listing, and every
+   darwin path is in this class;
 4. otherwise record a miss. Nothing is guessed: a pair with no proof carries no
    entry, and `fast.*` throws rather than substituting something plausible.
 
-Across 2016 to the tip, 91.5-95.0% of evaluated attributes are in their
-revision's listing verbatim. The remainder is (a) attributes Hydra never built,
+Across 2016 to the tip, 91.5-95.0% of the Linux systems' evaluated attributes
+are in their revision's listing verbatim. The remainder is (a) attributes Hydra never built,
 and (b) attributes this evaluation builds differently from Hydra, which sets
 `allowUnfree = false` where the index sets it true — `hplipWithPlugin`,
 `caffeWithCuda`, `_7zz-rar`. Under 0.3% of attributes per revision.
@@ -184,8 +191,9 @@ pin-churn commit a day. No bump, no cut.
 The one-time backfill — every listing, the full 1.4M-path crawl, and every
 revision evaluated for every published system — runs on a big machine and seeds
 the dated release; CI never re-runs it. The evaluation half is the expensive
-one: 1,533 revisions × 2 systems, at roughly 20 (revision, system) pairs a
-minute on a 256-core machine running 20 revisions at once.
+one: 1,536 revisions × 3 systems, at roughly 20 (revision, system) pairs a
+minute on a 256-core machine running 20 revisions at once. Adding a system is
+that run for the new system alone.
 
 ## Credits
 

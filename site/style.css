@@ -746,9 +746,6 @@ footer {
   align-items: baseline;
   gap: 0.2rem 0.8rem;
 }
-/* The system picker sits with "expand all" on the package heading. Buttons
-   rather than a select: two options, and the current one has to read as
-   chosen at a glance. */
 /* The package view's row holds nothing but the controls, so they sit at the
    right edge where "expand all" has always been — and the row carries the
    spacing the heading used to, since it replaced one. */
@@ -764,33 +761,37 @@ footer {
   margin-left: auto;
 }
 
+/* The system picker, sharing a line with "expand all". A select because the
+   list grows by one with every system backfilled. */
 .syspick {
   display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  overflow: hidden;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.syspick button {
-  border: 0;
-  background: none;
+/* Without the label, "aarch64-darwin" beside "expand all" reads as a fact
+   about the page rather than as something to change. */
+.syspick-label {
   color: var(--muted);
-  font: inherit;
   font-size: 0.8rem;
-  padding: 0.15rem 0.5rem;
-  cursor: pointer;
-  /* "x86_64-linux" breaks after the hyphen given half a chance, which makes
-     the control twice as tall as everything beside it. */
+  /* "store paths for" breaking across two lines doubles the height of the
+     whole controls row. */
   white-space: nowrap;
 }
 
-.syspick button:hover {
+.syspick select {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
   color: var(--fg);
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+  cursor: pointer;
 }
 
-.syspick .syspick-on {
-  background: var(--code-bg);
-  color: var(--fg);
+.syspick select:hover {
+  border-color: var(--muted);
 }
 
 .bulk {
@@ -828,16 +829,17 @@ footer {
     padding: 0.75rem;
   }
 
-  /* A segmented control across the width: two system names beside each other
-     leave each button too narrow for a comfortable tap otherwise. */
+  /* The select takes what the label leaves, so the system name is never what
+     gets truncated and the tap target is the rest of the line. */
   .bulkline-controls {
     width: 100%;
   }
   .syspick {
     flex: 1;
   }
-  .syspick button {
+  .syspick select {
     flex: 1;
+    min-width: 0;
     padding: 0.35rem 0.5rem;
   }
 

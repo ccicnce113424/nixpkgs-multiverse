@@ -3,11 +3,12 @@
 # the cache remembering a path and the cache still serving its bytes are
 # different claims, and the census re-earns both every week.
 #
-# ~240k digests at the crawler's polite pace fits well inside an hour or two;
-# the 6 h job limit leaves an order of magnitude of headroom. Results publish
-# to the rolling release (they are observations with a timestamp, stale by
-# nature), and newly dead digests are appended to the crawl graph so the next
-# hourly consolidation marks them dead in the pinned artifacts too.
+# ~600k distinct digests across the three published systems, at the 610/s
+# measured below: under twenty minutes against this job's five-hour ceiling.
+# Results publish to the rolling release (they are observations with a
+# timestamp, stale by nature), and newly dead digests are appended to the crawl
+# graph so the next hourly consolidation marks them dead in the pinned
+# artifacts too.
 name: census
 
 on:
@@ -43,7 +44,9 @@ jobs:
       # Every system's artifacts, because the census is about digests and a
       # digest is a digest whichever system evaluated it — but an aarch64 path
       # dying is exactly as interesting as an x86_64 one, and only the seeds
-      # decide which get looked at.
+      # decide which get looked at. The glob keeps that true without edits:
+      # restore-outpaths-state.sh names the files from data-pins.json, so a
+      # system joins the census by being published.
       #
       # 128 threads rather than the tool's 32. This is latency-bound work and
       # nothing throttles it: measured over disjoint cold samples, 32 threads
