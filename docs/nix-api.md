@@ -237,6 +237,56 @@ $ mvs run hello@2.12.2
 Hello, world!
 ```
 
+### Shebang support
+
+Nix's shebang support works perflectly well with the multiverse
+except for some tricky back-ticks.
+
+```bash
+#!/usr/bin/env nix
+#! nix shell nixpkgs#bash
+#! nix ``github:fzakaria/nixpkgs-multiverse#fast.versions.python3."3.8.9".out``
+#! nix ``github:fzakaria/nixpkgs-multiverse#fast.versions.jq."1.6".bin``
+#! nix --command bash
+
+# Python 3.8.9
+python3 --version
+# jq-1.6
+jq --version
+```
+
+You must observe through three rules, each of which is a silent failure when broken:
+
+- **Double backticks around the whole installable.** A version string needs
+  quotes in an attrpath, and Nix's shebang lexer refuses a bare `"` — see [the note in its manual](https://nix.dev/manual/nix/latest/command-ref/new-cli/nix3-shell.html).
+  Backticking only the version splits it into two installables instead. `fast.latest.hello.out` carries no version and needs none of this.
+- **Name the right output.** `jq."1.6".out` is an empty stub; the binary is in `.bin`. Get it wrong and the ambient `jq` answers instead, with no error.
+- **`--command` is not optional**, and it is what makes the reader's login shell irrelevant. Omit it and Nix reads the script path as one more installable.
+
+Unfortunately, `nix-shell` cannot express any of this on the `#!` line since the parser splits on whitespace and strips quotes, so `hello."2.12.2"` is read as `hello.2.12.2`.
+
+Point it at a file instead:
+
+```nix
+# deps.nix
+let
+  mv = import (builtins.fetchTarball
+    "https://github.com/fzakaria/nixpkgs-multiverse/archive/main.tar.gz") { };
+  pkgs = import <nixpkgs> { };
+in
+pkgs.mkShell {
+  packages = [
+    mv.fast.versions.python3."3.8.9"
+    mv.fast.versions.jq."1.6"
+  ];
+}
+```
+
+```bash
+#!/usr/bin/env nix-shell
+#! nix-shell deps.nix -i bash
+```
+
 ### Attributes with no fast path
 
 Not every attribute has a store path to substitute, so it is ineligible for the fast path
